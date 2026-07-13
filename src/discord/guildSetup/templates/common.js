@@ -101,7 +101,6 @@ function getChannelBlueprint(roleIds) {
       ],
       channels: [
         { key: 'annonces', name: 'annonces', type: ChannelType.GuildText, permissionOverwrites: readOnlyCommunity() },
-        { key: 'info', name: 'info', type: ChannelType.GuildText, permissionOverwrites: readOnlyCommunity() },
         { key: 'roles', name: 'rôles', type: ChannelType.GuildText, permissionOverwrites: readOnlyCommunity() },
         { key: 'liens', name: 'liens', type: ChannelType.GuildText, permissionOverwrites: readOnlyCommunity() },
         { key: 'general', name: 'général', type: ChannelType.GuildText, permissionOverwrites: writableCommunity() },
