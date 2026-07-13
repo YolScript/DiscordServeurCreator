@@ -3,13 +3,13 @@ main = "src/index.js"
 compatibility_date = "2025-01-01"
 
 kv_namespaces = [
-  { binding = "GUILD_KV", id = "REPLACE_AVEC_TON_NAMESPACE_ID" }
+  { binding = "GUILD_KV", id = "aeb9e5560f154dacbcd3e3cee5e9dad0" }
 ]
 
 [vars]
-DISCORD_CLIENT_ID = "REPLACE_AVEC_TON_CLIENT_ID"
-OAUTH_REDIRECT_URI = "https://REPLACE.workers.dev/auth/callback"
-FRONTEND_ORIGIN = "https://REPLACE.github.io"
+DISCORD_CLIENT_ID = "1526237674355036401"
+OAUTH_REDIRECT_URI = "https://discord-serveur-creator-worker.energiecraft-online.workers.dev/auth/callback"
+FRONTEND_ORIGIN = "https://yolscript.github.io"
 
 # Secrets a definir via `wrangler secret put <NOM>` (jamais dans ce fichier) :
 #   DISCORD_CLIENT_SECRET
