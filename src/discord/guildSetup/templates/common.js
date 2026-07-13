@@ -83,6 +83,13 @@ function getChannelBlueprint(roleIds) {
             { id: roleIds.moderateur, allow: [P.SendMessages] },
           ],
         },
+        {
+          key: 'arrivee-depart', name: 'arrivée-départ', type: ChannelType.GuildText,
+          permissionOverwrites: [
+            { id: roleIds.everyone, allow: [P.ViewChannel, P.ReadMessageHistory], deny: [P.SendMessages, P.AddReactions] },
+            { id: roleIds.moderateur, allow: [P.SendMessages] },
+          ],
+        },
       ],
     },
     {
@@ -98,7 +105,6 @@ function getChannelBlueprint(roleIds) {
         { key: 'roles', name: 'rôles', type: ChannelType.GuildText, permissionOverwrites: readOnlyCommunity() },
         { key: 'liens', name: 'liens', type: ChannelType.GuildText, permissionOverwrites: readOnlyCommunity() },
         { key: 'general', name: 'général', type: ChannelType.GuildText, permissionOverwrites: writableCommunity() },
-        { key: 'arrivee-depart', name: 'arrivée-départ', type: ChannelType.GuildText, permissionOverwrites: readOnlyCommunity() },
       ],
     },
     {
