@@ -1,0 +1,44 @@
+const { MessageFlags } = require('discord.js');
+const {
+  REGLEMENT_ACCEPT, AGE_PLUS16, AGE_MINUS16, GAME_SELECT_PREFIX, GAME_PSEUDO_MODAL_PREFIX, GAME_PSEUDO_BUTTON_PREFIX,
+} = require('./customIds');
+const handleReglementAccept = require('./buttons/reglementAccept');
+const handleAgeButton = require('./buttons/ageButtons');
+const handleGamePseudoButton = require('./buttons/gamePseudoButton');
+const handleGameRoleSelect = require('./selectMenus/gameRoleSelect');
+const handleGamePseudoModal = require('./modals/gamePseudoModal');
+const handleSetupCommand = require('../commands/setup');
+const logger = require('../../shared/logger');
+
+async function routeInteraction(interaction) {
+  try {
+    if (interaction.isChatInputCommand()) {
+      if (interaction.commandName === 'setup') await handleSetupCommand(interaction);
+      return;
+    }
+    if (interaction.isButton()) {
+      if (interaction.customId === REGLEMENT_ACCEPT) {
+        await handleReglementAccept(interaction);
+      } else if (interaction.customId === AGE_PLUS16 || interaction.customId === AGE_MINUS16) {
+        await handleAgeButton(interaction);
+      } else if (interaction.customId.startsWith(GAME_PSEUDO_BUTTON_PREFIX)) {
+        await handleGamePseudoButton(interaction);
+      }
+      return;
+    }
+    if (interaction.isStringSelectMenu() && interaction.customId.startsWith(GAME_SELECT_PREFIX)) {
+      await handleGameRoleSelect(interaction);
+      return;
+    }
+    if (interaction.isModalSubmit() && interaction.customId.startsWith(GAME_PSEUDO_MODAL_PREFIX)) {
+      await handleGamePseudoModal(interaction);
+    }
+  } catch (err) {
+    logger.error('Erreur lors du traitement d\'une interaction', err);
+    if (interaction.isRepliable() && !interaction.replied && !interaction.deferred) {
+      await interaction.reply({ content: 'Une erreur est survenue.', flags: MessageFlags.Ephemeral }).catch(() => {});
+    }
+  }
+}
+
+module.exports = { routeInteraction };
