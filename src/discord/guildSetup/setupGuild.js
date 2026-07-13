@@ -7,7 +7,6 @@ const { REGLEMENT_ACCEPT, AGE_PLUS16, AGE_MINUS16 } = require('../interactions/c
 const logger = require('../../shared/logger');
 
 class AlreadySetupError extends Error {}
-class InsufficientRoleHeadroomError extends Error {}
 
 async function setupGuild({ guild, templateKey, requestedByUserId, reglementText }) {
   const existing = await guildConfigStore.find(guild.id);
@@ -16,21 +15,15 @@ async function setupGuild({ guild, templateKey, requestedByUserId, reglementText
   }
 
   const template = getTemplate(templateKey);
-  const roleCount = template.ROLE_BLUEPRINT.length;
 
   // Le bot n'est plus owner (il a ete invite classiquement) : toute action de
   // gestion de roles reste bornee par la position de SON PROPRE role le plus
-  // haut (regle de hierarchie Discord, Administrator ne bypasse pas ca). On
-  // verifie qu'il y a assez de marge avant de commencer, plutot que d'echouer
-  // a mi-chemin avec une structure a moitie construite.
-  const botCeiling = guild.members.me.roles.highest.position;
-  if (botCeiling < roleCount + 1) {
-    throw new InsufficientRoleHeadroomError(
-      `Le role du bot est trop bas dans la hierarchie du serveur (position ${botCeiling}). ` +
-      `Va dans Parametres du serveur > Roles et fais glisser le role du bot au-dessus des ` +
-      `roles standards (au moins ${roleCount + 1} crans au-dessus de @everyone), puis relance /setup.`,
-    );
-  }
+  // haut (regle de hierarchie Discord, Administrator ne bypasse pas ca). Pas
+  // de verification de marge ici : Discord ne peut de toute facon jamais
+  // laisser le bot creer un role au-dessus de son propre role, donc le role
+  // du bot se retrouve mecaniquement pousse au-dessus de tout ce qu'il vient
+  // de creer. On recalcule sa position REELLE apres coup (ligne ~50) plutot
+  // que de deviner une marge avant meme que les roles existent.
 
   // Creation sequentielle de tous les roles de base (pas de Promise.all - rate limits).
   const roleObjects = {};
@@ -46,10 +39,13 @@ async function setupGuild({ guild, templateKey, requestedByUserId, reglementText
   }
 
   // Reordonnancement en un seul appel bulk (l'ordre a la creation n'est pas fiable).
-  // Les positions restent toujours strictement en-dessous de botCeiling : le bot
-  // ne peut jamais positionner un role au-dessus de son propre role le plus haut.
+  // On relit la position REELLE du role du bot maintenant que les 10 roles
+  // existent : Discord l'a forcement poussee au-dessus d'eux au fil des
+  // creations (impossible pour le bot de creer un role au-dessus de lui-meme).
+  await guild.members.fetch(guild.members.me.id);
+  const botCeiling = guild.members.me.roles.highest.position;
   const orderedKeys = template.ROLE_BLUEPRINT.map((r) => r.key).reverse(); // bas -> haut
-  const startPosition = botCeiling - orderedKeys.length;
+  const startPosition = Math.max(1, botCeiling - orderedKeys.length);
   await guild.roles.setPositions(
     orderedKeys.map((key, idx) => ({ role: roleObjects[key].id, position: startPosition + idx })),
   ).catch(async (err) => {
@@ -136,4 +132,4 @@ async function setupGuild({ guild, templateKey, requestedByUserId, reglementText
   return { guild, config };
 }
 
-module.exports = { setupGuild, AlreadySetupError, InsufficientRoleHeadroomError };
+module.exports = { setupGuild, AlreadySetupError };

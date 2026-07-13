@@ -1,5 +1,5 @@
 const { PermissionFlagsBits, MessageFlags } = require('discord.js');
-const { setupGuild, AlreadySetupError, InsufficientRoleHeadroomError } = require('../guildSetup/setupGuild');
+const { setupGuild, AlreadySetupError } = require('../guildSetup/setupGuild');
 const { TEMPLATES } = require('../guildSetup/templates');
 const logger = require('../../shared/logger');
 
@@ -22,7 +22,7 @@ async function handleSetupCommand(interaction) {
     });
     await interaction.editReply(`Serveur configure avec le template "${TEMPLATES[templateKey].label}" !`);
   } catch (err) {
-    if (err instanceof AlreadySetupError || err instanceof InsufficientRoleHeadroomError) {
+    if (err instanceof AlreadySetupError) {
       await interaction.editReply(err.message);
       return;
     }
