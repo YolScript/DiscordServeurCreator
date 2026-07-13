@@ -7,7 +7,8 @@ window.Api = (function api() {
     });
 
     if (res.status === 401) {
-      window.location.href = 'index.html';
+      const onIndex = /(^|\/)index\.html$/.test(window.location.pathname) || window.location.pathname.endsWith('/');
+      if (!onIndex) window.location.href = 'index.html';
       throw new Error('Non connecte.');
     }
 
