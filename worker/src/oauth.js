@@ -95,7 +95,8 @@ export async function refreshTokenIfNeeded(env, session) {
 }
 
 // Retourne {id, name, icon} pour les guildes ou l'utilisateur a la permission
-// Administrator (cache 30s en KV pour eviter de marteler l'API Discord).
+// Administrator (cache 60s en KV pour eviter de marteler l'API Discord — 60s
+// est le TTL minimum accepte par Cloudflare KV, en dessous ca renvoie 400).
 export async function getUserAdminGuilds(env, session) {
   const cacheKey = `admin_guilds:${session.userId}`;
   const cached = await env.GUILD_KV.get(cacheKey);
@@ -110,7 +111,7 @@ export async function getUserAdminGuilds(env, session) {
     .filter((g) => (BigInt(g.permissions) & 8n) === 8n) // 8 = Administrator
     .map((g) => ({ id: g.id, name: g.name, icon: g.icon }));
 
-  await env.GUILD_KV.put(cacheKey, JSON.stringify(adminGuilds), { expirationTtl: 30 });
+  await env.GUILD_KV.put(cacheKey, JSON.stringify(adminGuilds), { expirationTtl: 60 });
   return adminGuilds;
 }
 
