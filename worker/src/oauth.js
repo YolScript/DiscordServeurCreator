@@ -62,7 +62,7 @@ export async function handleCallback(request, env) {
   return new Response(null, {
     status: 302,
     headers: {
-      Location: env.FRONTEND_ORIGIN,
+      Location: env.FRONTEND_REDIRECT_URL,
       'Set-Cookie': sessionCookie(sessionId),
     },
   });

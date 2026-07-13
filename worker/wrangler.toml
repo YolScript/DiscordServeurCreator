@@ -10,6 +10,7 @@ kv_namespaces = [
 DISCORD_CLIENT_ID = "1526237674355036401"
 OAUTH_REDIRECT_URI = "https://discord-serveur-creator-worker.energiecraft-online.workers.dev/auth/callback"
 FRONTEND_ORIGIN = "https://yolscript.github.io"
+FRONTEND_REDIRECT_URL = "https://yolscript.github.io/DiscordServeurCreator/app.html"
 
 # Secrets a definir via `wrangler secret put <NOM>` (jamais dans ce fichier) :
 #   DISCORD_CLIENT_SECRET
