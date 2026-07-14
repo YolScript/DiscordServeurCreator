@@ -1,11 +1,13 @@
-const { ChannelType, PermissionFlagsBits: P, EmbedBuilder } = require('discord.js');
+const { ChannelType, EmbedBuilder } = require('discord.js');
 const guildConfigStore = require('../../kv/guildConfigStore');
 const { toSmallCaps } = require('../../shared/smallCaps');
+const { ensureStaffCategory, toggleOnlyOverwrites } = require('../roles/staffCategory');
 const logger = require('../../shared/logger');
 
 // Cree le salon #mod-logs a la demande (premiere action de moderation sur ce
-// serveur) plutot qu'a chaque /setup, pour rester compatible avec les
-// serveurs deja configures avant l'ajout de cette fonctionnalite.
+// serveur), range dans la categorie Staff : visible uniquement via le role
+// "Staff Actif" (bascule SERVICE STAFF), pas directement par le role
+// Moderateur/Administrateur.
 async function ensureModLogChannel(guild) {
   const config = await guildConfigStore.find(guild.id);
   if (config?.modLogChannelId) {
@@ -13,14 +15,13 @@ async function ensureModLogChannel(guild) {
     if (existing) return existing;
   }
 
-  const overwrites = [{ id: guild.roles.everyone.id, deny: [P.ViewChannel] }];
-  if (config?.moderateurRoleId) overwrites.push({ id: config.moderateurRoleId, allow: [P.ViewChannel, P.ReadMessageHistory] });
-  if (config?.adminRoleId) overwrites.push({ id: config.adminRoleId, allow: [P.ViewChannel, P.ReadMessageHistory] });
+  const { category, staffActifRoleId } = await ensureStaffCategory(guild);
 
   const channel = await guild.channels.create({
     name: toSmallCaps('mod-logs'),
     type: ChannelType.GuildText,
-    permissionOverwrites: overwrites,
+    parent: category.id,
+    permissionOverwrites: toggleOnlyOverwrites(guild, staffActifRoleId),
   });
 
   await guildConfigStore.upsert(guild.id, { modLogChannelId: channel.id });
