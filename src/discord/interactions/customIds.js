@@ -11,6 +11,8 @@ const GIVEAWAY_ENTER_PREFIX = 'giveaway_enter:';
 const CAPTCHA_OK = 'captcha_ok';
 const CAPTCHA_NO = 'captcha_no';
 const TICKET_OPEN = 'ticket_open';
+const POLL_CREATE_OPEN = 'poll_create_open';
+const POLL_CREATE_MODAL = 'poll_create_modal';
 
 const buildGameSelectId = (pageIndex) => `${GAME_SELECT_PREFIX}${pageIndex}`;
 const buildGamePseudoModalId = (gameRoleId) => `${GAME_PSEUDO_MODAL_PREFIX}${gameRoleId}`;
@@ -31,6 +33,8 @@ module.exports = {
   CAPTCHA_OK,
   CAPTCHA_NO,
   TICKET_OPEN,
+  POLL_CREATE_OPEN,
+  POLL_CREATE_MODAL,
   buildGameSelectId,
   buildGamePseudoModalId,
   buildGamePseudoButtonId,

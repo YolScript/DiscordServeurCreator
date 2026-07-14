@@ -2,11 +2,13 @@ const { MessageFlags } = require('discord.js');
 const {
   REGLEMENT_ACCEPT, REGLEMENT_TRANSLATE, AGE_PLUS16, AGE_MINUS16,
   GAME_SELECT_PREFIX, GAME_PSEUDO_MODAL_PREFIX, GAME_PSEUDO_BUTTON_PREFIX, POLL_VOTE_PREFIX, GIVEAWAY_ENTER_PREFIX,
-  CAPTCHA_OK, CAPTCHA_NO, TICKET_OPEN,
+  CAPTCHA_OK, CAPTCHA_NO, TICKET_OPEN, POLL_CREATE_OPEN, POLL_CREATE_MODAL,
 } = require('./customIds');
 const pollManager = require('../engagement/pollManager');
 const giveawayManager = require('../engagement/giveawayManager');
 const { createTicket, closeTicket, TICKET_CLOSE_ID } = require('../support/ticketManager');
+const handlePollCreateButton = require('./buttons/pollCreateButton');
+const handlePollCreateModal = require('./modals/pollCreateModal');
 const { handleReglementAccept, handleCaptchaResult } = require('./buttons/reglementAccept');
 const { handleReglementTranslate, handleReglementTranslateSelect } = require('./buttons/reglementTranslate');
 const handleAgeButton = require('./buttons/ageButtons');
@@ -38,6 +40,7 @@ const handleReferralroleCommand = require('../commands/referralrole');
 const handleBadgesCommand = require('../commands/badges');
 const handleTicketCommand = require('../commands/ticket');
 const handleTicketPanelCommand = require('../commands/ticketPanel');
+const handlePollPanelCommand = require('../commands/pollPanel');
 const logger = require('../../shared/logger');
 
 const commandHandlers = {
@@ -66,6 +69,7 @@ const commandHandlers = {
   badges: handleBadgesCommand,
   ticket: handleTicketCommand,
   'ticket-panel': handleTicketPanelCommand,
+  'poll-panel': handlePollPanelCommand,
 };
 
 async function routeInteraction(interaction) {
@@ -100,6 +104,8 @@ async function routeInteraction(interaction) {
         await interaction.editReply(alreadyOpen
           ? `Tu as deja un ticket ouvert : <#${channel.id}>`
           : `Ticket cree : <#${channel.id}>`);
+      } else if (interaction.customId === POLL_CREATE_OPEN) {
+        await handlePollCreateButton(interaction);
       } else if (interaction.customId === CAPTCHA_OK) {
         await handleCaptchaResult(interaction, true);
       } else if (interaction.customId === CAPTCHA_NO) {
@@ -117,6 +123,10 @@ async function routeInteraction(interaction) {
     }
     if (interaction.isModalSubmit() && interaction.customId.startsWith(GAME_PSEUDO_MODAL_PREFIX)) {
       await handleGamePseudoModal(interaction);
+      return;
+    }
+    if (interaction.isModalSubmit() && interaction.customId === POLL_CREATE_MODAL) {
+      await handlePollCreateModal(interaction);
     }
   } catch (err) {
     logger.error('Erreur lors du traitement d\'une interaction', err);

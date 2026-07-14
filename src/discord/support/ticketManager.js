@@ -5,6 +5,7 @@ const guildConfigStore = require('../../kv/guildConfigStore');
 const ticketStore = require('../../kv/ticketStore');
 const { toSmallCaps } = require('../../shared/smallCaps');
 const { TICKET_OPEN } = require('../interactions/customIds');
+const { ensureStaffCategory, toggleOnlyOverwrites } = require('../roles/staffCategory');
 const logger = require('../../shared/logger');
 
 const TICKET_CLOSE_ID = 'ticket_close';
@@ -20,14 +21,31 @@ async function postTicketPanel(channel) {
   return channel.send({ embeds: [embed], components: [row] });
 }
 
+// Par defaut (config.ticketsStaffOnDutyOnly !== false), les tickets ne sont
+// visibles que par le staff actuellement "en service" (role Staff Actif,
+// bascule via le salon vocal SERVICE STAFF) plutot que par tout le staff en
+// permanence. Desactivable depuis le dashboard pour revenir a l'ancien
+// comportement (toujours visible par Moderateur/Administrateur).
+async function staffVisibilityOverwrites(guild, config) {
+  if (config?.ticketsStaffOnDutyOnly === false) {
+    const overwrites = [];
+    if (config?.moderateurRoleId) overwrites.push({ id: config.moderateurRoleId, allow: [P.ViewChannel, P.ReadMessageHistory, P.SendMessages] });
+    if (config?.adminRoleId) overwrites.push({ id: config.adminRoleId, allow: [P.ViewChannel, P.ReadMessageHistory, P.SendMessages] });
+    return overwrites;
+  }
+  const { staffActifRoleId } = await ensureStaffCategory(guild);
+  return toggleOnlyOverwrites(guild, staffActifRoleId, [P.SendMessages]).slice(1);
+}
+
 async function ensureTicketCategory(guild, config) {
   if (config?.ticketCategoryId) {
     const existing = await guild.channels.fetch(config.ticketCategoryId).catch(() => null);
     if (existing) return existing;
   }
-  const overwrites = [{ id: guild.roles.everyone.id, deny: [P.ViewChannel] }];
-  if (config?.moderateurRoleId) overwrites.push({ id: config.moderateurRoleId, allow: [P.ViewChannel, P.ReadMessageHistory, P.SendMessages] });
-  if (config?.adminRoleId) overwrites.push({ id: config.adminRoleId, allow: [P.ViewChannel, P.ReadMessageHistory, P.SendMessages] });
+  const overwrites = [
+    { id: guild.roles.everyone.id, deny: [P.ViewChannel] },
+    ...(await staffVisibilityOverwrites(guild, config)),
+  ];
 
   const category = await guild.channels.create({
     name: `🎫 ${toSmallCaps('Tickets')}`,
@@ -50,9 +68,8 @@ async function createTicket(guild, member) {
   const overwrites = [
     { id: guild.roles.everyone.id, deny: [P.ViewChannel] },
     { id: member.id, allow: [P.ViewChannel, P.ReadMessageHistory, P.SendMessages] },
+    ...(await staffVisibilityOverwrites(guild, config)),
   ];
-  if (config?.moderateurRoleId) overwrites.push({ id: config.moderateurRoleId, allow: [P.ViewChannel, P.ReadMessageHistory, P.SendMessages] });
-  if (config?.adminRoleId) overwrites.push({ id: config.adminRoleId, allow: [P.ViewChannel, P.ReadMessageHistory, P.SendMessages] });
 
   const channel = await guild.channels.create({
     name: toSmallCaps(`ticket-${member.user.username}`),

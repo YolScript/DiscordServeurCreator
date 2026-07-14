@@ -219,10 +219,17 @@ const ticketPanelCommand = new SlashCommandBuilder()
   .addChannelOption((o) => o.setName('salon').setDescription('Salon ou poster le panneau (defaut : ce salon)').addChannelTypes(ChannelType.GuildText).setRequired(false))
   .toJSON();
 
+const pollPanelCommand = new SlashCommandBuilder()
+  .setName('poll-panel')
+  .setDescription('Poste un panneau avec un bouton "Creer un sondage" dans un salon.')
+  .setDefaultMemberPermissions(PermissionFlagsBits.Administrator)
+  .addChannelOption((o) => o.setName('salon').setDescription('Salon ou poster le panneau (defaut : ce salon)').addChannelTypes(ChannelType.GuildText).setRequired(false))
+  .toJSON();
+
 module.exports = [
   setupCommand, warnCommand, warningsCommand, clearwarnsCommand, timeoutCommand, unlockCommand, automodCommand,
   scheduleAnnouncementCommand, scheduleEventCommand, scheduledListCommand, scheduledCancelCommand,
-  rankCommand, leaderboardCommand, levelroleCommand, pollCommand, giveawayCommand,
+  rankCommand, leaderboardCommand, levelroleCommand, pollCommand, pollPanelCommand, giveawayCommand,
   invitesCommand, referralroleCommand, badgesCommand, ticketCommand, ticketPanelCommand,
   reglementTranslationCommand, streamerLinkCommand, streamerUnlinkCommand, streamerListCommand,
 ];

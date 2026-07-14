@@ -752,10 +752,10 @@ async function renderPresetsPage(id) {
 async function renderAutomationsPage(id) {
   app.innerHTML = '<p class="muted">Chargement...</p>';
   const [
-    modConfig, roles, channels, levelRoles, referralRoles, referralCounts, streamers, scheduled, tickets,
+    modConfig, roles, channels, levelRoles, referralRoles, referralCounts, streamers, scheduled, tickets, config,
   ] = await Promise.all([
     Api.modConfig(id), Api.roles(id), Api.channels(id), Api.levelRoles(id), Api.referralRoles(id),
-    Api.referrals(id), Api.streamers(id), Api.scheduled(id), Api.tickets(id),
+    Api.referrals(id), Api.streamers(id), Api.scheduled(id), Api.tickets(id), Api.config(id),
   ]);
 
   const roleOptions = (selected) => roles.filter((r) => r.name !== '@everyone')
@@ -872,12 +872,31 @@ async function renderAutomationsPage(id) {
         </div>
       `)}
 
+      ${sectionHtml('Service (Staff en service)', `
+        <p class="muted">Le salon vocal SERVICE STAFF (categorie 🛡️ Staff) sert d'interrupteur : un membre du staff qui s'y connecte est immediatement deconnecte et bascule son statut "en service", qui revele la categorie Staff et peut restreindre la visibilite des tickets.</p>
+        <div class="dp-toggle-row">
+          <span>Tickets visibles uniquement par le staff actuellement en service</span>
+          <input type="checkbox" id="tickets-on-duty-only" ${config?.ticketsStaffOnDutyOnly === false ? '' : 'checked'} />
+        </div>
+        <p class="muted" style="margin-top:8px;">Si desactive, tous les Moderateurs/Administrateurs voient les tickets en permanence (ancien comportement). Ne s'applique qu'aux nouveaux tickets/categories crees apres le changement.</p>
+        <button class="btn" id="save-service-config" style="margin-top:8px;">Enregistrer</button>
+      `)}
+
       ${sectionHtml('Tickets', `
         <div id="tickets-list">${ticketRows}</div>
       `)}
     </div>
   `;
   wireSections(app);
+
+  document.getElementById('save-service-config').addEventListener('click', async () => {
+    try {
+      await Api.updateConfig(id, { ticketsStaffOnDutyOnly: document.getElementById('tickets-on-duty-only').checked });
+      showToast('Configuration du service enregistree.');
+    } catch (err) {
+      showToast(err.message, 'error');
+    }
+  });
 
   document.getElementById('save-modconfig').addEventListener('click', async () => {
     try {

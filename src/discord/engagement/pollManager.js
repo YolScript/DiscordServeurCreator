@@ -3,8 +3,19 @@ const {
 } = require('discord.js');
 const client = require('../client');
 const pollStore = require('../../kv/pollStore');
-const { buildPollVoteId } = require('../interactions/customIds');
+const { buildPollVoteId, POLL_CREATE_OPEN } = require('../interactions/customIds');
 const logger = require('../../shared/logger');
+
+async function postPollPanel(channel) {
+  const embed = new EmbedBuilder()
+    .setTitle('📊 Sondages')
+    .setDescription('Clique sur le bouton ci-dessous pour creer ton propre sondage (question + jusqu\'a 5 options), sans limite de temps.')
+    .setColor(0x5b8def);
+  const row = new ActionRowBuilder().addComponents(
+    new ButtonBuilder().setCustomId(POLL_CREATE_OPEN).setLabel('Creer un sondage').setEmoji('📊').setStyle(ButtonStyle.Primary),
+  );
+  return channel.send({ embeds: [embed], components: [row] });
+}
 
 const OPTION_STYLES = [ButtonStyle.Primary, ButtonStyle.Secondary, ButtonStyle.Success, ButtonStyle.Danger, ButtonStyle.Secondary];
 
@@ -80,5 +91,5 @@ function start() {
 }
 
 module.exports = {
-  buildPollEmbed, buildPollComponents, refreshPollMessage, handleVote, start,
+  buildPollEmbed, buildPollComponents, refreshPollMessage, handleVote, start, postPollPanel,
 };
