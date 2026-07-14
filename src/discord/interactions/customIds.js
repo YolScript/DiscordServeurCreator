@@ -8,6 +8,8 @@ const GAME_PSEUDO_MODAL_PREFIX = 'game_pseudo_modal:';
 const GAME_PSEUDO_BUTTON_PREFIX = 'game_pseudo_button:';
 const POLL_VOTE_PREFIX = 'poll_vote:';
 const GIVEAWAY_ENTER_PREFIX = 'giveaway_enter:';
+const CAPTCHA_OK = 'captcha_ok';
+const CAPTCHA_NO = 'captcha_no';
 
 const buildGameSelectId = (pageIndex) => `${GAME_SELECT_PREFIX}${pageIndex}`;
 const buildGamePseudoModalId = (gameRoleId) => `${GAME_PSEUDO_MODAL_PREFIX}${gameRoleId}`;
@@ -25,6 +27,8 @@ module.exports = {
   GAME_PSEUDO_BUTTON_PREFIX,
   POLL_VOTE_PREFIX,
   GIVEAWAY_ENTER_PREFIX,
+  CAPTCHA_OK,
+  CAPTCHA_NO,
   buildGameSelectId,
   buildGamePseudoModalId,
   buildGamePseudoButtonId,

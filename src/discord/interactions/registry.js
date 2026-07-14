@@ -2,11 +2,12 @@ const { MessageFlags } = require('discord.js');
 const {
   REGLEMENT_ACCEPT, REGLEMENT_TRANSLATE, AGE_PLUS16, AGE_MINUS16,
   GAME_SELECT_PREFIX, GAME_PSEUDO_MODAL_PREFIX, GAME_PSEUDO_BUTTON_PREFIX, POLL_VOTE_PREFIX, GIVEAWAY_ENTER_PREFIX,
+  CAPTCHA_OK, CAPTCHA_NO,
 } = require('./customIds');
 const pollManager = require('../engagement/pollManager');
 const giveawayManager = require('../engagement/giveawayManager');
 const { closeTicket, TICKET_CLOSE_ID } = require('../support/ticketManager');
-const handleReglementAccept = require('./buttons/reglementAccept');
+const { handleReglementAccept, handleCaptchaResult } = require('./buttons/reglementAccept');
 const { handleReglementTranslate, handleReglementTranslateSelect } = require('./buttons/reglementTranslate');
 const handleAgeButton = require('./buttons/ageButtons');
 const handleGamePseudoButton = require('./buttons/gamePseudoButton');
@@ -91,6 +92,10 @@ async function routeInteraction(interaction) {
         await interaction.reply({ content: 'Participation enregistree, bonne chance !', flags: MessageFlags.Ephemeral });
       } else if (interaction.customId === TICKET_CLOSE_ID) {
         await closeTicket(interaction);
+      } else if (interaction.customId === CAPTCHA_OK) {
+        await handleCaptchaResult(interaction, true);
+      } else if (interaction.customId === CAPTCHA_NO) {
+        await handleCaptchaResult(interaction, false);
       }
       return;
     }
