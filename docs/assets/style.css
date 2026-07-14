@@ -481,12 +481,19 @@ textarea { min-height: 90px; resize: vertical; font-family: ui-monospace, "SF Mo
 }
 .dp-add-channel:hover, .dp-add-category:hover { background: #35373c; color: #dcddde; }
 .dp-add-category { padding: 8px; margin-bottom: 6px; font-weight: 600; }
-.dp-picker { display: flex; flex-wrap: wrap; gap: 6px; padding: 6px 8px 10px; }
-.dp-picker-chip {
-  background: #232428; border: 1px solid #3a3c41; color: #dcddde; font-size: 0.76rem;
-  padding: 4px 9px; border-radius: 999px; cursor: pointer; font-family: inherit;
+
+.dp-custom-form { display: flex; flex-wrap: wrap; gap: 6px; padding: 6px 8px 10px; }
+.dp-custom-form .dp-custom-name {
+  flex: 1; min-width: 100px; background: #1e1f22; border: 1px solid #3a3c41; color: #dcddde;
+  border-radius: 4px; padding: 5px 8px; font-size: 0.8rem; font-family: inherit;
 }
-.dp-picker-chip:hover { background: #3a3c41; }
+.dp-custom-form .dp-custom-type {
+  background: #1e1f22; border: 1px solid #3a3c41; color: #dcddde;
+  border-radius: 4px; padding: 5px 6px; font-size: 0.8rem; font-family: inherit;
+}
+.dp-custom-form .btn { font-size: 0.78rem; padding: 5px 10px; }
+
+.dp-channel[data-settings] .hash { opacity: 1; }
 
 @media (prefers-color-scheme: light) {
   :root {

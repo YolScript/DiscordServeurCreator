@@ -16,9 +16,7 @@ import {
 import {
   bulkEditPermissions, exportChannelPermissions, importChannelPermissions, resetRoleToDefault,
 } from './permissions.js';
-import {
-  CHANNEL_PRESETS, CATEGORY_PRESETS, createPresetChannel, createPresetCategory,
-} from './channelPresets.js';
+import { createCustomChannel, createCustomCategory } from './customChannels.js';
 import { GAME_ROLE_CATALOG, createGameRolePreset } from './gameRolePresets.js';
 import {
   buildSnapshot, restoreSnapshot, lockdownGuild, unlockGuild, pushSnapshot, getSnapshots,
@@ -75,14 +73,6 @@ async function router(request, env) {
   if (method === 'GET' && url.pathname === '/api/me') {
     const session = await requireSession(env, request);
     return json({ userId: session.userId, username: session.username, avatar: session.avatar }, env);
-  }
-
-  if (method === 'GET' && url.pathname === '/api/channel-presets') {
-    return json(CHANNEL_PRESETS, env);
-  }
-
-  if (method === 'GET' && url.pathname === '/api/category-presets') {
-    return json(CATEGORY_PRESETS, env);
   }
 
   if (method === 'GET' && url.pathname === '/api/game-role-catalog') {
@@ -210,23 +200,23 @@ async function router(request, env) {
       return json({ ok: true }, env);
     }
 
-    if (sub === 'channels' && parts[4] === 'preset' && method === 'POST') {
+    if (sub === 'channels' && parts.length === 4 && method === 'POST') {
       await requireGuildAccess(env, request, guildId);
-      const { presetKey, categoryId } = await readJson(request);
+      const { name, type, categoryId } = await readJson(request);
       const config = (await getGuildConfig(env, guildId)) || {};
-      const channel = await createPresetChannel(env, guildId, config, presetKey, categoryId);
+      const channel = await createCustomChannel(env, guildId, config, { name, type, categoryId });
       return json(channel, env);
     }
 
-    if (sub === 'categories' && parts[4] === 'preset' && method === 'POST') {
+    if (sub === 'categories' && parts.length === 4 && method === 'POST') {
       await requireGuildAccess(env, request, guildId);
-      const { presetKey } = await readJson(request);
+      const { name } = await readJson(request);
       const config = (await getGuildConfig(env, guildId)) || {};
-      const result = await createPresetCategory(env, guildId, config, presetKey);
-      return json(result, env);
+      const category = await createCustomCategory(env, guildId, config, { name });
+      return json(category, env);
     }
 
-    if (sub === 'channels' && parts.length === 5 && parts[4] !== 'preset') {
+    if (sub === 'channels' && parts.length === 5) {
       await requireGuildAccess(env, request, guildId);
       const channelId = parts[4];
 

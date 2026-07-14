@@ -22,7 +22,6 @@ const NAV_GROUPS = [
     items: [
       { key: 'textes', label: 'Textes & Bienvenue' },
       { key: 'permissions', label: 'Permissions' },
-      { key: 'salons', label: 'Salons pregeneres' },
       { key: 'jeux', label: 'Roles de jeu' },
       { key: 'automatisations', label: 'Automatisations' },
       { key: 'securite', label: 'Securite' },
@@ -144,7 +143,6 @@ function wireNavItems(id) {
     textes: () => renderTextsPage(id),
     permissions: () => renderPermissionsPage(id),
     jeux: () => renderGameRolesPage(id),
-    salons: () => renderPresetsPage(id),
     automatisations: () => renderAutomationsPage(id),
     securite: () => renderSecurityPage(id),
   };
@@ -229,7 +227,7 @@ async function renderOverviewPage(id) {
           <button class="btn secondary" data-goto="textes">Textes &amp; Bienvenue</button>
           <button class="btn secondary" data-goto="permissions">Permissions</button>
           <button class="btn secondary" data-goto="jeux">Roles de jeu</button>
-          <button class="btn secondary" data-goto="salons">Salons pregeneres</button>
+          <button class="btn secondary" data-goto="automatisations">Automatisations</button>
         </div>
       </div>
     </div>
@@ -259,12 +257,30 @@ function isViewAllowed(channel, roleId) {
   return null;
 }
 
+const SETTINGS_PANELS = [
+  { key: 'textes', label: 'Textes & Bienvenue' },
+  { key: 'permissions', label: 'Permissions' },
+  { key: 'jeux', label: 'Roles de jeu' },
+  { key: 'automatisations', label: 'Automatisations' },
+  { key: 'securite', label: 'Securite' },
+];
+
+function customChannelFormHtml(catId) {
+  return `
+    <div class="dp-custom-form" data-form-for="${catId}" style="display:none;">
+      <input type="text" class="dp-custom-name" placeholder="Nom du salon" maxlength="80" />
+      <select class="dp-custom-type">
+        <option value="text">Texte</option>
+        <option value="voice">Vocal</option>
+      </select>
+      <button type="button" class="btn secondary dp-custom-create" data-cat="${catId}">Creer</button>
+    </div>`;
+}
+
 async function renderPreviewPage(id) {
   app.innerHTML = '<p class="muted">Chargement...</p>';
   const guild = allGuilds.find((g) => g.guildId === id);
-  const [channels, config, channelPresets, categoryPresets] = await Promise.all([
-    Api.channels(id), Api.config(id), Api.channelPresets(), Api.categoryPresets(),
-  ]);
+  const [channels, config] = await Promise.all([Api.channels(id), Api.config(id)]);
 
   const categories = channels.filter((c) => c.type === 4).sort((a, b) => a.position - b.position);
   const uncategorized = channels.filter((c) => c.type !== 4 && !c.parent_id);
@@ -275,11 +291,6 @@ async function renderPreviewPage(id) {
       <span class="hash">${channelIcon(c)}</span> ${escapeHtml(c.name)}
     </div>`;
 
-  const channelPickerHtml = (catId) => `
-    <div class="dp-picker" data-picker-for="${catId}" style="display:none;">
-      ${channelPresets.map((p) => `<button type="button" class="dp-picker-chip" data-preset="${p.key}" data-cat="${catId}" title="${escapeHtml(p.description)}">+ ${escapeHtml(p.name)}</button>`).join('')}
-    </div>`;
-
   const categoryBlock = (cat) => {
     const children = channels.filter((c) => c.parent_id === cat.id).sort((a, b) => a.position - b.position);
     return `
@@ -287,7 +298,7 @@ async function renderPreviewPage(id) {
       <div class="dp-channels">
         ${children.map(channelRow).join('')}
         <button type="button" class="dp-add-channel" data-add-cat="${cat.id}">+ Ajouter un salon</button>
-        ${channelPickerHtml(cat.id)}
+        ${customChannelFormHtml(cat.id)}
       </div>
     `;
   };
@@ -306,11 +317,18 @@ async function renderPreviewPage(id) {
             <span class="caret">▾</span>
           </div>
           <div class="dp-channel-list">
+            <div class="dp-category" data-cat="__settings"><span class="chevron">▾</span> Parametres</div>
+            <div class="dp-channels">
+              ${SETTINGS_PANELS.map((p) => `<div class="dp-channel" data-settings="${p.key}"><span class="hash">⚙</span> ${escapeHtml(p.label)}</div>`).join('')}
+            </div>
             <button type="button" class="dp-add-category" id="dp-add-cat-btn">+ Nouvelle categorie</button>
-            <div class="dp-picker" id="dp-cat-picker" style="display:none;">
-              ${categoryPresets.map((p) => `<button type="button" class="dp-picker-chip" data-cat-preset="${p.key}" title="${escapeHtml(p.description)}">📁 ${escapeHtml(p.name)}</button>`).join('')}
+            <div class="dp-custom-form" data-form-for="__category" style="display:none;">
+              <input type="text" class="dp-custom-name" id="dp-new-cat-name" placeholder="Nom de la categorie" maxlength="80" />
+              <button type="button" class="btn secondary" id="dp-create-cat-btn">Creer</button>
             </div>
             ${uncategorized.map(channelRow).join('')}
+            <button type="button" class="dp-add-channel" data-add-cat="">+ Ajouter un salon</button>
+            ${customChannelFormHtml('')}
             ${categories.map(categoryBlock).join('')}
           </div>
         </div>
@@ -318,7 +336,7 @@ async function renderPreviewPage(id) {
           <div class="dp-welcome">
             <div class="dp-welcome-icon">${guildIcon ? `<img src="${guildIcon}" alt="" />` : escapeHtml(initials(guild?.name))}</div>
             <h3>${escapeHtml(guild?.name || 'Ton serveur')}</h3>
-            <p>Selectionne un salon a gauche pour le renommer, changer sa visibilite ou le supprimer.</p>
+            <p>Selectionne un salon ou un parametre a gauche pour le configurer.</p>
           </div>
         </div>
       </div>
@@ -342,7 +360,7 @@ async function renderPreviewPage(id) {
     catEl.addEventListener('click', () => catEl.classList.toggle('collapsed'));
   });
 
-  app.querySelectorAll('.dp-channel').forEach((chEl) => {
+  app.querySelectorAll('.dp-channel[data-channel]').forEach((chEl) => {
     chEl.addEventListener('click', () => {
       app.querySelectorAll('.dp-channel').forEach((el) => el.classList.remove('selected'));
       chEl.classList.add('selected');
@@ -350,41 +368,70 @@ async function renderPreviewPage(id) {
     });
   });
 
-  document.getElementById('dp-add-cat-btn').addEventListener('click', () => {
-    const picker = document.getElementById('dp-cat-picker');
-    picker.style.display = picker.style.display === 'none' ? 'flex' : 'none';
+  app.querySelectorAll('.dp-channel[data-settings]').forEach((el) => {
+    el.addEventListener('click', () => {
+      app.querySelectorAll('.dp-channel').forEach((e) => e.classList.remove('selected'));
+      el.classList.add('selected');
+      renderSettingsPanel(id, el.dataset.settings);
+    });
   });
 
-  app.querySelectorAll('[data-cat-preset]').forEach((chip) => {
-    chip.addEventListener('click', async () => {
-      try {
-        await Api.addPresetCategory(id, chip.dataset.catPreset);
-        showToast('Categorie ajoutee.');
-        await renderPreviewPage(id);
-      } catch (err) {
-        showToast(err.message, 'error');
-      }
-    });
+  document.getElementById('dp-add-cat-btn').addEventListener('click', () => {
+    const form = app.querySelector('.dp-custom-form[data-form-for="__category"]');
+    form.style.display = form.style.display === 'none' ? 'flex' : 'none';
+  });
+  document.getElementById('dp-create-cat-btn').addEventListener('click', async () => {
+    const name = document.getElementById('dp-new-cat-name').value.trim();
+    if (!name) { showToast('Nom requis.', 'error'); return; }
+    try {
+      await Api.createCategory(id, name);
+      showToast('Categorie creee.');
+      await renderPreviewPage(id);
+    } catch (err) {
+      showToast(err.message, 'error');
+    }
   });
 
   app.querySelectorAll('.dp-add-channel').forEach((btn) => {
     btn.addEventListener('click', () => {
-      const picker = app.querySelector(`.dp-picker[data-picker-for="${btn.dataset.addCat}"]`);
-      if (picker) picker.style.display = picker.style.display === 'none' ? 'flex' : 'none';
+      const form = app.querySelector(`.dp-custom-form[data-form-for="${btn.dataset.addCat}"]`);
+      if (form) form.style.display = form.style.display === 'none' ? 'flex' : 'none';
     });
   });
 
-  app.querySelectorAll('.dp-picker[data-picker-for] [data-preset]').forEach((chip) => {
-    chip.addEventListener('click', async () => {
+  app.querySelectorAll('.dp-custom-create').forEach((btn) => {
+    btn.addEventListener('click', async () => {
+      const form = btn.closest('.dp-custom-form');
+      const name = form.querySelector('.dp-custom-name').value.trim();
+      const type = form.querySelector('.dp-custom-type').value;
+      if (!name) { showToast('Nom requis.', 'error'); return; }
       try {
-        await Api.addPresetChannel(id, chip.dataset.preset, chip.dataset.cat);
-        showToast('Salon ajoute.');
+        await Api.createChannel(id, name, type, btn.dataset.cat || undefined);
+        showToast('Salon cree.');
         await renderPreviewPage(id);
       } catch (err) {
         showToast(err.message, 'error');
       }
     });
   });
+}
+
+function renderSettingsPanel(guildId, key) {
+  const main = document.getElementById('dp-main');
+  const panel = SETTINGS_PANELS.find((p) => p.key === key);
+  main.innerHTML = `
+    <div class="dp-channel-header"><span class="hash">⚙</span> ${escapeHtml(panel?.label || key)}</div>
+    <div class="dp-main-body" id="dp-settings-body"></div>
+  `;
+  const body = document.getElementById('dp-settings-body');
+  const renderers = {
+    textes: () => renderTextsPage(guildId, body),
+    permissions: () => renderPermissionsPage(guildId, body),
+    jeux: () => renderGameRolesPage(guildId, body),
+    automatisations: () => renderAutomationsPage(guildId, body),
+    securite: () => renderSecurityPage(guildId, body),
+  };
+  renderers[key]?.();
 }
 
 function renderChannelPanel(guildId, channelId, name, type, config, channels) {
@@ -457,13 +504,13 @@ function renderChannelPanel(guildId, channelId, name, type, config, channels) {
 
 /* ---------- Pages: textes ---------- */
 
-async function renderTextsPage(id) {
-  app.innerHTML = '<p class="muted">Chargement...</p>';
+async function renderTextsPage(id, container = app) {
+  container.innerHTML = '<p class="muted">Chargement...</p>';
   const [config, channels] = await Promise.all([Api.config(id), Api.channels(id)]);
   const textChannels = channels.filter((c) => c.type === 0);
   const channelOptions = textChannels.map((c) => `<option value="${c.id}" ${config?.arrivalDepartureChannelId === c.id ? 'selected' : ''}>#${escapeHtml(c.name)}</option>`).join('');
 
-  app.innerHTML = `
+  container.innerHTML = `
     <div class="inner">
       ${sectionHtml('Reglement', `
         <textarea id="reglementText">${escapeHtml(config?.reglementText)}</textarea>
@@ -484,7 +531,7 @@ async function renderTextsPage(id) {
       <button class="btn" id="save-texts">Enregistrer</button>
     </div>
   `;
-  wireSections(app);
+  wireSections(container);
 
   document.getElementById('save-texts').addEventListener('click', async () => {
     try {
@@ -504,8 +551,8 @@ async function renderTextsPage(id) {
 
 /* ---------- Pages: permissions ---------- */
 
-async function renderPermissionsPage(id) {
-  app.innerHTML = '<p class="muted">Chargement...</p>';
+async function renderPermissionsPage(id, container = app) {
+  container.innerHTML = '<p class="muted">Chargement...</p>';
   const [channels, roles] = await Promise.all([Api.channels(id), Api.roles(id)]);
   const editableChannels = channels.filter((c) => c.type === 0 || c.type === 2 || c.type === 4);
   const roleOptions = roles.filter((r) => r.name !== '@everyone').map((r) => `<option value="${r.id}">${escapeHtml(r.name)}</option>`).join('');
@@ -516,7 +563,7 @@ async function renderPermissionsPage(id) {
   const denyChecks = PERMISSION_CHOICES.map((p) => `<label><input type="checkbox" class="deny-perm" value="${p}" /> ${p}</label>`).join('');
   const channelOptionsSimple = editableChannels.map((c) => `<option value="${c.id}">#${escapeHtml(c.name)}</option>`).join('');
 
-  app.innerHTML = `
+  container.innerHTML = `
     <div class="inner">
       ${sectionHtml('Edition en masse', `
         <p class="muted">Selectionne un ou plusieurs salons, un role, et les permissions a autoriser/refuser. Applique en un clic sur tous les salons choisis.</p>
@@ -553,13 +600,13 @@ async function renderPermissionsPage(id) {
       `)}
     </div>
   `;
-  wireSections(app);
+  wireSections(container);
 
   document.getElementById('apply-bulk').addEventListener('click', async () => {
-    const channelIds = [...app.querySelectorAll('.perm-channel:checked')].map((el) => el.value);
+    const channelIds = [...container.querySelectorAll('.perm-channel:checked')].map((el) => el.value);
     const roleId = document.getElementById('perm-role').value;
-    const allow = [...app.querySelectorAll('.allow-perm:checked')].map((el) => el.value);
-    const deny = [...app.querySelectorAll('.deny-perm:checked')].map((el) => el.value);
+    const allow = [...container.querySelectorAll('.allow-perm:checked')].map((el) => el.value);
+    const deny = [...container.querySelectorAll('.deny-perm:checked')].map((el) => el.value);
     if (channelIds.length === 0 || !roleId) {
       showToast('Choisis au moins un salon et un role.', 'error');
       return;
@@ -613,8 +660,8 @@ async function renderPermissionsPage(id) {
 
 /* ---------- Pages: roles de jeu ---------- */
 
-async function renderGameRolesPage(id) {
-  app.innerHTML = '<p class="muted">Chargement...</p>';
+async function renderGameRolesPage(id, container = app) {
+  container.innerHTML = '<p class="muted">Chargement...</p>';
   const [roles, catalog] = await Promise.all([Api.gameRoles(id), Api.gameRoleCatalog()]);
 
   const rows = roles.map((r) => `
@@ -640,7 +687,7 @@ async function renderGameRolesPage(id) {
     </div>
   `).join('') || '<p class="muted">Tous les jeux du catalogue sont deja ajoutes.</p>';
 
-  app.innerHTML = `
+  container.innerHTML = `
     <div class="inner">
       ${sectionHtml('Catalogue de jeux pregeneres', `
         <p class="muted">Ajoute un role de jeu sans attendre qu'un membre soit detecte en train d'y jouer.</p>
@@ -652,21 +699,21 @@ async function renderGameRolesPage(id) {
       `, { open: true })}
     </div>
   `;
-  wireSections(app);
+  wireSections(container);
 
-  app.querySelectorAll('.game-preset-chip').forEach((chip) => {
+  container.querySelectorAll('.game-preset-chip').forEach((chip) => {
     chip.addEventListener('click', async () => {
       try {
         await Api.addPresetGameRole(id, chip.dataset.key);
         showToast('Role de jeu ajoute.');
-        await renderGameRolesPage(id);
+        await renderGameRolesPage(id, container);
       } catch (err) {
         showToast(err.message, 'error');
       }
     });
   });
 
-  app.querySelectorAll('.rename-btn').forEach((btn) => {
+  container.querySelectorAll('.rename-btn').forEach((btn) => {
     btn.addEventListener('click', async () => {
       const row = btn.closest('.game-role-row');
       const roleId = row.dataset.roleId;
@@ -679,7 +726,7 @@ async function renderGameRolesPage(id) {
       }
     });
   });
-  app.querySelectorAll('.delete-btn').forEach((btn) => {
+  container.querySelectorAll('.delete-btn').forEach((btn) => {
     btn.addEventListener('click', async () => {
       const row = btn.closest('.game-role-row');
       const roleId = row.dataset.roleId;
@@ -695,62 +742,10 @@ async function renderGameRolesPage(id) {
   });
 }
 
-/* ---------- Pages: salons pregeneres ---------- */
-
-async function renderPresetsPage(id) {
-  app.innerHTML = '<p class="muted">Chargement...</p>';
-  const [presets, categoryPresets, channels] = await Promise.all([
-    Api.channelPresets(), Api.categoryPresets(), Api.channels(id),
-  ]);
-  const categories = channels.filter((c) => c.type === 4);
-  const categoryOptions = '<option value="">Aucune categorie</option>'
-    + categories.map((c) => `<option value="${c.id}">${escapeHtml(c.name)}</option>`).join('');
-  const chips = presets.map((p) => `<button class="preset-chip" data-key="${p.key}" title="${escapeHtml(p.description)}">+ ${escapeHtml(p.name)}</button>`).join('');
-  const categoryChips = categoryPresets.map((p) => `<button class="preset-chip category-preset-chip" data-key="${p.key}" title="${escapeHtml(p.description)}">📁 ${escapeHtml(p.name)}</button>`).join('');
-
-  app.innerHTML = `
-    <div class="inner">
-      ${sectionHtml('Categories pregenerees', `
-        <p class="muted">Cree une categorie complete avec ses salons en un clic.</p>
-        <div class="preset-grid" style="margin-top:12px;">${categoryChips}</div>
-      `, { open: true })}
-      ${sectionHtml('Salons pregeneres', `
-        <label>Categorie de destination</label>
-        <select id="preset-category">${categoryOptions}</select>
-        <div class="preset-grid" style="margin-top:12px;">${chips}</div>
-      `, { open: true })}
-    </div>
-  `;
-  wireSections(app);
-
-  app.querySelectorAll('.category-preset-chip').forEach((chip) => {
-    chip.addEventListener('click', async () => {
-      try {
-        await Api.addPresetCategory(id, chip.dataset.key);
-        showToast('Categorie ajoutee.');
-      } catch (err) {
-        showToast(err.message, 'error');
-      }
-    });
-  });
-
-  app.querySelectorAll('.preset-chip:not(.category-preset-chip)').forEach((chip) => {
-    chip.addEventListener('click', async () => {
-      const categoryId = document.getElementById('preset-category').value;
-      try {
-        await Api.addPresetChannel(id, chip.dataset.key, categoryId || undefined);
-        showToast('Salon ajoute.');
-      } catch (err) {
-        showToast(err.message, 'error');
-      }
-    });
-  });
-}
-
 /* ---------- Pages: automatisations ---------- */
 
-async function renderAutomationsPage(id) {
-  app.innerHTML = '<p class="muted">Chargement...</p>';
+async function renderAutomationsPage(id, container = app) {
+  container.innerHTML = '<p class="muted">Chargement...</p>';
   const [
     modConfig, roles, channels, levelRoles, referralRoles, referralCounts, streamers, scheduled, tickets, config,
   ] = await Promise.all([
@@ -810,7 +805,7 @@ async function renderAutomationsPage(id) {
     </div>
   `).join('') || '<p class="muted">Aucun ticket pour le moment.</p>';
 
-  app.innerHTML = `
+  container.innerHTML = `
     <div class="inner">
       ${sectionHtml('Auto-moderation', `
         <div class="dp-toggle-row"><span>Auto-moderation active</span><input type="checkbox" id="am-enabled" ${modConfig.autoModEnabled ? 'checked' : ''} /></div>
@@ -887,7 +882,7 @@ async function renderAutomationsPage(id) {
       `)}
     </div>
   `;
-  wireSections(app);
+  wireSections(container);
 
   document.getElementById('save-service-config').addEventListener('click', async () => {
     try {
@@ -922,17 +917,17 @@ async function renderAutomationsPage(id) {
     try {
       await Api.setLevelRole(id, level, roleId);
       showToast('Role de niveau ajoute.');
-      await renderAutomationsPage(id);
+      await renderAutomationsPage(id, container);
     } catch (err) {
       showToast(err.message, 'error');
     }
   });
-  app.querySelectorAll('.delete-level-role').forEach((btn) => {
+  container.querySelectorAll('.delete-level-role').forEach((btn) => {
     btn.addEventListener('click', async () => {
       try {
         await Api.deleteLevelRole(id, btn.dataset.level);
         showToast('Role de niveau supprime.');
-        await renderAutomationsPage(id);
+        await renderAutomationsPage(id, container);
       } catch (err) {
         showToast(err.message, 'error');
       }
@@ -946,17 +941,17 @@ async function renderAutomationsPage(id) {
     try {
       await Api.setReferralRole(id, count, roleId);
       showToast('Role de parrainage ajoute.');
-      await renderAutomationsPage(id);
+      await renderAutomationsPage(id, container);
     } catch (err) {
       showToast(err.message, 'error');
     }
   });
-  app.querySelectorAll('.delete-referral-role').forEach((btn) => {
+  container.querySelectorAll('.delete-referral-role').forEach((btn) => {
     btn.addEventListener('click', async () => {
       try {
         await Api.deleteReferralRole(id, btn.dataset.count);
         showToast('Role de parrainage supprime.');
-        await renderAutomationsPage(id);
+        await renderAutomationsPage(id, container);
       } catch (err) {
         showToast(err.message, 'error');
       }
@@ -971,17 +966,17 @@ async function renderAutomationsPage(id) {
     try {
       await Api.addStreamer(id, discordUserId, platform, identifier);
       showToast('Streamer lie.');
-      await renderAutomationsPage(id);
+      await renderAutomationsPage(id, container);
     } catch (err) {
       showToast(err.message, 'error');
     }
   });
-  app.querySelectorAll('.delete-streamer').forEach((btn) => {
+  container.querySelectorAll('.delete-streamer').forEach((btn) => {
     btn.addEventListener('click', async () => {
       try {
         await Api.deleteStreamer(id, btn.dataset.user, btn.dataset.platform);
         showToast('Streamer retire.');
-        await renderAutomationsPage(id);
+        await renderAutomationsPage(id, container);
       } catch (err) {
         showToast(err.message, 'error');
       }
@@ -996,30 +991,30 @@ async function renderAutomationsPage(id) {
     try {
       await Api.addScheduled(id, { channelId, message, runAt: new Date(dateVal).getTime() });
       showToast('Annonce programmee.');
-      await renderAutomationsPage(id);
+      await renderAutomationsPage(id, container);
     } catch (err) {
       showToast(err.message, 'error');
     }
   });
-  app.querySelectorAll('.delete-scheduled').forEach((btn) => {
+  container.querySelectorAll('.delete-scheduled').forEach((btn) => {
     btn.addEventListener('click', async () => {
       try {
         await Api.deleteScheduled(id, btn.dataset.id);
         showToast('Annonce supprimee.');
-        await renderAutomationsPage(id);
+        await renderAutomationsPage(id, container);
       } catch (err) {
         showToast(err.message, 'error');
       }
     });
   });
 
-  app.querySelectorAll('.close-ticket').forEach((btn) => {
+  container.querySelectorAll('.close-ticket').forEach((btn) => {
     btn.addEventListener('click', async () => {
       if (!window.confirm('Fermer ce ticket ? Le salon sera supprime.')) return;
       try {
         await Api.closeTicket(id, btn.dataset.id);
         showToast('Ticket ferme.');
-        await renderAutomationsPage(id);
+        await renderAutomationsPage(id, container);
       } catch (err) {
         showToast(err.message, 'error');
       }
@@ -1029,8 +1024,8 @@ async function renderAutomationsPage(id) {
 
 /* ---------- Pages: securite ---------- */
 
-async function renderSecurityPage(id) {
-  app.innerHTML = '<p class="muted">Chargement...</p>';
+async function renderSecurityPage(id, container = app) {
+  container.innerHTML = '<p class="muted">Chargement...</p>';
   const snapshots = await Api.securitySnapshots(id);
 
   const snapshotRows = snapshots.map((s, idx) => `
@@ -1040,7 +1035,7 @@ async function renderSecurityPage(id) {
     </div>
   `).join('') || '<p class="muted">Aucun snapshot pour le moment. Un snapshot automatique est pris chaque jour.</p>';
 
-  app.innerHTML = `
+  container.innerHTML = `
     <div class="inner">
       ${sectionHtml('Export / Restauration manuelle', `
         <p class="muted">Exporte la structure (noms/couleurs des roles, categories, salons) en JSON. La restauration est additive : elle recree uniquement ce qui manque, sans jamais toucher a l'existant.</p>
@@ -1066,7 +1061,7 @@ async function renderSecurityPage(id) {
       `)}
     </div>
   `;
-  wireSections(app);
+  wireSections(container);
 
   document.getElementById('export-structure').addEventListener('click', async () => {
     try {
@@ -1092,13 +1087,13 @@ async function renderSecurityPage(id) {
     try {
       await Api.securitySnapshotNow(id);
       showToast('Snapshot cree.');
-      await renderSecurityPage(id);
+      await renderSecurityPage(id, container);
     } catch (err) {
       showToast(err.message, 'error');
     }
   });
 
-  app.querySelectorAll('.restore-snapshot').forEach((btn) => {
+  container.querySelectorAll('.restore-snapshot').forEach((btn) => {
     btn.addEventListener('click', async () => {
       if (!window.confirm('Restaurer ce snapshot ? Les elements manquants seront recrees (rien ne sera supprime).')) return;
       try {
