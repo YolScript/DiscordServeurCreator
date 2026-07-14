@@ -1,6 +1,7 @@
 const { Events } = require('discord.js');
 const client = require('../client');
 const staffVoiceManager = require('../roles/staffVoiceManager');
+const scheduler = require('../automation/scheduler');
 const logger = require('../../shared/logger');
 
 client.once(Events.ClientReady, async (readyClient) => {
@@ -13,4 +14,6 @@ client.once(Events.ClientReady, async (readyClient) => {
     await guild.members.fetch().catch(() => {});
     await staffVoiceManager.syncHub(guild).catch((err) => logger.error('syncHub initial', err));
   }
+
+  scheduler.start();
 });

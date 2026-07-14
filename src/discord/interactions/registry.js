@@ -14,6 +14,10 @@ const handleClearwarnsCommand = require('../commands/clearwarns');
 const handleTimeoutCommand = require('../commands/timeout');
 const handleUnlockCommand = require('../commands/unlock');
 const handleAutomodCommand = require('../commands/automod');
+const handleScheduleAnnouncementCommand = require('../commands/scheduleAnnouncement');
+const handleScheduleEventCommand = require('../commands/scheduleEvent');
+const handleScheduledListCommand = require('../commands/scheduledList');
+const handleScheduledCancelCommand = require('../commands/scheduledCancel');
 const logger = require('../../shared/logger');
 
 const commandHandlers = {
@@ -24,6 +28,10 @@ const commandHandlers = {
   timeout: handleTimeoutCommand,
   unlock: handleUnlockCommand,
   automod: handleAutomodCommand,
+  'schedule-announcement': handleScheduleAnnouncementCommand,
+  'schedule-event': handleScheduleEventCommand,
+  'scheduled-list': handleScheduledListCommand,
+  'scheduled-cancel': handleScheduledCancelCommand,
 };
 
 async function routeInteraction(interaction) {

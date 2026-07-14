@@ -1,4 +1,4 @@
-const { SlashCommandBuilder, PermissionFlagsBits } = require('discord.js');
+const { SlashCommandBuilder, PermissionFlagsBits, ChannelType } = require('discord.js');
 const { TEMPLATES } = require('./guildSetup/templates');
 
 const setupCommand = new SlashCommandBuilder()
@@ -74,6 +74,40 @@ const automodCommand = new SlashCommandBuilder()
   .addSubcommand((s) => s.setName('status').setDescription('Affiche la config auto-mod actuelle'))
   .toJSON();
 
+const scheduleAnnouncementCommand = new SlashCommandBuilder()
+  .setName('schedule-announcement')
+  .setDescription('Programme une annonce (unique ou recurrente).')
+  .setDefaultMemberPermissions(PermissionFlagsBits.ManageGuild)
+  .addChannelOption((o) => o.setName('salon').setDescription('Salon de destination').addChannelTypes(ChannelType.GuildText).setRequired(true))
+  .addStringOption((o) => o.setName('message').setDescription('Contenu du message').setRequired(true))
+  .addIntegerOption((o) => o.setName('delai_minutes').setDescription('Dans combien de minutes').setRequired(true).setMinValue(1))
+  .addIntegerOption((o) => o.setName('repeter_minutes').setDescription('Repeter toutes les X minutes (optionnel)').setRequired(false).setMinValue(1))
+  .toJSON();
+
+const scheduleEventCommand = new SlashCommandBuilder()
+  .setName('schedule-event')
+  .setDescription('Programme un evenement avec rappel automatique.')
+  .setDefaultMemberPermissions(PermissionFlagsBits.ManageGuild)
+  .addChannelOption((o) => o.setName('salon').setDescription('Salon de destination').addChannelTypes(ChannelType.GuildText).setRequired(true))
+  .addStringOption((o) => o.setName('nom').setDescription('Nom de l\'evenement').setRequired(true))
+  .addIntegerOption((o) => o.setName('delai_minutes').setDescription('Dans combien de minutes commence l\'evenement').setRequired(true).setMinValue(1))
+  .addIntegerOption((o) => o.setName('rappel_minutes').setDescription('Rappel X minutes avant (optionnel)').setRequired(false).setMinValue(1))
+  .toJSON();
+
+const scheduledListCommand = new SlashCommandBuilder()
+  .setName('scheduled-list')
+  .setDescription('Liste les annonces/evenements programmes.')
+  .setDefaultMemberPermissions(PermissionFlagsBits.ManageGuild)
+  .toJSON();
+
+const scheduledCancelCommand = new SlashCommandBuilder()
+  .setName('scheduled-cancel')
+  .setDescription('Annule une annonce/evenement programme.')
+  .setDefaultMemberPermissions(PermissionFlagsBits.ManageGuild)
+  .addStringOption((o) => o.setName('id').setDescription('ID (voir /scheduled-list)').setRequired(true))
+  .toJSON();
+
 module.exports = [
   setupCommand, warnCommand, warningsCommand, clearwarnsCommand, timeoutCommand, unlockCommand, automodCommand,
+  scheduleAnnouncementCommand, scheduleEventCommand, scheduledListCommand, scheduledCancelCommand,
 ];
