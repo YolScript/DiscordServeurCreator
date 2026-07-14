@@ -42,6 +42,26 @@ function initials(name) {
   return (name || '?').trim().slice(0, 2).toUpperCase();
 }
 
+/* ---------- Collapsible sections ---------- */
+
+function sectionHtml(title, bodyHtml, { hint = '', open = false } = {}) {
+  return `
+    <div class="section${open ? '' : ' collapsed'}">
+      <button class="section-header" type="button">
+        <span>${escapeHtml(title)}${hint ? `<span class="section-hint">${escapeHtml(hint)}</span>` : ''}</span>
+        <span class="chevron">▾</span>
+      </button>
+      <div class="section-body">${bodyHtml}</div>
+    </div>
+  `;
+}
+
+function wireSections(container) {
+  container.querySelectorAll('.section-header').forEach((header) => {
+    header.addEventListener('click', () => header.closest('.section').classList.toggle('collapsed'));
+  });
+}
+
 /* ---------- Rail (guild switcher) ---------- */
 
 function renderRail() {
@@ -366,12 +386,10 @@ async function renderTextsPage(id) {
 
   app.innerHTML = `
     <div class="inner">
-      <div class="card">
-        <h2>Reglement</h2>
+      ${sectionHtml('Reglement', `
         <textarea id="reglementText">${escapeHtml(config?.reglementText)}</textarea>
-      </div>
-      <div class="card">
-        <h2>Integration Bienvenue / Depart</h2>
+      `)}
+      ${sectionHtml('Integration Bienvenue / Depart', `
         <label>Salon de destination</label>
         <select id="arrivalChannel">${channelOptions}</select>
         <label>Message de bienvenue</label>
@@ -379,10 +397,11 @@ async function renderTextsPage(id) {
         <label>Message de depart</label>
         <textarea id="leaveTemplate">${escapeHtml(config?.leaveMessageTemplate)}</textarea>
         <p class="muted">Variables disponibles : {user} {username} {server} {membercount}</p>
-      </div>
+      `)}
       <button class="btn" id="save-texts">Enregistrer</button>
     </div>
   `;
+  wireSections(app);
 
   document.getElementById('save-texts').addEventListener('click', async () => {
     try {
@@ -415,8 +434,7 @@ async function renderPermissionsPage(id) {
 
   app.innerHTML = `
     <div class="inner">
-      <div class="card">
-        <h2>Edition en masse</h2>
+      ${sectionHtml('Edition en masse', `
         <p class="muted">Selectionne un ou plusieurs salons, un role, et les permissions a autoriser/refuser. Applique en un clic sur tous les salons choisis.</p>
         <label>Salons</label>
         <div class="channel-picker">${channelCheckboxes}</div>
@@ -427,10 +445,9 @@ async function renderPermissionsPage(id) {
           <div style="flex:1"><strong>Refuser</strong><div class="channel-picker" style="max-height:180px">${denyChecks}</div></div>
         </div>
         <button class="btn" id="apply-bulk" style="margin-top:12px;">Appliquer</button>
-      </div>
+      `)}
 
-      <div class="card">
-        <h2>Export / Import (copier-coller)</h2>
+      ${sectionHtml('Export / Import (copier-coller)', `
         <label>Salon a exporter</label>
         <select id="export-channel">${channelOptionsSimple}</select>
         <button class="btn secondary" id="export-btn" style="margin-top:8px;">Exporter</button>
@@ -441,18 +458,18 @@ async function renderPermissionsPage(id) {
         <label>Salon cible</label>
         <select id="import-channel">${channelOptionsSimple}</select>
         <button class="btn secondary" id="import-btn" style="margin-top:8px;">Importer</button>
-      </div>
+      `)}
 
-      <div class="card">
-        <h2>Permissions par defaut</h2>
+      ${sectionHtml('Permissions par defaut', `
         <p class="muted">Reinitialise les permissions du role au preset recommande (utile si elles ont ete modifiees par erreur).</p>
         <div class="row">
           <button class="btn secondary" id="reset-admin">Reinitialiser Administrateur</button>
           <button class="btn secondary" id="reset-mod">Reinitialiser Moderateur</button>
         </div>
-      </div>
+      `)}
     </div>
   `;
+  wireSections(app);
 
   document.getElementById('apply-bulk').addEventListener('click', async () => {
     const channelIds = [...app.querySelectorAll('.perm-channel:checked')].map((el) => el.value);
@@ -531,13 +548,13 @@ async function renderGameRolesPage(id) {
 
   app.innerHTML = `
     <div class="inner">
-      <div class="card">
-        <h2>Roles de jeu detectes</h2>
+      ${sectionHtml('Roles de jeu detectes', `
         <p class="muted">Generes automatiquement quand un membre est vu en train de jouer.</p>
         ${rows || '<p class="muted">Aucun role de jeu pour le moment.</p>'}
-      </div>
+      `, { open: true })}
     </div>
   `;
+  wireSections(app);
 
   app.querySelectorAll('.rename-btn').forEach((btn) => {
     btn.addEventListener('click', async () => {
@@ -580,14 +597,14 @@ async function renderPresetsPage(id) {
 
   app.innerHTML = `
     <div class="inner">
-      <div class="card">
-        <h2>Salons pregeneres</h2>
+      ${sectionHtml('Salons pregeneres', `
         <label>Categorie de destination</label>
         <select id="preset-category">${categoryOptions}</select>
         <div class="preset-grid" style="margin-top:12px;">${chips}</div>
-      </div>
+      `, { open: true })}
     </div>
   `;
+  wireSections(app);
 
   app.querySelectorAll('.preset-chip').forEach((chip) => {
     chip.addEventListener('click', async () => {
