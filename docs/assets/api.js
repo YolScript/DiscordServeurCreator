@@ -71,6 +71,13 @@ window.Api = (function api() {
 
     tickets: (guildId) => request(`/api/guilds/${guildId}/tickets`),
     closeTicket: (guildId, ticketId) => request(`/api/guilds/${guildId}/tickets/${ticketId}/close`, { method: 'POST' }),
+
+    securityExport: (guildId) => request(`/api/guilds/${guildId}/security/export`),
+    securityRestore: (guildId, snapshot) => request(`/api/guilds/${guildId}/security/restore`, { method: 'POST', body: JSON.stringify(snapshot) }),
+    securitySnapshots: (guildId) => request(`/api/guilds/${guildId}/security/snapshots`),
+    securitySnapshotNow: (guildId) => request(`/api/guilds/${guildId}/security/snapshot`, { method: 'POST' }),
+    lockdown: (guildId) => request(`/api/guilds/${guildId}/security/lockdown`, { method: 'POST' }),
+    unlock: (guildId) => request(`/api/guilds/${guildId}/security/unlock`, { method: 'POST' }),
   };
 }());
 

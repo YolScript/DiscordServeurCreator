@@ -6,6 +6,11 @@ kv_namespaces = [
   { binding = "GUILD_KV", id = "aeb9e5560f154dacbcd3e3cee5e9dad0" }
 ]
 
+# Snapshot automatique quotidien de la structure (roles/salons) de chaque
+# serveur configure, garde les 5 derniers par serveur.
+[triggers]
+crons = ["0 4 * * *"]
+
 [vars]
 DISCORD_CLIENT_ID = "1526237674355036401"
 OAUTH_REDIRECT_URI = "https://discord-serveur-creator-worker.energiecraft-online.workers.dev/auth/callback"

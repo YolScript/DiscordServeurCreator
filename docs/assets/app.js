@@ -25,6 +25,7 @@ const NAV_GROUPS = [
       { key: 'salons', label: 'Salons pregeneres' },
       { key: 'jeux', label: 'Roles de jeu' },
       { key: 'automatisations', label: 'Automatisations' },
+      { key: 'securite', label: 'Securite' },
     ],
   },
 ];
@@ -145,6 +146,7 @@ function wireNavItems(id) {
     jeux: () => renderGameRolesPage(id),
     salons: () => renderPresetsPage(id),
     automatisations: () => renderAutomationsPage(id),
+    securite: () => renderSecurityPage(id),
   };
   sidebarEl.querySelectorAll('.nav-item').forEach((btn) => {
     btn.addEventListener('click', () => {
@@ -1003,6 +1005,109 @@ async function renderAutomationsPage(id) {
         showToast(err.message, 'error');
       }
     });
+  });
+}
+
+/* ---------- Pages: securite ---------- */
+
+async function renderSecurityPage(id) {
+  app.innerHTML = '<p class="muted">Chargement...</p>';
+  const snapshots = await Api.securitySnapshots(id);
+
+  const snapshotRows = snapshots.map((s, idx) => `
+    <div class="row" data-idx="${idx}" style="justify-content:space-between; margin-bottom:6px;">
+      <span>${new Date(s.exportedAt).toLocaleString('fr-FR')} — ${s.roles.length} role(s), ${s.categories.length} categorie(s), ${s.channels.length} salon(s)</span>
+      <button class="btn secondary restore-snapshot" data-idx="${idx}">Restaurer</button>
+    </div>
+  `).join('') || '<p class="muted">Aucun snapshot pour le moment. Un snapshot automatique est pris chaque jour.</p>';
+
+  app.innerHTML = `
+    <div class="inner">
+      ${sectionHtml('Export / Restauration manuelle', `
+        <p class="muted">Exporte la structure (noms/couleurs des roles, categories, salons) en JSON. La restauration est additive : elle recree uniquement ce qui manque, sans jamais toucher a l'existant.</p>
+        <button class="btn secondary" id="export-structure">Exporter la structure actuelle</button>
+        <textarea id="structure-output" placeholder="Le JSON exporte apparait ici, copie-le pour le sauvegarder."></textarea>
+        <label>Coller un JSON exporte pour restaurer</label>
+        <textarea id="structure-input" placeholder="Colle ici un JSON exporte precedemment"></textarea>
+        <button class="btn secondary" id="restore-structure" style="margin-top:8px;">Restaurer depuis ce JSON</button>
+      `)}
+
+      ${sectionHtml('Snapshots automatiques', `
+        <p class="muted">Un snapshot de la structure est pris automatiquement chaque jour (5 derniers conserves).</p>
+        <button class="btn secondary" id="snapshot-now" style="margin-bottom:10px;">Creer un snapshot maintenant</button>
+        <div id="snapshots-list">${snapshotRows}</div>
+      `)}
+
+      ${sectionHtml('Lockdown', `
+        <p class="muted">Verrouille immediatement le serveur (verification maximale : email verifie + compte Discord de plus de 10 minutes requis pour interagir). Utile en cas de raid en cours.</p>
+        <div class="row">
+          <button class="btn danger" id="lockdown-btn">Verrouiller le serveur</button>
+          <button class="btn secondary" id="unlock-btn">Deverrouiller</button>
+        </div>
+      `)}
+    </div>
+  `;
+  wireSections(app);
+
+  document.getElementById('export-structure').addEventListener('click', async () => {
+    try {
+      const snapshot = await Api.securityExport(id);
+      document.getElementById('structure-output').value = JSON.stringify(snapshot, null, 2);
+      showToast('Export pret, copie le contenu.');
+    } catch (err) {
+      showToast(err.message, 'error');
+    }
+  });
+
+  document.getElementById('restore-structure').addEventListener('click', async () => {
+    try {
+      const snapshot = JSON.parse(document.getElementById('structure-input').value);
+      const result = await Api.securityRestore(id, snapshot);
+      showToast(`Restaure : ${result.roles} role(s), ${result.categories} categorie(s), ${result.channels} salon(s) crees.`);
+    } catch (err) {
+      showToast(err.message || 'JSON invalide.', 'error');
+    }
+  });
+
+  document.getElementById('snapshot-now').addEventListener('click', async () => {
+    try {
+      await Api.securitySnapshotNow(id);
+      showToast('Snapshot cree.');
+      await renderSecurityPage(id);
+    } catch (err) {
+      showToast(err.message, 'error');
+    }
+  });
+
+  app.querySelectorAll('.restore-snapshot').forEach((btn) => {
+    btn.addEventListener('click', async () => {
+      if (!window.confirm('Restaurer ce snapshot ? Les elements manquants seront recrees (rien ne sera supprime).')) return;
+      try {
+        const snapshot = snapshots[Number(btn.dataset.idx)];
+        const result = await Api.securityRestore(id, snapshot);
+        showToast(`Restaure : ${result.roles} role(s), ${result.categories} categorie(s), ${result.channels} salon(s) crees.`);
+      } catch (err) {
+        showToast(err.message, 'error');
+      }
+    });
+  });
+
+  document.getElementById('lockdown-btn').addEventListener('click', async () => {
+    if (!window.confirm('Verrouiller le serveur maintenant ?')) return;
+    try {
+      await Api.lockdown(id);
+      showToast('Serveur verrouille.');
+    } catch (err) {
+      showToast(err.message, 'error');
+    }
+  });
+  document.getElementById('unlock-btn').addEventListener('click', async () => {
+    try {
+      await Api.unlock(id);
+      showToast('Serveur deverrouille.');
+    } catch (err) {
+      showToast(err.message, 'error');
+    }
   });
 }
 

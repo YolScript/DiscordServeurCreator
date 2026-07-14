@@ -20,6 +20,9 @@ import {
   CHANNEL_PRESETS, CATEGORY_PRESETS, createPresetChannel, createPresetCategory,
 } from './channelPresets.js';
 import { GAME_ROLE_CATALOG, createGameRolePreset } from './gameRolePresets.js';
+import {
+  buildSnapshot, restoreSnapshot, lockdownGuild, unlockGuild, pushSnapshot, getSnapshots,
+} from './security.js';
 
 class HttpError extends Error {
   constructor(status, message) {
@@ -377,9 +380,69 @@ async function router(request, env) {
       await putTickets(env, guildId, items);
       return json({ ok: true }, env);
     }
+
+    // --- Securite ---
+    if (sub === 'security' && parts[4] === 'export' && method === 'GET') {
+      await requireGuildAccess(env, request, guildId);
+      return json(await buildSnapshot(env, guildId), env);
+    }
+    if (sub === 'security' && parts[4] === 'restore' && method === 'POST') {
+      await requireGuildAccess(env, request, guildId);
+      const snapshot = await readJson(request);
+      const result = await restoreSnapshot(env, guildId, snapshot);
+      return json(result, env);
+    }
+    if (sub === 'security' && parts[4] === 'snapshots' && method === 'GET') {
+      await requireGuildAccess(env, request, guildId);
+      return json(await getSnapshots(env, guildId), env);
+    }
+    if (sub === 'security' && parts[4] === 'snapshot' && method === 'POST') {
+      await requireGuildAccess(env, request, guildId);
+      const snapshot = await buildSnapshot(env, guildId);
+      await pushSnapshot(env, guildId, snapshot);
+      return json(snapshot, env);
+    }
+    if (sub === 'security' && parts[4] === 'lockdown' && method === 'POST') {
+      await requireGuildAccess(env, request, guildId);
+      const previousLevel = await lockdownGuild(env, guildId);
+      const config = (await getGuildConfig(env, guildId)) || {};
+      await putGuildConfig(env, guildId, { ...config, lockdownPreviousLevel: previousLevel });
+      return json({ ok: true }, env);
+    }
+    if (sub === 'security' && parts[4] === 'unlock' && method === 'POST') {
+      await requireGuildAccess(env, request, guildId);
+      const config = (await getGuildConfig(env, guildId)) || {};
+      await unlockGuild(env, guildId, config.lockdownPreviousLevel);
+      return json({ ok: true }, env);
+    }
   }
 
   throw new HttpError(404, 'Route inconnue.');
+}
+
+async function snapshotAllGuilds(env) {
+  const guildIds = new Set();
+  let cursor;
+  do {
+    // eslint-disable-next-line no-await-in-loop
+    const page = await env.GUILD_KV.list({ prefix: 'guild:', cursor });
+    for (const { name } of page.keys) {
+      const match = name.match(/^guild:([^:]+):config$/);
+      if (match) guildIds.add(match[1]);
+    }
+    cursor = page.list_complete ? undefined : page.cursor;
+  } while (cursor);
+
+  for (const gid of guildIds) {
+    try {
+      // eslint-disable-next-line no-await-in-loop
+      const snapshot = await buildSnapshot(env, gid);
+      // eslint-disable-next-line no-await-in-loop
+      await pushSnapshot(env, gid, snapshot);
+    } catch (err) {
+      console.error(`snapshot auto echoue pour ${gid}`, err);
+    }
+  }
 }
 
 export default {
@@ -393,5 +456,8 @@ export default {
       console.error(err);
       return json({ error: 'Erreur interne.' }, env, { status: 500 });
     }
+  },
+  async scheduled(event, env) {
+    await snapshotAllGuilds(env);
   },
 };
