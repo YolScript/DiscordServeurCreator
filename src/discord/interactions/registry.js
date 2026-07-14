@@ -5,6 +5,7 @@ const {
 } = require('./customIds');
 const pollManager = require('../engagement/pollManager');
 const giveawayManager = require('../engagement/giveawayManager');
+const { closeTicket, TICKET_CLOSE_ID } = require('../support/ticketManager');
 const handleReglementAccept = require('./buttons/reglementAccept');
 const { handleReglementTranslate, handleReglementTranslateSelect } = require('./buttons/reglementTranslate');
 const handleAgeButton = require('./buttons/ageButtons');
@@ -34,6 +35,7 @@ const handleGiveawayCommand = require('../commands/giveaway');
 const handleInvitesCommand = require('../commands/invites');
 const handleReferralroleCommand = require('../commands/referralrole');
 const handleBadgesCommand = require('../commands/badges');
+const handleTicketCommand = require('../commands/ticket');
 const logger = require('../../shared/logger');
 
 const commandHandlers = {
@@ -60,6 +62,7 @@ const commandHandlers = {
   invites: handleInvitesCommand,
   referralrole: handleReferralroleCommand,
   badges: handleBadgesCommand,
+  ticket: handleTicketCommand,
 };
 
 async function routeInteraction(interaction) {
@@ -86,6 +89,8 @@ async function routeInteraction(interaction) {
         const giveawayId = interaction.customId.slice(GIVEAWAY_ENTER_PREFIX.length);
         await giveawayManager.handleEnter(interaction, giveawayId);
         await interaction.reply({ content: 'Participation enregistree, bonne chance !', flags: MessageFlags.Ephemeral });
+      } else if (interaction.customId === TICKET_CLOSE_ID) {
+        await closeTicket(interaction);
       }
       return;
     }

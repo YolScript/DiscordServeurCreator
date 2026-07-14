@@ -1,0 +1,41 @@
+const { kvGet, kvPut } = require('./cloudflareKv');
+
+const key = (guildId) => `guild:${guildId}:tickets`;
+
+async function list(guildId) {
+  return (await kvGet(key(guildId))) ?? [];
+}
+
+async function replaceAll(guildId, items) {
+  await kvPut(key(guildId), items);
+}
+
+async function add(guildId, ticket) {
+  const items = await list(guildId);
+  const entry = { id: `${Date.now().toString(36)}${Math.random().toString(36).slice(2, 6)}`, ...ticket };
+  items.push(entry);
+  await replaceAll(guildId, items);
+  return entry;
+}
+
+async function findByChannel(guildId, channelId) {
+  const items = await list(guildId);
+  return items.find((t) => t.channelId === channelId) ?? null;
+}
+
+async function findOpenByUser(guildId, userId) {
+  const items = await list(guildId);
+  return items.find((t) => t.userId === userId && t.status === 'open') ?? null;
+}
+
+async function close(guildId, channelId) {
+  const items = await list(guildId);
+  const ticket = items.find((t) => t.channelId === channelId);
+  if (ticket) ticket.status = 'closed';
+  await replaceAll(guildId, items);
+  return ticket;
+}
+
+module.exports = {
+  list, replaceAll, add, findByChannel, findOpenByUser, close,
+};

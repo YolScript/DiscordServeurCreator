@@ -1,0 +1,83 @@
+const {
+  ChannelType, PermissionFlagsBits: P, EmbedBuilder, ActionRowBuilder, ButtonBuilder, ButtonStyle, MessageFlags,
+} = require('discord.js');
+const guildConfigStore = require('../../kv/guildConfigStore');
+const ticketStore = require('../../kv/ticketStore');
+const { toSmallCaps } = require('../../shared/smallCaps');
+const logger = require('../../shared/logger');
+
+const TICKET_CLOSE_ID = 'ticket_close';
+
+async function ensureTicketCategory(guild, config) {
+  if (config?.ticketCategoryId) {
+    const existing = await guild.channels.fetch(config.ticketCategoryId).catch(() => null);
+    if (existing) return existing;
+  }
+  const overwrites = [{ id: guild.roles.everyone.id, deny: [P.ViewChannel] }];
+  if (config?.moderateurRoleId) overwrites.push({ id: config.moderateurRoleId, allow: [P.ViewChannel, P.ReadMessageHistory, P.SendMessages] });
+  if (config?.adminRoleId) overwrites.push({ id: config.adminRoleId, allow: [P.ViewChannel, P.ReadMessageHistory, P.SendMessages] });
+
+  const category = await guild.channels.create({
+    name: `🎫 ${toSmallCaps('Tickets')}`,
+    type: ChannelType.GuildCategory,
+    permissionOverwrites: overwrites,
+  });
+  await guildConfigStore.upsert(guild.id, { ticketCategoryId: category.id });
+  return category;
+}
+
+async function createTicket(guild, member) {
+  const config = await guildConfigStore.find(guild.id);
+  const existing = await ticketStore.findOpenByUser(guild.id, member.id);
+  if (existing) {
+    const channel = await guild.channels.fetch(existing.channelId).catch(() => null);
+    if (channel) return { channel, alreadyOpen: true };
+  }
+
+  const category = await ensureTicketCategory(guild, config);
+  const overwrites = [
+    { id: guild.roles.everyone.id, deny: [P.ViewChannel] },
+    { id: member.id, allow: [P.ViewChannel, P.ReadMessageHistory, P.SendMessages] },
+  ];
+  if (config?.moderateurRoleId) overwrites.push({ id: config.moderateurRoleId, allow: [P.ViewChannel, P.ReadMessageHistory, P.SendMessages] });
+  if (config?.adminRoleId) overwrites.push({ id: config.adminRoleId, allow: [P.ViewChannel, P.ReadMessageHistory, P.SendMessages] });
+
+  const channel = await guild.channels.create({
+    name: toSmallCaps(`ticket-${member.user.username}`),
+    type: ChannelType.GuildText,
+    parent: category.id,
+    permissionOverwrites: overwrites,
+  });
+
+  await ticketStore.add(guild.id, {
+    channelId: channel.id, userId: member.id, status: 'open', createdAt: Date.now(),
+  });
+
+  const embed = new EmbedBuilder()
+    .setTitle('🎫 Ticket support')
+    .setDescription(`Bonjour <@${member.id}>, un membre du staff va te repondre bientot. Decris ta demande ici.`)
+    .setColor(0x5b8def);
+  const row = new ActionRowBuilder().addComponents(
+    new ButtonBuilder().setCustomId(TICKET_CLOSE_ID).setLabel('Fermer le ticket').setStyle(ButtonStyle.Danger),
+  );
+  await channel.send({ content: `<@${member.id}>`, embeds: [embed], components: [row] });
+
+  return { channel, alreadyOpen: false };
+}
+
+async function closeTicket(interaction) {
+  const ticket = await ticketStore.findByChannel(interaction.guild.id, interaction.channel.id);
+  if (!ticket) {
+    await interaction.reply({ content: 'Ce salon n\'est pas un ticket suivi.', flags: MessageFlags.Ephemeral });
+    return;
+  }
+  await ticketStore.close(interaction.guild.id, interaction.channel.id);
+  await interaction.reply('Ticket ferme, ce salon sera supprime dans 5 secondes.');
+  setTimeout(() => {
+    interaction.channel.delete().catch((err) => logger.error('ticketManager.delete', err));
+  }, 5000);
+}
+
+module.exports = {
+  createTicket, closeTicket, TICKET_CLOSE_ID,
+};

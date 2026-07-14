@@ -207,10 +207,15 @@ const badgesCommand = new SlashCommandBuilder()
   .addUserOption((o) => o.setName('membre').setDescription('Membre a consulter').setRequired(false))
   .toJSON();
 
+const ticketCommand = new SlashCommandBuilder()
+  .setName('ticket')
+  .setDescription('Ouvre un ticket de support prive avec le staff.')
+  .toJSON();
+
 module.exports = [
   setupCommand, warnCommand, warningsCommand, clearwarnsCommand, timeoutCommand, unlockCommand, automodCommand,
   scheduleAnnouncementCommand, scheduleEventCommand, scheduledListCommand, scheduledCancelCommand,
   rankCommand, leaderboardCommand, levelroleCommand, pollCommand, giveawayCommand,
-  invitesCommand, referralroleCommand, badgesCommand,
+  invitesCommand, referralroleCommand, badgesCommand, ticketCommand,
   reglementTranslationCommand, streamerLinkCommand, streamerUnlinkCommand, streamerListCommand,
 ];
