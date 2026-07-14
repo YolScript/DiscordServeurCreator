@@ -18,17 +18,12 @@ const PERMISSION_CHOICES = [
 
 const NAV_GROUPS = [
   {
-    label: 'Gestion serveur',
+    label: 'Serveur',
     items: [
-      { key: 'textes', label: 'Textes & Bienvenue', icon: '✉' },
-      { key: 'permissions', label: 'Permissions', icon: '🔒' },
-      { key: 'salons', label: 'Salons pregeneres', icon: '➕' },
-    ],
-  },
-  {
-    label: 'Communaute',
-    items: [
-      { key: 'jeux', label: 'Roles de jeu', icon: '🎮' },
+      { key: 'textes', label: 'Textes & Bienvenue' },
+      { key: 'permissions', label: 'Permissions' },
+      { key: 'salons', label: 'Salons pregeneres' },
+      { key: 'jeux', label: 'Roles de jeu' },
     ],
   },
 ];
@@ -96,8 +91,8 @@ function renderSidebarForGuild(guild) {
       </div>
     </div>
     <nav class="nav">
-      <button class="nav-item" data-section="overview"><span class="nav-icon">▦</span>Vue d'ensemble</button>
-      <button class="nav-item" data-section="apercu"><span class="nav-icon">🖥</span>Aperçu du serveur</button>
+      <button class="nav-item" data-section="overview">Vue d'ensemble</button>
+      <button class="nav-item" data-section="apercu">Aperçu du serveur</button>
       ${NAV_GROUPS.map((group) => `
         <div class="nav-group">
           <button class="nav-group-header" data-group="${escapeHtml(group.label)}">
@@ -106,7 +101,7 @@ function renderSidebarForGuild(guild) {
           </button>
           <div class="nav-group-items">
             ${group.items.map((item) => `
-              <button class="nav-item" data-section="${item.key}"><span class="nav-icon">${item.icon}</span>${escapeHtml(item.label)}</button>
+              <button class="nav-item" data-section="${item.key}">${escapeHtml(item.label)}</button>
             `).join('')}
           </div>
         </div>
