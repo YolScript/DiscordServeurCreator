@@ -75,6 +75,7 @@ function renderRail() {
 /* ---------- Sidebar ---------- */
 
 function renderSidebarForList() {
+  sidebarEl.style.display = '';
   sidebarEl.innerHTML = `
     <div class="sidebar-header">
       <img src="assets/logo-512.png" alt="" />
@@ -88,6 +89,7 @@ function renderSidebarForList() {
 }
 
 function renderSidebarForGuild() {
+  sidebarEl.style.display = 'none';
   sidebarEl.innerHTML = '';
 }
 
