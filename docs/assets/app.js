@@ -8,7 +8,6 @@ const params = new URLSearchParams(location.search);
 const guildId = params.get('guild');
 
 let allGuilds = [];
-let currentSection = 'overview';
 
 const PERMISSION_CHOICES = [
   'ViewChannel', 'SendMessages', 'ReadMessageHistory', 'Connect', 'Speak',
@@ -98,32 +97,7 @@ function renderSidebarForGuild(guild) {
         <div class="sub">Dashboard</div>
       </div>
     </div>
-    <nav class="nav">
-      <button class="nav-item" data-section="apercu">Aperçu du serveur</button>
-    </nav>
   `;
-
-  wireNavItems(guild.guildId);
-  setActiveNavItem();
-}
-
-function wireNavItems(id) {
-  const renderers = {
-    apercu: () => renderPreviewPage(id),
-  };
-  sidebarEl.querySelectorAll('.nav-item').forEach((btn) => {
-    btn.addEventListener('click', () => {
-      currentSection = btn.dataset.section;
-      setActiveNavItem();
-      renderers[currentSection]();
-    });
-  });
-}
-
-function setActiveNavItem() {
-  sidebarEl.querySelectorAll('.nav-item').forEach((btn) => {
-    btn.classList.toggle('active', btn.dataset.section === currentSection);
-  });
 }
 
 /* ---------- Pages: guild list ---------- */
@@ -367,27 +341,27 @@ function renderSettingsPanel(guildId, key) {
 function contextualChannelSettingsHtml(channelId, config) {
   if (config?.rulesChannelId && config.rulesChannelId === channelId) {
     return `
-      <div class="dp-context-block">
-        <h2 style="font-size:0.85rem; margin:20px 0 8px;">Reglement</h2>
+      <div class="dp-block">
+        <p class="dp-block-title">📜 Reglement</p>
         <label>Texte du reglement</label>
         <textarea id="dp-ctx-reglement">${escapeHtml(config?.reglementText)}</textarea>
         <div class="dp-toggle-row" style="margin-top:8px;">
           <span>Verification anti-bot (captcha emoji) avant validation</span>
           <input type="checkbox" id="dp-ctx-captcha" ${config?.captchaEnabled === false ? '' : 'checked'} />
         </div>
-        <button class="btn secondary" id="dp-ctx-save-reglement" style="margin-top:8px;">Enregistrer le reglement</button>
+        <button class="btn secondary" id="dp-ctx-save-reglement" style="margin-top:12px;">Enregistrer le reglement</button>
       </div>`;
   }
   if (config?.arrivalDepartureChannelId && config.arrivalDepartureChannelId === channelId) {
     return `
-      <div class="dp-context-block">
-        <h2 style="font-size:0.85rem; margin:20px 0 8px;">Messages bienvenue / depart</h2>
+      <div class="dp-block">
+        <p class="dp-block-title">👋 Messages bienvenue / depart</p>
         <label>Message de bienvenue</label>
         <textarea id="dp-ctx-welcome">${escapeHtml(config?.welcomeMessageTemplate)}</textarea>
         <label>Message de depart</label>
         <textarea id="dp-ctx-leave">${escapeHtml(config?.leaveMessageTemplate)}</textarea>
         <p class="muted">Variables disponibles : {user} {username} {server} {membercount}</p>
-        <button class="btn secondary" id="dp-ctx-save-welcome" style="margin-top:8px;">Enregistrer les messages</button>
+        <button class="btn secondary" id="dp-ctx-save-welcome" style="margin-top:12px;">Enregistrer les messages</button>
       </div>`;
   }
   return '';
@@ -404,20 +378,27 @@ function renderChannelPanel(guildId, channelId, name, type, config, channels) {
   main.innerHTML = `
     <div class="dp-panel">
       <div class="dp-panel-title">${icon} ${escapeHtml(name)}</div>
-      <label>Nom du salon</label>
-      <input type="text" id="dp-rename" value="${escapeHtml(name)}" />
-      <button class="btn" id="dp-save-name" style="margin-top:10px;">Enregistrer le nom</button>
 
-      ${config?.reglementValidatedRoleId && type !== 4 ? `
-        <div class="dp-toggle-row">
-          <span>Visible pour "Reglement valide"</span>
-          <input type="checkbox" id="dp-visible-toggle" ${currentlyVisible !== false ? 'checked' : ''} />
-        </div>
-      ` : ''}
+      <div class="dp-block">
+        <p class="dp-block-title">Nom du salon</p>
+        <input type="text" id="dp-rename" value="${escapeHtml(name)}" />
+        <button class="btn" id="dp-save-name" style="margin-top:10px;">Enregistrer le nom</button>
+
+        ${config?.reglementValidatedRoleId && type !== 4 ? `
+          <div class="dp-toggle-row">
+            <span>Visible pour "Reglement valide"</span>
+            <input type="checkbox" id="dp-visible-toggle" ${currentlyVisible !== false ? 'checked' : ''} />
+          </div>
+        ` : ''}
+      </div>
 
       ${contextualChannelSettingsHtml(channelId, config)}
 
-      <button class="btn danger" id="dp-delete" style="margin-top:20px;">Supprimer ce salon</button>
+      <div class="dp-block danger">
+        <p class="dp-block-title">Zone de danger</p>
+        <p class="muted" style="margin:0 0 12px;">Cette action est irreversible.</p>
+        <button class="btn danger" id="dp-delete">Supprimer ce salon</button>
+      </div>
     </div>
   `;
 
@@ -1160,7 +1141,6 @@ async function renderGuildDetail(id) {
     return;
   }
   searchBox.style.display = 'none';
-  currentSection = 'apercu';
   renderSidebarForGuild(guild);
   await renderPreviewPage(id);
 }
