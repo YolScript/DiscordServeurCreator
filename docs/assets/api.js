@@ -31,6 +31,7 @@ window.Api = (function api() {
     guilds: () => request('/api/guilds'),
     channels: (guildId) => request(`/api/guilds/${guildId}/channels`),
     roles: (guildId) => request(`/api/guilds/${guildId}/roles`),
+    members: (guildId) => request(`/api/guilds/${guildId}/members`),
     config: (guildId) => request(`/api/guilds/${guildId}/config`),
     updateConfig: (guildId, patch) => request(`/api/guilds/${guildId}/config`, { method: 'PATCH', body: JSON.stringify(patch) }),
     gameRoles: (guildId) => request(`/api/guilds/${guildId}/gameroles`),

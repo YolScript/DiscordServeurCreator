@@ -9,6 +9,7 @@ const xpManager = require('../engagement/xpManager');
 const pollManager = require('../engagement/pollManager');
 const giveawayManager = require('../engagement/giveawayManager');
 const inviteTracker = require('../engagement/inviteTracker');
+const gameRolesSync = require('../roles/gameRolesSync');
 const logger = require('../../shared/logger');
 
 client.once(Events.ClientReady, async (readyClient) => {
@@ -30,4 +31,5 @@ client.once(Events.ClientReady, async (readyClient) => {
   xpManager.start(readyClient);
   pollManager.start();
   giveawayManager.start();
+  gameRolesSync.start();
 });

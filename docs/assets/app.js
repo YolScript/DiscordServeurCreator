@@ -9,10 +9,78 @@ const guildId = params.get('guild');
 
 let allGuilds = [];
 
-const PERMISSION_CHOICES = [
-  'ViewChannel', 'SendMessages', 'ReadMessageHistory', 'Connect', 'Speak',
-  'ManageMessages', 'ManageChannels', 'ManageRoles', 'MentionEveryone',
-  'AttachFiles', 'EmbedLinks', 'AddReactions', 'KickMembers', 'BanMembers', 'ModerateMembers',
+// Bit Discord de chaque permission (cf. discord-api-types PermissionFlagsBits),
+// duplique cote dashboard pour decoder role.permissions sans lib externe.
+const PERMISSION_BITS = {
+  CreateInstantInvite: 1n << 0n,
+  KickMembers: 1n << 1n,
+  BanMembers: 1n << 2n,
+  Administrator: 1n << 3n,
+  ManageChannels: 1n << 4n,
+  ManageGuild: 1n << 5n,
+  AddReactions: 1n << 6n,
+  ViewAuditLog: 1n << 7n,
+  ViewChannel: 1n << 10n,
+  SendMessages: 1n << 11n,
+  ManageMessages: 1n << 13n,
+  EmbedLinks: 1n << 14n,
+  AttachFiles: 1n << 15n,
+  ReadMessageHistory: 1n << 16n,
+  MentionEveryone: 1n << 17n,
+  Connect: 1n << 20n,
+  Speak: 1n << 21n,
+  MuteMembers: 1n << 22n,
+  DeafenMembers: 1n << 23n,
+  MoveMembers: 1n << 24n,
+  ChangeNickname: 1n << 26n,
+  ManageNicknames: 1n << 27n,
+  ManageRoles: 1n << 28n,
+  ManageWebhooks: 1n << 29n,
+  ModerateMembers: 1n << 40n,
+};
+
+const PERMISSION_LABELS = {
+  CreateInstantInvite: 'Creer une invitation', KickMembers: 'Expulser des membres', BanMembers: 'Bannir des membres',
+  Administrator: 'Administrateur (toutes permissions)', ManageChannels: 'Gerer les salons', ManageGuild: 'Gerer le serveur',
+  AddReactions: 'Ajouter des reactions', ViewAuditLog: "Voir le registre d'audit", ViewChannel: 'Voir le salon',
+  SendMessages: 'Envoyer des messages', ManageMessages: 'Gerer les messages', EmbedLinks: 'Integrer des liens',
+  AttachFiles: 'Joindre des fichiers', ReadMessageHistory: "Voir l'historique", MentionEveryone: 'Mentionner @everyone',
+  Connect: 'Se connecter (vocal)', Speak: 'Parler (vocal)', MuteMembers: 'Reduire au silence', DeafenMembers: 'Rendre sourd',
+  MoveMembers: 'Deplacer des membres', ChangeNickname: 'Changer de pseudo', ManageNicknames: 'Gerer les pseudos',
+  ManageRoles: 'Gerer les roles', ManageWebhooks: 'Gerer les webhooks', ModerateMembers: 'Moderer (timeout)',
+};
+
+function decodeRolePermissions(permStr) {
+  const mask = BigInt(permStr || '0');
+  if (mask & PERMISSION_BITS.Administrator) return ['Administrateur (toutes permissions)'];
+  const names = Object.entries(PERMISSION_BITS)
+    .filter(([, bit]) => mask & bit)
+    .map(([name]) => PERMISSION_LABELS[name] || name);
+  return names;
+}
+
+const PERMISSION_PRESETS = [
+  {
+    key: 'visible', label: '👁️ Rendre visible (lecture seule)', allow: ['ViewChannel', 'ReadMessageHistory'], deny: [],
+  },
+  {
+    key: 'hidden', label: '🚫 Masquer completement', allow: [], deny: ['ViewChannel'],
+  },
+  {
+    key: 'write', label: '✍️ Autoriser a ecrire', allow: ['ViewChannel', 'SendMessages', 'ReadMessageHistory'], deny: [],
+  },
+  {
+    key: 'noWrite', label: "🔒 Bloquer l'ecriture", allow: ['ViewChannel', 'ReadMessageHistory'], deny: ['SendMessages'],
+  },
+  {
+    key: 'voice', label: '🔊 Autoriser le vocal', allow: ['ViewChannel', 'Connect', 'Speak'], deny: [],
+  },
+  {
+    key: 'staff', label: '🛡️ Acces complet (staff)', allow: ['ViewChannel', 'SendMessages', 'ReadMessageHistory', 'Connect', 'Speak', 'ManageMessages'], deny: [],
+  },
+  {
+    key: 'neutral', label: '↩️ Retirer la regle (neutre)', allow: [], deny: [],
+  },
 ];
 
 function escapeHtml(str) {
@@ -153,7 +221,6 @@ function isViewAllowed(channel, roleId) {
 }
 
 const SETTINGS_PANELS = [
-  { key: 'textes', label: 'Textes & Bienvenue' },
   { key: 'permissions', label: 'Permissions' },
   { key: 'jeux', label: 'Roles de jeu' },
   { key: 'automatisations', label: 'Automatisations' },
@@ -172,10 +239,42 @@ function customChannelFormHtml(catId) {
     </div>`;
 }
 
+function roleColorDot(role) {
+  const hex = role.color ? `#${role.color.toString(16).padStart(6, '0')}` : '#99aab5';
+  return `<span class="dp-role-dot" style="background:${hex}"></span>`;
+}
+
+function roleRowHtml(role, members) {
+  const memberNames = role.name === '@everyone'
+    ? members.map((m) => m.displayName)
+    : members.filter((m) => (m.roles || []).includes(role.id)).map((m) => m.displayName);
+  const perms = decodeRolePermissions(role.permissions);
+  return `
+    <div class="dp-role-row" data-role="${role.id}">
+      <div class="dp-role-summary">
+        ${roleColorDot(role)}
+        <span class="dp-role-name">${escapeHtml(role.name)}</span>
+        <span class="dp-role-count">${memberNames.length}</span>
+      </div>
+      <div class="dp-role-detail">
+        <p class="dp-role-detail-title">Permissions</p>
+        <p class="muted">${perms.length ? escapeHtml(perms.join(', ')) : 'Aucune permission particuliere'}</p>
+        <p class="dp-role-detail-title">Membres (${memberNames.length})</p>
+        <p class="muted">${memberNames.length ? escapeHtml(memberNames.join(', ')) : 'Aucun membre'}</p>
+      </div>
+    </div>`;
+}
+
 async function renderPreviewPage(id) {
   app.innerHTML = '<p class="muted">Chargement...</p>';
   const guild = allGuilds.find((g) => g.guildId === id);
-  const [channels, config] = await Promise.all([Api.channels(id), Api.config(id)]);
+  const [channels, config, roles, members] = await Promise.all([
+    Api.channels(id),
+    Api.config(id),
+    Api.roles(id).catch(() => []),
+    Api.members(id).catch(() => []),
+  ]);
+  const rolesSorted = [...roles].sort((a, b) => b.position - a.position);
 
   const categories = channels.filter((c) => c.type === 4).sort((a, b) => a.position - b.position);
   const uncategorized = channels.filter((c) => c.type !== 4 && !c.parent_id);
@@ -234,6 +333,10 @@ async function renderPreviewPage(id) {
             <p>Selectionne un salon ou un parametre a gauche pour le configurer.</p>
           </div>
         </div>
+        <div class="dp-roles-panel">
+          <div class="dp-roles-header">Roles — ${rolesSorted.length}</div>
+          <div class="dp-roles-list">${rolesSorted.map((r) => roleRowHtml(r, members)).join('')}</div>
+        </div>
       </div>
     </div>
   `;
@@ -253,6 +356,10 @@ async function renderPreviewPage(id) {
 
   app.querySelectorAll('.dp-category').forEach((catEl) => {
     catEl.addEventListener('click', () => catEl.classList.toggle('collapsed'));
+  });
+
+  app.querySelectorAll('.dp-role-row').forEach((row) => {
+    row.querySelector('.dp-role-summary').addEventListener('click', () => row.classList.toggle('expanded'));
   });
 
   app.querySelectorAll('.dp-channel[data-channel]').forEach((chEl) => {
@@ -320,7 +427,6 @@ function renderSettingsPanel(guildId, key) {
   `;
   const body = document.getElementById('dp-settings-body');
   const renderers = {
-    textes: () => renderTextsPage(guildId, body),
     permissions: () => renderPermissionsPage(guildId, body),
     jeux: () => renderGameRolesPage(guildId, body),
     automatisations: () => renderAutomationsPage(guildId, body),
@@ -358,6 +464,24 @@ function contextualChannelSettingsHtml(channelId, config) {
   return '';
 }
 
+function specialChannelToggleHtml(channelId, type, config) {
+  if (type !== 0) return '';
+  const isRules = config?.rulesChannelId === channelId;
+  const isArrival = config?.arrivalDepartureChannelId === channelId;
+  return `
+    <div class="dp-block">
+      <p class="dp-block-title">🔧 Role special de ce salon</p>
+      <div class="dp-toggle-row">
+        <span>Salon Reglement</span>
+        <input type="checkbox" id="dp-set-rules" ${isRules ? 'checked' : ''} />
+      </div>
+      <div class="dp-toggle-row" style="margin-top:8px;">
+        <span>Salon Bienvenue / Depart</span>
+        <input type="checkbox" id="dp-set-arrival" ${isArrival ? 'checked' : ''} />
+      </div>
+    </div>`;
+}
+
 function renderChannelPanel(guildId, channelId, name, type, config, channels) {
   const main = document.getElementById('dp-main');
   const channel = channels.find((c) => c.id === channelId);
@@ -383,6 +507,7 @@ function renderChannelPanel(guildId, channelId, name, type, config, channels) {
         ` : ''}
       </div>
 
+      ${specialChannelToggleHtml(channelId, type, config)}
       ${contextualChannelSettingsHtml(channelId, config)}
 
       <div class="dp-block danger">
@@ -419,6 +544,36 @@ function renderChannelPanel(guildId, channelId, name, type, config, channels) {
         showToast('Messages enregistres.');
       } catch (err) {
         showToast(err.message, 'error');
+      }
+    });
+  }
+
+  const setRulesToggle = document.getElementById('dp-set-rules');
+  if (setRulesToggle) {
+    setRulesToggle.addEventListener('change', async () => {
+      try {
+        config.rulesChannelId = setRulesToggle.checked ? channelId : null;
+        await Api.updateConfig(guildId, { rulesChannelId: config.rulesChannelId });
+        showToast('Salon reglement mis a jour.');
+        renderChannelPanel(guildId, channelId, name, type, config, channels);
+      } catch (err) {
+        showToast(err.message, 'error');
+        setRulesToggle.checked = !setRulesToggle.checked;
+      }
+    });
+  }
+
+  const setArrivalToggle = document.getElementById('dp-set-arrival');
+  if (setArrivalToggle) {
+    setArrivalToggle.addEventListener('change', async () => {
+      try {
+        config.arrivalDepartureChannelId = setArrivalToggle.checked ? channelId : null;
+        await Api.updateConfig(guildId, { arrivalDepartureChannelId: config.arrivalDepartureChannelId });
+        showToast('Salon bienvenue/depart mis a jour.');
+        renderChannelPanel(guildId, channelId, name, type, config, channels);
+      } catch (err) {
+        showToast(err.message, 'error');
+        setArrivalToggle.checked = !setArrivalToggle.checked;
       }
     });
   }
@@ -465,53 +620,6 @@ function renderChannelPanel(guildId, channelId, name, type, config, channels) {
   });
 }
 
-/* ---------- Pages: textes ---------- */
-
-async function renderTextsPage(id, container = app) {
-  container.innerHTML = '<p class="muted">Chargement...</p>';
-  const [config, channels] = await Promise.all([Api.config(id), Api.channels(id)]);
-  const textChannels = channels.filter((c) => c.type === 0);
-  const channelOptions = textChannels.map((c) => `<option value="${c.id}" ${config?.arrivalDepartureChannelId === c.id ? 'selected' : ''}>#${escapeHtml(c.name)}</option>`).join('');
-
-  container.innerHTML = `
-    <div class="inner">
-      ${sectionHtml('Reglement', `
-        <textarea id="reglementText">${escapeHtml(config?.reglementText)}</textarea>
-        <div class="dp-toggle-row" style="margin-top:10px;">
-          <span>Verification anti-bot (captcha emoji) avant validation du reglement</span>
-          <input type="checkbox" id="captchaEnabled" ${config?.captchaEnabled === false ? '' : 'checked'} />
-        </div>
-      `)}
-      ${sectionHtml('Integration Bienvenue / Depart', `
-        <label>Salon de destination</label>
-        <select id="arrivalChannel">${channelOptions}</select>
-        <label>Message de bienvenue</label>
-        <textarea id="welcomeTemplate">${escapeHtml(config?.welcomeMessageTemplate)}</textarea>
-        <label>Message de depart</label>
-        <textarea id="leaveTemplate">${escapeHtml(config?.leaveMessageTemplate)}</textarea>
-        <p class="muted">Variables disponibles : {user} {username} {server} {membercount}</p>
-      `)}
-      <button class="btn" id="save-texts">Enregistrer</button>
-    </div>
-  `;
-  wireSections(container);
-
-  document.getElementById('save-texts').addEventListener('click', async () => {
-    try {
-      await Api.updateConfig(id, {
-        reglementText: document.getElementById('reglementText').value,
-        arrivalDepartureChannelId: document.getElementById('arrivalChannel').value,
-        welcomeMessageTemplate: document.getElementById('welcomeTemplate').value,
-        leaveMessageTemplate: document.getElementById('leaveTemplate').value,
-        captchaEnabled: document.getElementById('captchaEnabled').checked,
-      });
-      showToast('Textes enregistres.');
-    } catch (err) {
-      showToast(err.message, 'error');
-    }
-  });
-}
-
 /* ---------- Pages: permissions ---------- */
 
 async function renderPermissionsPage(id, container = app) {
@@ -522,24 +630,21 @@ async function renderPermissionsPage(id, container = app) {
   const channelCheckboxes = editableChannels.map((c) => `
     <label><input type="checkbox" value="${c.id}" class="perm-channel" /> ${c.type === 4 ? '📁' : c.type === 2 ? '🔊' : '#'} ${escapeHtml(c.name)}</label>
   `).join('');
-  const allowChecks = PERMISSION_CHOICES.map((p) => `<label><input type="checkbox" class="allow-perm" value="${p}" /> ${p}</label>`).join('');
-  const denyChecks = PERMISSION_CHOICES.map((p) => `<label><input type="checkbox" class="deny-perm" value="${p}" /> ${p}</label>`).join('');
+  const presetOptions = PERMISSION_PRESETS.map((p) => `<option value="${p.key}">${escapeHtml(p.label)}</option>`).join('');
   const channelOptionsSimple = editableChannels.map((c) => `<option value="${c.id}">#${escapeHtml(c.name)}</option>`).join('');
 
   container.innerHTML = `
     <div class="inner">
       ${sectionHtml('Edition en masse', `
-        <p class="muted">Selectionne un ou plusieurs salons, un role, et les permissions a autoriser/refuser. Applique en un clic sur tous les salons choisis.</p>
+        <p class="muted">Choisis les salons, le role, et une action rapide a appliquer partout en un clic.</p>
         <label>Salons</label>
         <div class="channel-picker">${channelCheckboxes}</div>
         <label>Role</label>
         <select id="perm-role">${roleOptions}</select>
-        <div class="row" style="align-items:flex-start; margin-top: 10px;">
-          <div style="flex:1"><strong>Autoriser</strong><div class="channel-picker" style="max-height:180px">${allowChecks}</div></div>
-          <div style="flex:1"><strong>Refuser</strong><div class="channel-picker" style="max-height:180px">${denyChecks}</div></div>
-        </div>
+        <label>Action</label>
+        <select id="perm-preset">${presetOptions}</select>
         <button class="btn" id="apply-bulk" style="margin-top:12px;">Appliquer</button>
-      `)}
+      `, { open: true })}
 
       ${sectionHtml('Export / Import (copier-coller)', `
         <label>Salon a exporter</label>
@@ -568,14 +673,13 @@ async function renderPermissionsPage(id, container = app) {
   document.getElementById('apply-bulk').addEventListener('click', async () => {
     const channelIds = [...container.querySelectorAll('.perm-channel:checked')].map((el) => el.value);
     const roleId = document.getElementById('perm-role').value;
-    const allow = [...container.querySelectorAll('.allow-perm:checked')].map((el) => el.value);
-    const deny = [...container.querySelectorAll('.deny-perm:checked')].map((el) => el.value);
+    const preset = PERMISSION_PRESETS.find((p) => p.key === document.getElementById('perm-preset').value);
     if (channelIds.length === 0 || !roleId) {
       showToast('Choisis au moins un salon et un role.', 'error');
       return;
     }
     try {
-      const results = await Api.bulkPermissions(id, { channelIds, roleId, allow, deny });
+      const results = await Api.bulkPermissions(id, { channelIds, roleId, allow: preset.allow, deny: preset.deny });
       const failed = results.filter((r) => !r.ok);
       showToast(failed.length ? `${failed.length} salon(s) en erreur.` : 'Permissions appliquees.', failed.length ? 'error' : 'success');
     } catch (err) {

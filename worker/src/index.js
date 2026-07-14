@@ -125,6 +125,17 @@ async function router(request, env) {
       return json(roles, env);
     }
 
+    if (sub === 'members' && parts.length === 4 && method === 'GET') {
+      await requireGuildAccess(env, request, guildId);
+      const members = await botFetchJson(env, `/guilds/${guildId}/members?limit=1000`);
+      return json(members.map((m) => ({
+        userId: m.user.id,
+        displayName: m.nick || m.user.global_name || m.user.username,
+        avatar: m.user.avatar,
+        roles: m.roles,
+      })), env);
+    }
+
     if (sub === 'config' && parts.length === 4) {
       await requireGuildAccess(env, request, guildId);
       if (method === 'GET') {
