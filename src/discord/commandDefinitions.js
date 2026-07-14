@@ -119,8 +119,33 @@ const reglementTranslationCommand = new SlashCommandBuilder()
   .addSubcommand((s) => s.setName('list').setDescription('Liste les langues disponibles'))
   .toJSON();
 
+const streamerLinkCommand = new SlashCommandBuilder()
+  .setName('streamer-link')
+  .setDescription('Lie un membre a une chaine Twitch/YouTube pour les notifs de live.')
+  .setDefaultMemberPermissions(PermissionFlagsBits.ManageGuild)
+  .addStringOption((o) => o.setName('plateforme').setDescription('Plateforme').setRequired(true)
+    .addChoices({ name: 'Twitch', value: 'twitch' }, { name: 'YouTube', value: 'youtube' }))
+  .addUserOption((o) => o.setName('membre').setDescription('Membre a lier').setRequired(true))
+  .addStringOption((o) => o.setName('identifiant').setDescription('Login Twitch OU ID de chaine YouTube').setRequired(true))
+  .toJSON();
+
+const streamerUnlinkCommand = new SlashCommandBuilder()
+  .setName('streamer-unlink')
+  .setDescription('Retire un lien Twitch/YouTube.')
+  .setDefaultMemberPermissions(PermissionFlagsBits.ManageGuild)
+  .addStringOption((o) => o.setName('plateforme').setDescription('Plateforme').setRequired(true)
+    .addChoices({ name: 'Twitch', value: 'twitch' }, { name: 'YouTube', value: 'youtube' }))
+  .addUserOption((o) => o.setName('membre').setDescription('Membre a delier').setRequired(true))
+  .toJSON();
+
+const streamerListCommand = new SlashCommandBuilder()
+  .setName('streamer-list')
+  .setDescription('Liste les streamers lies.')
+  .setDefaultMemberPermissions(PermissionFlagsBits.ManageGuild)
+  .toJSON();
+
 module.exports = [
   setupCommand, warnCommand, warningsCommand, clearwarnsCommand, timeoutCommand, unlockCommand, automodCommand,
   scheduleAnnouncementCommand, scheduleEventCommand, scheduledListCommand, scheduledCancelCommand,
-  reglementTranslationCommand,
+  reglementTranslationCommand, streamerLinkCommand, streamerUnlinkCommand, streamerListCommand,
 ];

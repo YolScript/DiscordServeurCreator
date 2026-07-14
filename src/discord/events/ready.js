@@ -2,6 +2,7 @@ const { Events } = require('discord.js');
 const client = require('../client');
 const staffVoiceManager = require('../roles/staffVoiceManager');
 const scheduler = require('../automation/scheduler');
+const liveNotifier = require('../automation/liveNotifier');
 const logger = require('../../shared/logger');
 
 client.once(Events.ClientReady, async (readyClient) => {
@@ -16,4 +17,5 @@ client.once(Events.ClientReady, async (readyClient) => {
   }
 
   scheduler.start();
+  liveNotifier.start();
 });

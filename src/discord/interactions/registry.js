@@ -21,6 +21,9 @@ const handleScheduleAnnouncementCommand = require('../commands/scheduleAnnouncem
 const handleScheduleEventCommand = require('../commands/scheduleEvent');
 const handleScheduledListCommand = require('../commands/scheduledList');
 const handleScheduledCancelCommand = require('../commands/scheduledCancel');
+const handleStreamerLinkCommand = require('../commands/streamerLink');
+const handleStreamerUnlinkCommand = require('../commands/streamerUnlink');
+const handleStreamerListCommand = require('../commands/streamerList');
 const logger = require('../../shared/logger');
 
 const commandHandlers = {
@@ -36,6 +39,9 @@ const commandHandlers = {
   'scheduled-list': handleScheduledListCommand,
   'scheduled-cancel': handleScheduledCancelCommand,
   'reglement-translation': handleReglementTranslationCommand,
+  'streamer-link': handleStreamerLinkCommand,
+  'streamer-unlink': handleStreamerUnlinkCommand,
+  'streamer-list': handleStreamerListCommand,
 };
 
 async function routeInteraction(interaction) {
