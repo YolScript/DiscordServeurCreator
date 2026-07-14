@@ -107,7 +107,20 @@ const scheduledCancelCommand = new SlashCommandBuilder()
   .addStringOption((o) => o.setName('id').setDescription('ID (voir /scheduled-list)').setRequired(true))
   .toJSON();
 
+const reglementTranslationCommand = new SlashCommandBuilder()
+  .setName('reglement-translation')
+  .setDescription('Gere les traductions du reglement.')
+  .setDefaultMemberPermissions(PermissionFlagsBits.ManageGuild)
+  .addSubcommand((s) => s.setName('set').setDescription('Definit une traduction')
+    .addStringOption((o) => o.setName('langue').setDescription('Code langue (ex: en, es)').setRequired(true))
+    .addStringOption((o) => o.setName('texte').setDescription('Texte traduit').setRequired(true)))
+  .addSubcommand((s) => s.setName('remove').setDescription('Retire une traduction')
+    .addStringOption((o) => o.setName('langue').setDescription('Code langue a retirer').setRequired(true)))
+  .addSubcommand((s) => s.setName('list').setDescription('Liste les langues disponibles'))
+  .toJSON();
+
 module.exports = [
   setupCommand, warnCommand, warningsCommand, clearwarnsCommand, timeoutCommand, unlockCommand, automodCommand,
   scheduleAnnouncementCommand, scheduleEventCommand, scheduledListCommand, scheduledCancelCommand,
+  reglementTranslationCommand,
 ];

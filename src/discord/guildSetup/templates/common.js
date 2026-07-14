@@ -1,5 +1,6 @@
 const { PermissionFlagsBits: P, ChannelType } = require('discord.js');
 const { BASE_ROLE_COLORS } = require('../colors');
+const { toSmallCaps } = require('../../../shared/smallCaps');
 
 // Ordre du haut (pouvoir max) vers le bas — sert à la fois à la création des rôles
 // et à guild.roles.setPositions(). Les rôles de jeu générés dynamiquement
@@ -73,18 +74,18 @@ function getChannelBlueprint(roleIds) {
   return [
     {
       key: 'bienvenue',
-      name: '📋 Bienvenue',
+      name: `📋 ${toSmallCaps('Bienvenue')}`,
       permissionOverwrites: [{ id: roleIds.everyone, allow: [P.ViewChannel] }],
       channels: [
         {
-          key: 'reglement', name: 'règlement', type: ChannelType.GuildText,
+          key: 'reglement', name: toSmallCaps('règlement'), type: ChannelType.GuildText,
           permissionOverwrites: [
             { id: roleIds.everyone, allow: [P.ViewChannel, P.ReadMessageHistory], deny: [P.SendMessages, P.AddReactions] },
             { id: roleIds.moderateur, allow: [P.SendMessages] },
           ],
         },
         {
-          key: 'arrivee-depart', name: 'arrivée-départ', type: ChannelType.GuildText,
+          key: 'arrivee-depart', name: toSmallCaps('arrivée-départ'), type: ChannelType.GuildText,
           permissionOverwrites: [
             { id: roleIds.everyone, allow: [P.ViewChannel, P.ReadMessageHistory], deny: [P.SendMessages, P.AddReactions] },
             { id: roleIds.moderateur, allow: [P.SendMessages] },
@@ -94,21 +95,21 @@ function getChannelBlueprint(roleIds) {
     },
     {
       key: 'communaute',
-      name: '💬 Communauté',
+      name: `💬 ${toSmallCaps('Communauté')}`,
       permissionOverwrites: [
         { id: roleIds.everyone, deny: [P.ViewChannel] },
         { id: roleIds.reglementValidated, allow: [P.ViewChannel] },
       ],
       channels: [
-        { key: 'annonces', name: 'annonces', type: ChannelType.GuildText, permissionOverwrites: readOnlyCommunity() },
-        { key: 'roles', name: 'rôles', type: ChannelType.GuildText, permissionOverwrites: readOnlyCommunity() },
-        { key: 'liens', name: 'liens', type: ChannelType.GuildText, permissionOverwrites: readOnlyCommunity() },
-        { key: 'general', name: 'général', type: ChannelType.GuildText, permissionOverwrites: writableCommunity() },
+        { key: 'annonces', name: toSmallCaps('annonces'), type: ChannelType.GuildText, permissionOverwrites: readOnlyCommunity() },
+        { key: 'roles', name: toSmallCaps('rôles'), type: ChannelType.GuildText, permissionOverwrites: readOnlyCommunity() },
+        { key: 'liens', name: toSmallCaps('liens'), type: ChannelType.GuildText, permissionOverwrites: readOnlyCommunity() },
+        { key: 'general', name: toSmallCaps('général'), type: ChannelType.GuildText, permissionOverwrites: writableCommunity() },
       ],
     },
     {
       key: 'vocaux',
-      name: '🔊 Vocaux',
+      name: `🔊 ${toSmallCaps('Vocaux')}`,
       permissionOverwrites: [
         { id: roleIds.everyone, deny: [P.ViewChannel, P.Connect] },
         { id: roleIds.reglementValidated, allow: [P.ViewChannel, P.Connect] },

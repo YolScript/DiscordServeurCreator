@@ -1,5 +1,6 @@
 const { ChannelType, PermissionFlagsBits: P, EmbedBuilder } = require('discord.js');
 const guildConfigStore = require('../../kv/guildConfigStore');
+const { toSmallCaps } = require('../../shared/smallCaps');
 const logger = require('../../shared/logger');
 
 // Cree le salon #mod-logs a la demande (premiere action de moderation sur ce
@@ -17,7 +18,7 @@ async function ensureModLogChannel(guild) {
   if (config?.adminRoleId) overwrites.push({ id: config.adminRoleId, allow: [P.ViewChannel, P.ReadMessageHistory] });
 
   const channel = await guild.channels.create({
-    name: 'mod-logs',
+    name: toSmallCaps('mod-logs'),
     type: ChannelType.GuildText,
     permissionOverwrites: overwrites,
   });

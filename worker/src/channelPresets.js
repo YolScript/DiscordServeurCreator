@@ -1,5 +1,6 @@
 import { botFetchJson } from './discordApi.js';
 import { bitmaskFromNames } from './permissions.js';
+import { toSmallCaps } from './smallCaps.js';
 
 // Catalogue de salons pregeneres, ajoutables en un clic depuis le dashboard.
 export const CHANNEL_PRESETS = [
@@ -55,7 +56,7 @@ export async function createPresetChannel(env, guildId, config, presetKey, categ
   if (!preset) throw new Error(`Preset de salon inconnu: ${presetKey}`);
 
   const body = {
-    name: preset.name,
+    name: preset.type === 'voice' ? preset.name : toSmallCaps(preset.name),
     type: preset.type === 'voice' ? 2 : 0,
     parent_id: categoryId || undefined,
     permission_overwrites: overwritesForProfile(preset.profile, config, guildId),

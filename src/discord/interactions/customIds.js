@@ -1,4 +1,5 @@
 const REGLEMENT_ACCEPT = 'reglement_accept';
+const REGLEMENT_TRANSLATE = 'reglement_translate';
 const AGE_PLUS16 = 'age_plus16';
 const AGE_MINUS16 = 'age_minus16';
 
@@ -12,6 +13,7 @@ const buildGamePseudoButtonId = (gameRoleId) => `${GAME_PSEUDO_BUTTON_PREFIX}${g
 
 module.exports = {
   REGLEMENT_ACCEPT,
+  REGLEMENT_TRANSLATE,
   AGE_PLUS16,
   AGE_MINUS16,
   GAME_SELECT_PREFIX,

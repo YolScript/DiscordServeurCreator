@@ -3,7 +3,7 @@ const {
 } = require('discord.js');
 const guildConfigStore = require('../../kv/guildConfigStore');
 const { getTemplate } = require('./templates');
-const { REGLEMENT_ACCEPT, AGE_PLUS16, AGE_MINUS16 } = require('../interactions/customIds');
+const { REGLEMENT_ACCEPT, REGLEMENT_TRANSLATE, AGE_PLUS16, AGE_MINUS16 } = require('../interactions/customIds');
 const logger = require('../../shared/logger');
 
 class AlreadySetupError extends Error {}
@@ -93,6 +93,7 @@ async function setupGuild({ guild, templateKey, requestedByUserId, reglementText
     .setColor(0xe63946);
   const reglementRow = new ActionRowBuilder().addComponents(
     new ButtonBuilder().setCustomId(REGLEMENT_ACCEPT).setLabel("J'accepte le reglement").setStyle(ButtonStyle.Success),
+    new ButtonBuilder().setCustomId(REGLEMENT_TRANSLATE).setLabel('Autres langues').setEmoji('🌐').setStyle(ButtonStyle.Secondary),
   );
   await channelObjects.reglement.send({ embeds: [reglementEmbed], components: [reglementRow] });
 

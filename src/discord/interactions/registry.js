@@ -1,13 +1,16 @@
 const { MessageFlags } = require('discord.js');
 const {
-  REGLEMENT_ACCEPT, AGE_PLUS16, AGE_MINUS16, GAME_SELECT_PREFIX, GAME_PSEUDO_MODAL_PREFIX, GAME_PSEUDO_BUTTON_PREFIX,
+  REGLEMENT_ACCEPT, REGLEMENT_TRANSLATE, AGE_PLUS16, AGE_MINUS16,
+  GAME_SELECT_PREFIX, GAME_PSEUDO_MODAL_PREFIX, GAME_PSEUDO_BUTTON_PREFIX,
 } = require('./customIds');
 const handleReglementAccept = require('./buttons/reglementAccept');
+const { handleReglementTranslate, handleReglementTranslateSelect } = require('./buttons/reglementTranslate');
 const handleAgeButton = require('./buttons/ageButtons');
 const handleGamePseudoButton = require('./buttons/gamePseudoButton');
 const handleGameRoleSelect = require('./selectMenus/gameRoleSelect');
 const handleGamePseudoModal = require('./modals/gamePseudoModal');
 const handleSetupCommand = require('../commands/setup');
+const handleReglementTranslationCommand = require('../commands/reglementTranslation');
 const handleWarnCommand = require('../commands/warn');
 const handleWarningsCommand = require('../commands/warnings');
 const handleClearwarnsCommand = require('../commands/clearwarns');
@@ -32,6 +35,7 @@ const commandHandlers = {
   'schedule-event': handleScheduleEventCommand,
   'scheduled-list': handleScheduledListCommand,
   'scheduled-cancel': handleScheduledCancelCommand,
+  'reglement-translation': handleReglementTranslationCommand,
 };
 
 async function routeInteraction(interaction) {
@@ -44,6 +48,8 @@ async function routeInteraction(interaction) {
     if (interaction.isButton()) {
       if (interaction.customId === REGLEMENT_ACCEPT) {
         await handleReglementAccept(interaction);
+      } else if (interaction.customId === REGLEMENT_TRANSLATE) {
+        await handleReglementTranslate(interaction);
       } else if (interaction.customId === AGE_PLUS16 || interaction.customId === AGE_MINUS16) {
         await handleAgeButton(interaction);
       } else if (interaction.customId.startsWith(GAME_PSEUDO_BUTTON_PREFIX)) {
@@ -53,6 +59,10 @@ async function routeInteraction(interaction) {
     }
     if (interaction.isStringSelectMenu() && interaction.customId.startsWith(GAME_SELECT_PREFIX)) {
       await handleGameRoleSelect(interaction);
+      return;
+    }
+    if (interaction.isStringSelectMenu() && interaction.customId === 'reglement_translate_select') {
+      await handleReglementTranslateSelect(interaction);
       return;
     }
     if (interaction.isModalSubmit() && interaction.customId.startsWith(GAME_PSEUDO_MODAL_PREFIX)) {
