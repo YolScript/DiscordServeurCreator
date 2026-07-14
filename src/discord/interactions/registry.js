@@ -8,12 +8,29 @@ const handleGamePseudoButton = require('./buttons/gamePseudoButton');
 const handleGameRoleSelect = require('./selectMenus/gameRoleSelect');
 const handleGamePseudoModal = require('./modals/gamePseudoModal');
 const handleSetupCommand = require('../commands/setup');
+const handleWarnCommand = require('../commands/warn');
+const handleWarningsCommand = require('../commands/warnings');
+const handleClearwarnsCommand = require('../commands/clearwarns');
+const handleTimeoutCommand = require('../commands/timeout');
+const handleUnlockCommand = require('../commands/unlock');
+const handleAutomodCommand = require('../commands/automod');
 const logger = require('../../shared/logger');
+
+const commandHandlers = {
+  setup: handleSetupCommand,
+  warn: handleWarnCommand,
+  warnings: handleWarningsCommand,
+  clearwarns: handleClearwarnsCommand,
+  timeout: handleTimeoutCommand,
+  unlock: handleUnlockCommand,
+  automod: handleAutomodCommand,
+};
 
 async function routeInteraction(interaction) {
   try {
     if (interaction.isChatInputCommand()) {
-      if (interaction.commandName === 'setup') await handleSetupCommand(interaction);
+      const handler = commandHandlers[interaction.commandName];
+      if (handler) await handler(interaction);
       return;
     }
     if (interaction.isButton()) {
