@@ -42,6 +42,8 @@ window.Api = (function api() {
     channelPresets: () => request('/api/channel-presets'),
     addPresetChannel: (guildId, presetKey, categoryId) => request(`/api/guilds/${guildId}/channels/preset`, { method: 'POST', body: JSON.stringify({ presetKey, categoryId }) }),
     resetRoleDefault: (guildId, roleKey) => request(`/api/guilds/${guildId}/roles/${roleKey}/reset-default`, { method: 'POST' }),
+    renameChannel: (guildId, channelId, name) => request(`/api/guilds/${guildId}/channels/${channelId}`, { method: 'PATCH', body: JSON.stringify({ name }) }),
+    deleteChannel: (guildId, channelId) => request(`/api/guilds/${guildId}/channels/${channelId}`, { method: 'DELETE' }),
   };
 }());
 

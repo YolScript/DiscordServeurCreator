@@ -185,6 +185,22 @@ async function router(request, env) {
       return json(channel, env);
     }
 
+    if (sub === 'channels' && parts.length === 5 && parts[4] !== 'preset') {
+      await requireGuildAccess(env, request, guildId);
+      const channelId = parts[4];
+
+      if (method === 'PATCH') {
+        const { name } = await readJson(request);
+        if (!name) throw new HttpError(400, 'name requis.');
+        const channel = await botFetchJson(env, `/channels/${channelId}`, { method: 'PATCH', body: JSON.stringify({ name }) });
+        return json(channel, env);
+      }
+      if (method === 'DELETE') {
+        await botFetch(env, `/channels/${channelId}`, { method: 'DELETE' });
+        return json({ ok: true }, env);
+      }
+    }
+
     if (sub === 'roles' && parts[5] === 'reset-default' && method === 'POST') {
       await requireGuildAccess(env, request, guildId);
       const roleKey = parts[4]; // 'administrateur' | 'moderateur'
