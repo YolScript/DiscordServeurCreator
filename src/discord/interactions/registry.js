@@ -2,11 +2,11 @@ const { MessageFlags } = require('discord.js');
 const {
   REGLEMENT_ACCEPT, REGLEMENT_TRANSLATE, AGE_PLUS16, AGE_MINUS16,
   GAME_SELECT_PREFIX, GAME_PSEUDO_MODAL_PREFIX, GAME_PSEUDO_BUTTON_PREFIX, POLL_VOTE_PREFIX, GIVEAWAY_ENTER_PREFIX,
-  CAPTCHA_OK, CAPTCHA_NO,
+  CAPTCHA_OK, CAPTCHA_NO, TICKET_OPEN,
 } = require('./customIds');
 const pollManager = require('../engagement/pollManager');
 const giveawayManager = require('../engagement/giveawayManager');
-const { closeTicket, TICKET_CLOSE_ID } = require('../support/ticketManager');
+const { createTicket, closeTicket, TICKET_CLOSE_ID } = require('../support/ticketManager');
 const { handleReglementAccept, handleCaptchaResult } = require('./buttons/reglementAccept');
 const { handleReglementTranslate, handleReglementTranslateSelect } = require('./buttons/reglementTranslate');
 const handleAgeButton = require('./buttons/ageButtons');
@@ -37,6 +37,7 @@ const handleInvitesCommand = require('../commands/invites');
 const handleReferralroleCommand = require('../commands/referralrole');
 const handleBadgesCommand = require('../commands/badges');
 const handleTicketCommand = require('../commands/ticket');
+const handleTicketPanelCommand = require('../commands/ticketPanel');
 const logger = require('../../shared/logger');
 
 const commandHandlers = {
@@ -64,6 +65,7 @@ const commandHandlers = {
   referralrole: handleReferralroleCommand,
   badges: handleBadgesCommand,
   ticket: handleTicketCommand,
+  'ticket-panel': handleTicketPanelCommand,
 };
 
 async function routeInteraction(interaction) {
@@ -92,6 +94,12 @@ async function routeInteraction(interaction) {
         await interaction.reply({ content: 'Participation enregistree, bonne chance !', flags: MessageFlags.Ephemeral });
       } else if (interaction.customId === TICKET_CLOSE_ID) {
         await closeTicket(interaction);
+      } else if (interaction.customId === TICKET_OPEN) {
+        await interaction.deferReply({ flags: MessageFlags.Ephemeral });
+        const { channel, alreadyOpen } = await createTicket(interaction.guild, interaction.member);
+        await interaction.editReply(alreadyOpen
+          ? `Tu as deja un ticket ouvert : <#${channel.id}>`
+          : `Ticket cree : <#${channel.id}>`);
       } else if (interaction.customId === CAPTCHA_OK) {
         await handleCaptchaResult(interaction, true);
       } else if (interaction.customId === CAPTCHA_NO) {

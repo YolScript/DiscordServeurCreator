@@ -20,7 +20,11 @@ function buildPollEmbed(poll) {
     .setTitle(`📊 ${poll.question}`)
     .setDescription(lines.join('\n\n'))
     .setColor(poll.closed ? 0x8b8d95 : 0x5b8def)
-    .setFooter({ text: poll.closed ? 'Sondage termine' : `Se termine <t:${Math.floor(poll.endsAt / 1000)}:R>` });
+    .setFooter({
+      text: poll.closed
+        ? 'Sondage termine'
+        : (poll.endsAt ? `Se termine <t:${Math.floor(poll.endsAt / 1000)}:R>` : 'Sondage sans limite de temps'),
+    });
 }
 
 function buildPollComponents(poll) {
@@ -62,7 +66,7 @@ async function tick() {
     const now = Date.now();
     let changed = false;
     for (const poll of active) {
-      if (poll.endsAt > now) continue;
+      if (!poll.endsAt || poll.endsAt > now) continue;
       poll.closed = true;
       changed = true;
       await refreshPollMessage(guild, poll).catch((err) => logger.error('pollManager.close', err));

@@ -4,9 +4,21 @@ const {
 const guildConfigStore = require('../../kv/guildConfigStore');
 const ticketStore = require('../../kv/ticketStore');
 const { toSmallCaps } = require('../../shared/smallCaps');
+const { TICKET_OPEN } = require('../interactions/customIds');
 const logger = require('../../shared/logger');
 
 const TICKET_CLOSE_ID = 'ticket_close';
+
+async function postTicketPanel(channel) {
+  const embed = new EmbedBuilder()
+    .setTitle('🎫 Support')
+    .setDescription('Besoin d\'aide ou d\'une question ? Clique sur le bouton ci-dessous pour ouvrir un ticket prive avec le staff.')
+    .setColor(0x5b8def);
+  const row = new ActionRowBuilder().addComponents(
+    new ButtonBuilder().setCustomId(TICKET_OPEN).setLabel('Ouvrir un ticket').setEmoji('🎫').setStyle(ButtonStyle.Primary),
+  );
+  return channel.send({ embeds: [embed], components: [row] });
+}
 
 async function ensureTicketCategory(guild, config) {
   if (config?.ticketCategoryId) {
@@ -79,5 +91,5 @@ async function closeTicket(interaction) {
 }
 
 module.exports = {
-  createTicket, closeTicket, TICKET_CLOSE_ID,
+  createTicket, closeTicket, postTicketPanel, TICKET_CLOSE_ID,
 };

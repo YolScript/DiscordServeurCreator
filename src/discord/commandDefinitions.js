@@ -172,7 +172,7 @@ const pollCommand = new SlashCommandBuilder()
   .setDescription('Lance un sondage avec boutons (5 options max).')
   .addStringOption((o) => o.setName('question').setDescription('Question posee').setRequired(true))
   .addStringOption((o) => o.setName('options').setDescription('Options separees par des virgules (2 a 5)').setRequired(true))
-  .addIntegerOption((o) => o.setName('duree_minutes').setDescription('Duree du sondage en minutes').setRequired(true).setMinValue(1))
+  .addIntegerOption((o) => o.setName('duree_minutes').setDescription('Duree du sondage en minutes (omis = sans limite de temps)').setRequired(false).setMinValue(1))
   .toJSON();
 
 const giveawayCommand = new SlashCommandBuilder()
@@ -212,10 +212,17 @@ const ticketCommand = new SlashCommandBuilder()
   .setDescription('Ouvre un ticket de support prive avec le staff.')
   .toJSON();
 
+const ticketPanelCommand = new SlashCommandBuilder()
+  .setName('ticket-panel')
+  .setDescription('Poste un panneau avec un bouton "Ouvrir un ticket" dans un salon.')
+  .setDefaultMemberPermissions(PermissionFlagsBits.Administrator)
+  .addChannelOption((o) => o.setName('salon').setDescription('Salon ou poster le panneau (defaut : ce salon)').addChannelTypes(ChannelType.GuildText).setRequired(false))
+  .toJSON();
+
 module.exports = [
   setupCommand, warnCommand, warningsCommand, clearwarnsCommand, timeoutCommand, unlockCommand, automodCommand,
   scheduleAnnouncementCommand, scheduleEventCommand, scheduledListCommand, scheduledCancelCommand,
   rankCommand, leaderboardCommand, levelroleCommand, pollCommand, giveawayCommand,
-  invitesCommand, referralroleCommand, badgesCommand, ticketCommand,
+  invitesCommand, referralroleCommand, badgesCommand, ticketCommand, ticketPanelCommand,
   reglementTranslationCommand, streamerLinkCommand, streamerUnlinkCommand, streamerListCommand,
 ];

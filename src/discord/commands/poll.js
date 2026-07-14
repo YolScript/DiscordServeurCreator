@@ -5,7 +5,7 @@ const { buildPollEmbed, buildPollComponents } = require('../engagement/pollManag
 async function handlePollCommand(interaction) {
   const question = interaction.options.getString('question', true);
   const optionsRaw = interaction.options.getString('options', true);
-  const durationMinutes = interaction.options.getInteger('duree_minutes', true);
+  const durationMinutes = interaction.options.getInteger('duree_minutes', false);
 
   const labels = optionsRaw.split(',').map((s) => s.trim()).filter(Boolean).slice(0, 5);
   if (labels.length < 2) {
@@ -20,7 +20,7 @@ async function handlePollCommand(interaction) {
     messageId: null,
     question,
     options: labels.map((label) => ({ label, votes: [] })),
-    endsAt: Date.now() + durationMinutes * 60 * 1000,
+    endsAt: durationMinutes ? Date.now() + durationMinutes * 60 * 1000 : null,
     closed: false,
   });
 
