@@ -91,7 +91,7 @@ function renderSidebarForList() {
   sidebarEl.innerHTML = `
     <div class="sidebar-header">
       <img src="assets/logo-512.png" alt="" />
-      <div>
+      <div class="sidebar-header-text">
         <div class="name">Tes serveurs</div>
         <div class="sub">${allGuilds.length} serveur(s)</div>
       </div>
@@ -105,13 +105,12 @@ function renderSidebarForGuild(guild) {
   sidebarEl.innerHTML = `
     <div class="sidebar-header">
       ${icon ? `<img src="${icon}" alt="" />` : `<div class="brand-icon" style="width:30px;height:30px;background:var(--accent);display:flex;align-items:center;justify-content:center;font-size:0.7rem;font-weight:700;color:#fff;">${escapeHtml(initials(guild.name))}</div>`}
-      <div>
+      <div class="sidebar-header-text">
         <div class="name">${escapeHtml(guild.name)}</div>
         <div class="sub">Dashboard</div>
       </div>
     </div>
     <nav class="nav">
-      <button class="nav-item" data-section="overview">Vue d'ensemble</button>
       <button class="nav-item" data-section="apercu">Aperçu du serveur</button>
       ${NAV_GROUPS.map((group) => `
         <div class="nav-group">
@@ -258,6 +257,7 @@ function isViewAllowed(channel, roleId) {
 
 async function renderPreviewPage(id) {
   app.innerHTML = '<p class="muted">Chargement...</p>';
+  const guild = allGuilds.find((g) => g.guildId === id);
   const [channels, config, channelPresets, categoryPresets] = await Promise.all([
     Api.channels(id), Api.config(id), Api.channelPresets(), Api.categoryPresets(),
   ]);
@@ -288,27 +288,57 @@ async function renderPreviewPage(id) {
     `;
   };
 
+  const guildIcon = guild ? guildIconUrl(guild) : null;
+
   app.innerHTML = `
     <div class="inner" style="max-width:1040px;">
       <div class="card">
-        <h2>Aperçu du serveur</h2>
-        <p class="muted">Clique sur un salon pour le renommer, changer sa visibilite ou le supprimer. Utilise les boutons "+" pour ajouter des salons ou categories pregeneres directement ici.</p>
+        <div class="row" style="justify-content:space-between; align-items:flex-start;">
+          <div>
+            <h2>Aperçu du serveur</h2>
+            <p class="muted" style="margin-bottom:0;">Clique sur un salon pour le renommer, changer sa visibilite ou le supprimer. Utilise les boutons "+" pour ajouter des salons ou categories pregeneres directement ici.</p>
+          </div>
+          <button type="button" class="btn secondary" id="dp-fullscreen-btn">⛶ Plein ecran</button>
+        </div>
       </div>
       <div class="discord-preview">
         <div class="dp-sidebar">
-          <button type="button" class="dp-add-category" id="dp-add-cat-btn">+ Nouvelle categorie</button>
-          <div class="dp-picker" id="dp-cat-picker" style="display:none;">
-            ${categoryPresets.map((p) => `<button type="button" class="dp-picker-chip" data-cat-preset="${p.key}" title="${escapeHtml(p.description)}">📁 ${escapeHtml(p.name)}</button>`).join('')}
+          <div class="dp-server-header">
+            <span class="name">${escapeHtml(guild?.name || 'Serveur')}</span>
+            <span class="caret">▾</span>
           </div>
-          ${uncategorized.map(channelRow).join('')}
-          ${categories.map(categoryBlock).join('')}
+          <div class="dp-channel-list">
+            <button type="button" class="dp-add-category" id="dp-add-cat-btn">+ Nouvelle categorie</button>
+            <div class="dp-picker" id="dp-cat-picker" style="display:none;">
+              ${categoryPresets.map((p) => `<button type="button" class="dp-picker-chip" data-cat-preset="${p.key}" title="${escapeHtml(p.description)}">📁 ${escapeHtml(p.name)}</button>`).join('')}
+            </div>
+            ${uncategorized.map(channelRow).join('')}
+            ${categories.map(categoryBlock).join('')}
+          </div>
         </div>
         <div class="dp-main" id="dp-main">
-          <p class="dp-empty">Selectionne un salon a gauche pour le configurer.</p>
+          <div class="dp-welcome">
+            <div class="dp-welcome-icon">${guildIcon ? `<img src="${guildIcon}" alt="" />` : escapeHtml(initials(guild?.name))}</div>
+            <h3>${escapeHtml(guild?.name || 'Ton serveur')}</h3>
+            <p>Selectionne un salon a gauche pour le renommer, changer sa visibilite ou le supprimer.</p>
+          </div>
         </div>
       </div>
     </div>
   `;
+
+  const previewEl = app.querySelector('.discord-preview');
+  const fsBtn = document.getElementById('dp-fullscreen-btn');
+  fsBtn.addEventListener('click', () => {
+    if (!document.fullscreenElement) {
+      previewEl.requestFullscreen?.();
+    } else {
+      document.exitFullscreen?.();
+    }
+  });
+  document.onfullscreenchange = () => {
+    fsBtn.textContent = document.fullscreenElement === previewEl ? '⤢ Quitter le plein ecran' : '⛶ Plein ecran';
+  };
 
   app.querySelectorAll('.dp-category').forEach((catEl) => {
     catEl.addEventListener('click', () => catEl.classList.toggle('collapsed'));
@@ -723,9 +753,9 @@ async function renderGuildDetail(id) {
     return;
   }
   searchBox.style.display = 'none';
-  currentSection = 'overview';
+  currentSection = 'apercu';
   renderSidebarForGuild(guild);
-  await renderOverviewPage(id);
+  await renderPreviewPage(id);
 }
 
 async function init() {

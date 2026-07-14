@@ -63,14 +63,6 @@ body {
   inset: 0;
   background: transparent;
 }
-@media (prefers-reduced-motion: reduce) {
-  .bg-video { display: none; }
-  .bg-video-wrap {
-    background: #0a0a0c url('bg-video-poster.jpg') center/cover no-repeat;
-    filter: blur(6px);
-    transform: scale(1.06);
-  }
-}
 
 h1, h2, h3 { font-weight: 600; letter-spacing: -0.01em; }
 
@@ -106,31 +98,41 @@ html, body { height: 100%; }
 .rail-guild.active { border-radius: 30%; background: var(--accent); color: #fff; }
 
 .sidebar {
-  width: 248px; flex: none; background: var(--bg-sidebar);
+  width: 64px; min-width: 0; flex: none; background: var(--bg-sidebar);
   background: color-mix(in srgb, var(--bg-sidebar) 82%, transparent);
   backdrop-filter: blur(18px); -webkit-backdrop-filter: blur(18px);
   border-right: 1px solid var(--border);
   display: flex; flex-direction: column;
-  overflow-y: auto;
+  overflow: hidden;
+  transition: width 0.18s ease;
 }
+.sidebar:hover { width: 248px; overflow-y: auto; }
 .sidebar-header {
   display: flex; align-items: center; gap: 10px;
   padding: 16px; border-bottom: 1px solid var(--border); flex: none;
 }
 .sidebar-header img { width: 30px; height: 30px; border-radius: 8px; flex: none; background: var(--bg-input); }
+.sidebar-header-text { min-width: 0; overflow: hidden; }
 .sidebar-header .name { font-weight: 600; font-size: 0.92rem; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
-.sidebar-header .sub { font-size: 0.72rem; color: var(--text-muted); }
+.sidebar-header .sub { font-size: 0.72rem; color: var(--text-muted); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
 
-.nav { padding: 10px; flex: 1; overflow-y: auto; }
+.nav {
+  padding: 10px; flex: 1; min-width: 0; overflow-y: auto; overflow-x: hidden;
+  opacity: 0; transition: opacity 0.12s ease;
+}
+.sidebar:hover .nav { opacity: 1; }
 .nav-item {
   display: flex; align-items: center; gap: 10px;
   padding: 8px 10px; border-radius: var(--radius-sm);
   color: var(--text-muted); font-size: 0.87rem; font-weight: 500;
   cursor: pointer; text-decoration: none; margin-bottom: 2px;
   border: none; background: none; width: 100%; text-align: left; font-family: inherit;
+  white-space: nowrap;
 }
 .nav-item:hover { background: var(--bg-input); color: var(--text); }
 .nav-item.active { background: var(--accent-soft); color: var(--accent); }
+.nav-item:focus { outline: none; }
+.nav-item:focus-visible { outline: 2px solid var(--accent); outline-offset: -2px; }
 .nav-icon { width: 18px; flex: none; display: inline-flex; align-items: center; justify-content: center; font-size: 0.95rem; }
 
 .nav-group { margin-top: 14px; }
