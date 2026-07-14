@@ -5,7 +5,10 @@ const { syncCreatorChannel } = require('./staffVoiceCreator');
 const logger = require('../../shared/logger');
 
 function isStaff(member, config) {
-  return member.roles.cache.has(config.moderateurRoleId) || member.roles.cache.has(config.adminRoleId);
+  const staffRoleIds = config.staffRoleIds?.length
+    ? config.staffRoleIds
+    : [config.moderateurRoleId, config.adminRoleId].filter(Boolean);
+  return staffRoleIds.some((roleId) => member.roles.cache.has(roleId));
 }
 
 // Utilise le "voice channel status" natif Discord pour afficher qui est
@@ -33,7 +36,7 @@ async function handleVoiceStateUpdate(oldState, newState) {
   try {
     const guild = newState.guild ?? oldState.guild;
     const config = await guildConfigStore.find(guild.id);
-    if (!config?.moderateurRoleId || !newState.channelId) return;
+    if (!config?.serviceStaffChannelId || !newState.channelId) return;
     if (newState.channelId !== config.serviceStaffChannelId) return;
 
     const member = newState.member;

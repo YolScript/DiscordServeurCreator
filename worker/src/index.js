@@ -21,6 +21,7 @@ import { GAME_ROLE_CATALOG, createGameRolePreset } from './gameRolePresets.js';
 import {
   buildSnapshot, restoreSnapshot, lockdownGuild, unlockGuild, pushSnapshot, getSnapshots,
 } from './security.js';
+import { applyServiceVisibility } from './staffService.js';
 
 class HttpError extends Error {
   constructor(status, message) {
@@ -412,6 +413,14 @@ async function router(request, env) {
       const config = (await getGuildConfig(env, guildId)) || {};
       await unlockGuild(env, guildId, config.lockdownPreviousLevel);
       return json({ ok: true }, env);
+    }
+
+    // --- Service (staff en service) ---
+    if (sub === 'service' && parts[4] === 'apply' && method === 'POST') {
+      await requireGuildAccess(env, request, guildId);
+      const config = (await getGuildConfig(env, guildId)) || {};
+      const result = await applyServiceVisibility(env, guildId, config);
+      return json(result, env);
     }
   }
 

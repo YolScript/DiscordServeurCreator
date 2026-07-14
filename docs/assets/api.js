@@ -76,6 +76,8 @@ window.Api = (function api() {
     securitySnapshotNow: (guildId) => request(`/api/guilds/${guildId}/security/snapshot`, { method: 'POST' }),
     lockdown: (guildId) => request(`/api/guilds/${guildId}/security/lockdown`, { method: 'POST' }),
     unlock: (guildId) => request(`/api/guilds/${guildId}/security/unlock`, { method: 'POST' }),
+
+    applyServiceVisibility: (guildId) => request(`/api/guilds/${guildId}/service/apply`, { method: 'POST' }),
   };
 }());
 

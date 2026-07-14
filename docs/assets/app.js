@@ -859,13 +859,35 @@ async function renderAutomationsPage(id, container = app) {
       `)}
 
       ${sectionHtml('Service (Staff en service)', `
-        <p class="muted">Le salon vocal SERVICE STAFF (categorie 🛡️ Staff) sert d'interrupteur : un membre du staff qui s'y connecte est immediatement deconnecte et bascule son statut "en service", qui revele la categorie Staff et peut restreindre la visibilite des tickets.</p>
-        <div class="dp-toggle-row">
+        <p class="muted">Le salon vocal SERVICE STAFF (categorie 🛡️ Staff) sert d'interrupteur : un membre du staff qui s'y connecte est immediatement deconnecte et bascule son statut "en service", qui revele la categorie Staff et les categories/salons choisis ci-dessous.</p>
+
+        <label>Roles consideres comme "staff" (peuvent basculer leur statut de service)</label>
+        <div class="channel-picker" style="max-height:160px">
+          ${roles.filter((r) => r.name !== '@everyone').map((r) => `
+            <label><input type="checkbox" class="service-role" value="${r.id}" ${(config?.staffRoleIds || [config?.moderateurRoleId, config?.adminRoleId].filter(Boolean)).includes(r.id) ? 'checked' : ''} /> ${escapeHtml(r.name)}</label>
+          `).join('') || '<p class="muted">Aucun role.</p>'}
+        </div>
+
+        <label style="margin-top:10px;">Categories masquees sauf staff en service</label>
+        <div class="channel-picker" style="max-height:160px">
+          ${channels.filter((c) => c.type === 4).map((c) => `
+            <label><input type="checkbox" class="service-category" value="${c.id}" ${(config?.onDutyHiddenCategoryIds || []).includes(c.id) ? 'checked' : ''} /> 📁 ${escapeHtml(c.name)}</label>
+          `).join('') || '<p class="muted">Aucune categorie.</p>'}
+        </div>
+
+        <label style="margin-top:10px;">Salons individuels masques sauf staff en service</label>
+        <div class="channel-picker" style="max-height:160px">
+          ${channels.filter((c) => c.type !== 4).map((c) => `
+            <label><input type="checkbox" class="service-channel" value="${c.id}" ${(config?.onDutyHiddenChannelIds || []).includes(c.id) ? 'checked' : ''} /> ${c.type === 2 ? '🔊' : '#'} ${escapeHtml(c.name)}</label>
+          `).join('') || '<p class="muted">Aucun salon.</p>'}
+        </div>
+
+        <div class="dp-toggle-row" style="margin-top:10px;">
           <span>Tickets visibles uniquement par le staff actuellement en service</span>
           <input type="checkbox" id="tickets-on-duty-only" ${config?.ticketsStaffOnDutyOnly === false ? '' : 'checked'} />
         </div>
-        <p class="muted" style="margin-top:8px;">Si desactive, tous les Moderateurs/Administrateurs voient les tickets en permanence (ancien comportement). Ne s'applique qu'aux nouveaux tickets/categories crees apres le changement.</p>
-        <button class="btn" id="save-service-config" style="margin-top:8px;">Enregistrer</button>
+        <p class="muted" style="margin-top:8px;">Enregistrer applique immediatement les permissions choisies (SERVICE STAFF + categories/salons coches). La visibilite se met ensuite a jour automatiquement a chaque bascule de service.</p>
+        <button class="btn" id="save-service-config" style="margin-top:8px;">Enregistrer et appliquer</button>
       `)}
 
       ${sectionHtml('Tickets', `
@@ -876,11 +898,24 @@ async function renderAutomationsPage(id, container = app) {
   wireSections(container);
 
   document.getElementById('save-service-config').addEventListener('click', async () => {
+    const btn = document.getElementById('save-service-config');
+    btn.disabled = true;
     try {
-      await Api.updateConfig(id, { ticketsStaffOnDutyOnly: document.getElementById('tickets-on-duty-only').checked });
-      showToast('Configuration du service enregistree.');
+      const staffRoleIds = [...container.querySelectorAll('.service-role:checked')].map((el) => el.value);
+      const onDutyHiddenCategoryIds = [...container.querySelectorAll('.service-category:checked')].map((el) => el.value);
+      const onDutyHiddenChannelIds = [...container.querySelectorAll('.service-channel:checked')].map((el) => el.value);
+      await Api.updateConfig(id, {
+        ticketsStaffOnDutyOnly: document.getElementById('tickets-on-duty-only').checked,
+        staffRoleIds,
+        onDutyHiddenCategoryIds,
+        onDutyHiddenChannelIds,
+      });
+      await Api.applyServiceVisibility(id);
+      showToast('Configuration du service enregistree et appliquee.');
     } catch (err) {
       showToast(err.message, 'error');
+    } finally {
+      btn.disabled = false;
     }
   });
 
