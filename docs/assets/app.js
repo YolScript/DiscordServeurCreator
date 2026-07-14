@@ -16,19 +16,6 @@ const PERMISSION_CHOICES = [
   'AttachFiles', 'EmbedLinks', 'AddReactions', 'KickMembers', 'BanMembers', 'ModerateMembers',
 ];
 
-const NAV_GROUPS = [
-  {
-    label: 'Serveur',
-    items: [
-      { key: 'textes', label: 'Textes & Bienvenue' },
-      { key: 'permissions', label: 'Permissions' },
-      { key: 'jeux', label: 'Roles de jeu' },
-      { key: 'automatisations', label: 'Automatisations' },
-      { key: 'securite', label: 'Securite' },
-    ],
-  },
-];
-
 function escapeHtml(str) {
   return String(str ?? '').replace(/[&<>"']/g, (c) => ({
     '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;',
@@ -113,38 +100,16 @@ function renderSidebarForGuild(guild) {
     </div>
     <nav class="nav">
       <button class="nav-item" data-section="apercu">Aperçu du serveur</button>
-      ${NAV_GROUPS.map((group) => `
-        <div class="nav-group">
-          <button class="nav-group-header" data-group="${escapeHtml(group.label)}">
-            <span>${escapeHtml(group.label)}</span>
-            <span class="nav-group-chevron">▾</span>
-          </button>
-          <div class="nav-group-items">
-            ${group.items.map((item) => `
-              <button class="nav-item" data-section="${item.key}">${escapeHtml(item.label)}</button>
-            `).join('')}
-          </div>
-        </div>
-      `).join('')}
     </nav>
   `;
 
-  sidebarEl.querySelectorAll('.nav-group-header').forEach((btn) => {
-    btn.addEventListener('click', () => btn.closest('.nav-group').classList.toggle('collapsed'));
-  });
   wireNavItems(guild.guildId);
   setActiveNavItem();
 }
 
 function wireNavItems(id) {
   const renderers = {
-    overview: () => renderOverviewPage(id),
     apercu: () => renderPreviewPage(id),
-    textes: () => renderTextsPage(id),
-    permissions: () => renderPermissionsPage(id),
-    jeux: () => renderGameRolesPage(id),
-    automatisations: () => renderAutomationsPage(id),
-    securite: () => renderSecurityPage(id),
   };
   sidebarEl.querySelectorAll('.nav-item').forEach((btn) => {
     btn.addEventListener('click', () => {
@@ -203,43 +168,6 @@ async function renderGuildList() {
 
   paint('');
   searchInput.oninput = () => paint(searchInput.value);
-}
-
-/* ---------- Pages: overview ---------- */
-
-async function renderOverviewPage(id) {
-  app.innerHTML = '<p class="muted">Chargement...</p>';
-  const guild = allGuilds.find((g) => g.guildId === id);
-  const config = await Api.config(id);
-
-  app.innerHTML = `
-    <div class="inner">
-      <div class="card">
-        <h2>Vue d'ensemble</h2>
-        <p class="muted">${escapeHtml(guild?.name || id)}</p>
-        <div class="row" style="margin-top:14px;">
-          <div class="badge configured">Configure</div>
-        </div>
-      </div>
-      <div class="card">
-        <h2>Raccourcis</h2>
-        <div class="row" style="margin-top:8px;">
-          <button class="btn secondary" data-goto="textes">Textes &amp; Bienvenue</button>
-          <button class="btn secondary" data-goto="permissions">Permissions</button>
-          <button class="btn secondary" data-goto="jeux">Roles de jeu</button>
-          <button class="btn secondary" data-goto="automatisations">Automatisations</button>
-        </div>
-      </div>
-    </div>
-  `;
-  app.querySelectorAll('[data-goto]').forEach((btn) => {
-    btn.addEventListener('click', () => {
-      currentSection = btn.dataset.goto;
-      setActiveNavItem();
-      sidebarEl.querySelector(`.nav-item[data-section="${currentSection}"]`)?.click();
-    });
-  });
-  void config;
 }
 
 /* ---------- Pages: apercu (preview interactif) ---------- */
