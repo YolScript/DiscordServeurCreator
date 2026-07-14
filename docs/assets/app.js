@@ -258,7 +258,9 @@ function isViewAllowed(channel, roleId) {
 
 async function renderPreviewPage(id) {
   app.innerHTML = '<p class="muted">Chargement...</p>';
-  const [channels, config] = await Promise.all([Api.channels(id), Api.config(id)]);
+  const [channels, config, channelPresets, categoryPresets] = await Promise.all([
+    Api.channels(id), Api.config(id), Api.channelPresets(), Api.categoryPresets(),
+  ]);
 
   const categories = channels.filter((c) => c.type === 4).sort((a, b) => a.position - b.position);
   const uncategorized = channels.filter((c) => c.type !== 4 && !c.parent_id);
@@ -269,11 +271,20 @@ async function renderPreviewPage(id) {
       <span class="hash">${channelIcon(c)}</span> ${escapeHtml(c.name)}
     </div>`;
 
+  const channelPickerHtml = (catId) => `
+    <div class="dp-picker" data-picker-for="${catId}" style="display:none;">
+      ${channelPresets.map((p) => `<button type="button" class="dp-picker-chip" data-preset="${p.key}" data-cat="${catId}" title="${escapeHtml(p.description)}">+ ${escapeHtml(p.name)}</button>`).join('')}
+    </div>`;
+
   const categoryBlock = (cat) => {
     const children = channels.filter((c) => c.parent_id === cat.id).sort((a, b) => a.position - b.position);
     return `
       <div class="dp-category" data-cat="${cat.id}"><span class="chevron">▾</span> ${escapeHtml(cat.name)}</div>
-      <div class="dp-channels">${children.map(channelRow).join('')}</div>
+      <div class="dp-channels">
+        ${children.map(channelRow).join('')}
+        <button type="button" class="dp-add-channel" data-add-cat="${cat.id}">+ Ajouter un salon</button>
+        ${channelPickerHtml(cat.id)}
+      </div>
     `;
   };
 
@@ -281,10 +292,14 @@ async function renderPreviewPage(id) {
     <div class="inner" style="max-width:1040px;">
       <div class="card">
         <h2>Aperçu du serveur</h2>
-        <p class="muted">Clique sur un salon pour le renommer, changer sa visibilite ou le supprimer.</p>
+        <p class="muted">Clique sur un salon pour le renommer, changer sa visibilite ou le supprimer. Utilise les boutons "+" pour ajouter des salons ou categories pregeneres directement ici.</p>
       </div>
       <div class="discord-preview">
         <div class="dp-sidebar">
+          <button type="button" class="dp-add-category" id="dp-add-cat-btn">+ Nouvelle categorie</button>
+          <div class="dp-picker" id="dp-cat-picker" style="display:none;">
+            ${categoryPresets.map((p) => `<button type="button" class="dp-picker-chip" data-cat-preset="${p.key}" title="${escapeHtml(p.description)}">📁 ${escapeHtml(p.name)}</button>`).join('')}
+          </div>
           ${uncategorized.map(channelRow).join('')}
           ${categories.map(categoryBlock).join('')}
         </div>
@@ -304,6 +319,42 @@ async function renderPreviewPage(id) {
       app.querySelectorAll('.dp-channel').forEach((el) => el.classList.remove('selected'));
       chEl.classList.add('selected');
       renderChannelPanel(id, chEl.dataset.channel, chEl.dataset.name, Number(chEl.dataset.type), config, channels);
+    });
+  });
+
+  document.getElementById('dp-add-cat-btn').addEventListener('click', () => {
+    const picker = document.getElementById('dp-cat-picker');
+    picker.style.display = picker.style.display === 'none' ? 'flex' : 'none';
+  });
+
+  app.querySelectorAll('[data-cat-preset]').forEach((chip) => {
+    chip.addEventListener('click', async () => {
+      try {
+        await Api.addPresetCategory(id, chip.dataset.catPreset);
+        showToast('Categorie ajoutee.');
+        await renderPreviewPage(id);
+      } catch (err) {
+        showToast(err.message, 'error');
+      }
+    });
+  });
+
+  app.querySelectorAll('.dp-add-channel').forEach((btn) => {
+    btn.addEventListener('click', () => {
+      const picker = app.querySelector(`.dp-picker[data-picker-for="${btn.dataset.addCat}"]`);
+      if (picker) picker.style.display = picker.style.display === 'none' ? 'flex' : 'none';
+    });
+  });
+
+  app.querySelectorAll('.dp-picker[data-picker-for] [data-preset]').forEach((chip) => {
+    chip.addEventListener('click', async () => {
+      try {
+        await Api.addPresetChannel(id, chip.dataset.preset, chip.dataset.cat);
+        showToast('Salon ajoute.');
+        await renderPreviewPage(id);
+      } catch (err) {
+        showToast(err.message, 'error');
+      }
     });
   });
 }
@@ -589,14 +640,21 @@ async function renderGameRolesPage(id) {
 
 async function renderPresetsPage(id) {
   app.innerHTML = '<p class="muted">Chargement...</p>';
-  const [presets, channels] = await Promise.all([Api.channelPresets(), Api.channels(id)]);
+  const [presets, categoryPresets, channels] = await Promise.all([
+    Api.channelPresets(), Api.categoryPresets(), Api.channels(id),
+  ]);
   const categories = channels.filter((c) => c.type === 4);
   const categoryOptions = '<option value="">Aucune categorie</option>'
     + categories.map((c) => `<option value="${c.id}">${escapeHtml(c.name)}</option>`).join('');
   const chips = presets.map((p) => `<button class="preset-chip" data-key="${p.key}" title="${escapeHtml(p.description)}">+ ${escapeHtml(p.name)}</button>`).join('');
+  const categoryChips = categoryPresets.map((p) => `<button class="preset-chip category-preset-chip" data-key="${p.key}" title="${escapeHtml(p.description)}">📁 ${escapeHtml(p.name)}</button>`).join('');
 
   app.innerHTML = `
     <div class="inner">
+      ${sectionHtml('Categories pregenerees', `
+        <p class="muted">Cree une categorie complete avec ses salons en un clic.</p>
+        <div class="preset-grid" style="margin-top:12px;">${categoryChips}</div>
+      `, { open: true })}
       ${sectionHtml('Salons pregeneres', `
         <label>Categorie de destination</label>
         <select id="preset-category">${categoryOptions}</select>
@@ -606,7 +664,18 @@ async function renderPresetsPage(id) {
   `;
   wireSections(app);
 
-  app.querySelectorAll('.preset-chip').forEach((chip) => {
+  app.querySelectorAll('.category-preset-chip').forEach((chip) => {
+    chip.addEventListener('click', async () => {
+      try {
+        await Api.addPresetCategory(id, chip.dataset.key);
+        showToast('Categorie ajoutee.');
+      } catch (err) {
+        showToast(err.message, 'error');
+      }
+    });
+  });
+
+  app.querySelectorAll('.preset-chip:not(.category-preset-chip)').forEach((chip) => {
     chip.addEventListener('click', async () => {
       const categoryId = document.getElementById('preset-category').value;
       try {

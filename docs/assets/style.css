@@ -400,6 +400,20 @@ textarea { min-height: 90px; resize: vertical; font-family: ui-monospace, "SF Mo
 .dp-panel label { color: #96989d; }
 .dp-toggle-row { display: flex; align-items: center; justify-content: space-between; background: #232428; border-radius: 8px; padding: 12px 14px; margin-top: 10px; }
 
+.dp-add-channel, .dp-add-category {
+  display: flex; align-items: center; gap: 6px; padding: 6px 8px; margin: 1px 0;
+  border-radius: 4px; color: #80848e; font-size: 0.82rem; cursor: pointer; background: none; border: none;
+  font-family: inherit; width: 100%; text-align: left;
+}
+.dp-add-channel:hover, .dp-add-category:hover { background: #35373c; color: #dcddde; }
+.dp-add-category { padding: 8px; margin-bottom: 6px; font-weight: 600; }
+.dp-picker { display: flex; flex-wrap: wrap; gap: 6px; padding: 6px 8px 10px; }
+.dp-picker-chip {
+  background: #232428; border: 1px solid #3a3c41; color: #dcddde; font-size: 0.76rem;
+  padding: 4px 9px; border-radius: 999px; cursor: pointer; font-family: inherit;
+}
+.dp-picker-chip:hover { background: #3a3c41; }
+
 @media (prefers-color-scheme: light) {
   :root {
     --bg: #f7f7f8;

@@ -8,7 +8,9 @@ import { getGuildConfig, putGuildConfig, getGameRoles, putGameRoles } from './kv
 import {
   bulkEditPermissions, exportChannelPermissions, importChannelPermissions, resetRoleToDefault,
 } from './permissions.js';
-import { CHANNEL_PRESETS, createPresetChannel } from './channelPresets.js';
+import {
+  CHANNEL_PRESETS, CATEGORY_PRESETS, createPresetChannel, createPresetCategory,
+} from './channelPresets.js';
 
 class HttpError extends Error {
   constructor(status, message) {
@@ -65,6 +67,10 @@ async function router(request, env) {
 
   if (method === 'GET' && url.pathname === '/api/channel-presets') {
     return json(CHANNEL_PRESETS, env);
+  }
+
+  if (method === 'GET' && url.pathname === '/api/category-presets') {
+    return json(CATEGORY_PRESETS, env);
   }
 
   // --- /api/guilds ---
@@ -183,6 +189,14 @@ async function router(request, env) {
       const config = (await getGuildConfig(env, guildId)) || {};
       const channel = await createPresetChannel(env, guildId, config, presetKey, categoryId);
       return json(channel, env);
+    }
+
+    if (sub === 'categories' && parts[4] === 'preset' && method === 'POST') {
+      await requireGuildAccess(env, request, guildId);
+      const { presetKey } = await readJson(request);
+      const config = (await getGuildConfig(env, guildId)) || {};
+      const result = await createPresetCategory(env, guildId, config, presetKey);
+      return json(result, env);
     }
 
     if (sub === 'channels' && parts.length === 5 && parts[4] !== 'preset') {
