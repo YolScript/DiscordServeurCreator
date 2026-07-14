@@ -11,6 +11,7 @@ import {
 import {
   CHANNEL_PRESETS, CATEGORY_PRESETS, createPresetChannel, createPresetCategory,
 } from './channelPresets.js';
+import { GAME_ROLE_CATALOG, createGameRolePreset } from './gameRolePresets.js';
 
 class HttpError extends Error {
   constructor(status, message) {
@@ -71,6 +72,10 @@ async function router(request, env) {
 
   if (method === 'GET' && url.pathname === '/api/category-presets') {
     return json(CATEGORY_PRESETS, env);
+  }
+
+  if (method === 'GET' && url.pathname === '/api/game-role-catalog') {
+    return json(GAME_ROLE_CATALOG, env);
   }
 
   // --- /api/guilds ---
@@ -138,7 +143,18 @@ async function router(request, env) {
       return json(await getGameRoles(env, guildId), env);
     }
 
-    if (sub === 'gameroles' && parts.length === 5) {
+    if (sub === 'gameroles' && parts[4] === 'preset' && method === 'POST') {
+      await requireGuildAccess(env, request, guildId);
+      const { gameKey } = await readJson(request);
+      const config = await getGuildConfig(env, guildId);
+      const roles = await getGameRoles(env, guildId);
+      const newRole = await createGameRolePreset(env, guildId, config, gameKey, roles);
+      roles.push(newRole);
+      await putGameRoles(env, guildId, roles);
+      return json(newRole, env);
+    }
+
+    if (sub === 'gameroles' && parts.length === 5 && parts[4] !== 'preset') {
       await requireGuildAccess(env, request, guildId);
       const roleId = parts[4];
       const roles = await getGameRoles(env, guildId);

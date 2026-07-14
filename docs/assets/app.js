@@ -582,7 +582,7 @@ async function renderPermissionsPage(id) {
 
 async function renderGameRolesPage(id) {
   app.innerHTML = '<p class="muted">Chargement...</p>';
-  const roles = await Api.gameRoles(id);
+  const [roles, catalog] = await Promise.all([Api.gameRoles(id), Api.gameRoleCatalog()]);
 
   const rows = roles.map((r) => `
     <div class="game-role-row" data-role-id="${r.roleId}">
@@ -597,15 +597,41 @@ async function renderGameRolesPage(id) {
     </div>
   `).join('');
 
+  const existingKeys = new Set(roles.map((r) => r.gameKey));
+  const available = catalog.filter((g) => !existingKeys.has(g.name.trim().toLowerCase()));
+  const categories = [...new Set(available.map((g) => g.category))];
+  const catalogHtml = categories.map((cat) => `
+    <div class="muted" style="margin:10px 0 4px;font-weight:600;">${escapeHtml(cat)}</div>
+    <div class="preset-grid">
+      ${available.filter((g) => g.category === cat).map((g) => `<button class="preset-chip game-preset-chip" data-key="${g.key}">+ ${escapeHtml(g.name)}</button>`).join('')}
+    </div>
+  `).join('') || '<p class="muted">Tous les jeux du catalogue sont deja ajoutes.</p>';
+
   app.innerHTML = `
     <div class="inner">
-      ${sectionHtml('Roles de jeu detectes', `
-        <p class="muted">Generes automatiquement quand un membre est vu en train de jouer.</p>
+      ${sectionHtml('Catalogue de jeux pregeneres', `
+        <p class="muted">Ajoute un role de jeu sans attendre qu'un membre soit detecte en train d'y jouer.</p>
+        ${catalogHtml}
+      `)}
+      ${sectionHtml('Roles de jeu actifs', `
+        <p class="muted">Generes automatiquement quand un membre est vu en train de jouer, ou ajoutes depuis le catalogue.</p>
         ${rows || '<p class="muted">Aucun role de jeu pour le moment.</p>'}
       `, { open: true })}
     </div>
   `;
   wireSections(app);
+
+  app.querySelectorAll('.game-preset-chip').forEach((chip) => {
+    chip.addEventListener('click', async () => {
+      try {
+        await Api.addPresetGameRole(id, chip.dataset.key);
+        showToast('Role de jeu ajoute.');
+        await renderGameRolesPage(id);
+      } catch (err) {
+        showToast(err.message, 'error');
+      }
+    });
+  });
 
   app.querySelectorAll('.rename-btn').forEach((btn) => {
     btn.addEventListener('click', async () => {
