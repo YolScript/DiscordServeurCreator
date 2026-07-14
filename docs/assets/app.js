@@ -294,14 +294,8 @@ async function renderPreviewPage(id) {
 
   app.innerHTML = `
     <div class="inner" style="max-width:1040px;">
-      <div class="card">
-        <div class="row" style="justify-content:space-between; align-items:flex-start;">
-          <div>
-            <h2>Aperçu du serveur</h2>
-            <p class="muted" style="margin-bottom:0;">Clique sur un salon pour le renommer, changer sa visibilite ou le supprimer. Utilise les boutons "+" pour ajouter des salons ou categories pregeneres directement ici.</p>
-          </div>
-          <button type="button" class="btn secondary" id="dp-fullscreen-btn">⛶ Plein ecran</button>
-        </div>
+      <div class="row" style="justify-content:flex-end; margin-bottom:12px;">
+        <button type="button" class="btn secondary" id="dp-fullscreen-btn">⛶ Plein ecran</button>
       </div>
       <div class="discord-preview">
         <div class="dp-sidebar">
