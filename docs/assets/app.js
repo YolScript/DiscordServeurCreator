@@ -234,7 +234,7 @@ async function renderPreviewPage(id) {
   const guildIcon = guild ? guildIconUrl(guild) : null;
 
   app.innerHTML = `
-    <div class="inner" style="max-width:1040px;">
+    <div class="inner" style="max-width:none;">
       <div class="row" style="justify-content:flex-end; margin-bottom:12px;">
         <button type="button" class="btn secondary" id="dp-fullscreen-btn">⛶ Plein ecran</button>
       </div>
@@ -245,9 +245,11 @@ async function renderPreviewPage(id) {
             <span class="caret">▾</span>
           </div>
           <div class="dp-channel-list">
-            <div class="dp-category" data-cat="__settings"><span class="chevron">▾</span> Parametres</div>
-            <div class="dp-channels">
-              ${SETTINGS_PANELS.map((p) => `<div class="dp-channel" data-settings="${p.key}"><span class="hash">⚙</span> ${escapeHtml(p.label)}</div>`).join('')}
+            <div class="dp-settings-group">
+              <div class="dp-category" data-cat="__settings"><span class="chevron">▾</span> Parametres</div>
+              <div class="dp-channels">
+                ${SETTINGS_PANELS.map((p) => `<div class="dp-channel" data-settings="${p.key}"><span class="hash">⚙</span> ${escapeHtml(p.label)}</div>`).join('')}
+              </div>
             </div>
             <button type="button" class="dp-add-category" id="dp-add-cat-btn">+ Nouvelle categorie</button>
             <div class="dp-custom-form" data-form-for="__category" style="display:none;">
