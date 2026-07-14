@@ -87,17 +87,8 @@ function renderSidebarForList() {
   `;
 }
 
-function renderSidebarForGuild(guild) {
-  const icon = guildIconUrl(guild);
-  sidebarEl.innerHTML = `
-    <div class="sidebar-header">
-      ${icon ? `<img src="${icon}" alt="" />` : `<div class="brand-icon" style="width:30px;height:30px;background:var(--accent);display:flex;align-items:center;justify-content:center;font-size:0.7rem;font-weight:700;color:#fff;">${escapeHtml(initials(guild.name))}</div>`}
-      <div class="sidebar-header-text">
-        <div class="name">${escapeHtml(guild.name)}</div>
-        <div class="sub">Dashboard</div>
-      </div>
-    </div>
-  `;
+function renderSidebarForGuild() {
+  sidebarEl.innerHTML = '';
 }
 
 /* ---------- Pages: guild list ---------- */
