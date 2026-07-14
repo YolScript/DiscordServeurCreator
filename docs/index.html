@@ -7,17 +7,17 @@
   <link rel="stylesheet" href="assets/style.css" />
 </head>
 <body>
-  <main style="max-width: 420px; margin-top: 15vh; text-align: center;">
-    <h1 style="background: linear-gradient(90deg, #e63946, #219ebc); -webkit-background-clip: text; background-clip: text; color: transparent;">
-      Discord Serveur Creator
-    </h1>
-    <p class="muted">Panel d'administration des serveurs generes par le bot.</p>
-    <div class="card">
-      <p>Connecte-toi avec ton compte Discord pour gerer tes serveurs.</p>
-      <button class="btn" id="login-btn" style="width: 100%; justify-content: center;">Se connecter avec Discord</button>
+  <div class="auth-shell">
+    <div class="auth-box">
+      <div class="brand"><span class="brand-mark"></span>Discord Serveur Creator</div>
+      <p class="lede">Panel d'administration des serveurs generes par le bot.</p>
+      <div class="card">
+        <p style="margin-top:0;">Connecte-toi avec ton compte Discord pour gerer tes serveurs.</p>
+        <button class="btn" id="login-btn" style="width: 100%;">Se connecter avec Discord</button>
+      </div>
+      <p class="muted" id="status"></p>
     </div>
-    <p class="muted" id="status"></p>
-  </main>
+  </div>
 
   <script src="assets/config.js"></script>
   <script src="assets/api.js"></script>
