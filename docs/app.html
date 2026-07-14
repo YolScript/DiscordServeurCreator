@@ -8,6 +8,12 @@
   <link rel="stylesheet" href="assets/style.css?v=3" />
 </head>
 <body>
+  <div class="bg-video-wrap">
+    <video class="bg-video" autoplay muted loop playsinline poster="assets/bg-video-poster.jpg">
+      <source src="assets/bg-video.mp4" type="video/mp4" />
+    </video>
+    <div class="bg-overlay"></div>
+  </div>
   <div class="shell">
     <aside class="rail" id="rail"></aside>
     <aside class="sidebar" id="sidebar"></aside>
@@ -31,5 +37,10 @@
   <script src="assets/config.js?v=2"></script>
   <script src="assets/api.js?v=2"></script>
   <script src="assets/app.js?v=3"></script>
+  <script>
+    if (window.matchMedia('(prefers-reduced-motion: reduce)').matches) {
+      document.querySelectorAll('.bg-video').forEach((v) => v.pause());
+    }
+  </script>
 </body>
 </html>

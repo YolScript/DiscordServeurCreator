@@ -31,10 +31,45 @@ body {
   font-family: -apple-system, "Segoe UI", Roboto, Helvetica, Arial, sans-serif;
   font-size: 15px;
   line-height: 1.55;
-  background: var(--bg);
+  background: transparent;
   color: var(--text);
   min-height: 100vh;
   -webkit-font-smoothing: antialiased;
+}
+
+/* ---------- Video de fond (floute) ---------- */
+
+.bg-video-wrap {
+  position: fixed;
+  inset: 0;
+  z-index: -1;
+  overflow: hidden;
+  background: #0a0a0c;
+}
+.bg-video {
+  position: absolute;
+  top: 50%;
+  left: 50%;
+  min-width: 100%;
+  min-height: 100%;
+  width: auto;
+  height: auto;
+  transform: translate(-50%, -50%) scale(1.15);
+  object-fit: cover;
+  filter: blur(16px);
+}
+.bg-overlay {
+  position: absolute;
+  inset: 0;
+  background: rgba(9, 10, 12, 0.72);
+}
+@media (prefers-reduced-motion: reduce) {
+  .bg-video { display: none; }
+  .bg-video-wrap {
+    background: #0a0a0c url('bg-video-poster.jpg') center/cover no-repeat;
+    filter: blur(16px);
+    transform: scale(1.1);
+  }
 }
 
 h1, h2, h3 { font-weight: 600; letter-spacing: -0.01em; }
@@ -50,6 +85,8 @@ html, body { height: 100%; }
 
 .rail {
   width: 64px; flex: none; background: var(--bg-rail);
+  background: color-mix(in srgb, var(--bg-rail) 82%, transparent);
+  backdrop-filter: blur(18px); -webkit-backdrop-filter: blur(18px);
   display: flex; flex-direction: column; align-items: center;
   padding: 12px 0; gap: 10px; overflow-y: auto;
   border-right: 1px solid var(--border);
@@ -70,6 +107,8 @@ html, body { height: 100%; }
 
 .sidebar {
   width: 248px; flex: none; background: var(--bg-sidebar);
+  background: color-mix(in srgb, var(--bg-sidebar) 82%, transparent);
+  backdrop-filter: blur(18px); -webkit-backdrop-filter: blur(18px);
   border-right: 1px solid var(--border);
   display: flex; flex-direction: column;
   overflow-y: auto;
@@ -107,6 +146,7 @@ html, body { height: 100%; }
 .nav-group.collapsed .nav-group-items { display: none; }
 
 .content { flex: 1; display: flex; flex-direction: column; overflow: hidden; background: var(--bg); min-width: 0; }
+.content { background: color-mix(in srgb, var(--bg) 55%, transparent); }
 .content-topbar {
   display: flex; align-items: center; justify-content: space-between;
   padding: 14px 28px; border-bottom: 1px solid var(--border); flex: none; gap: 16px;
