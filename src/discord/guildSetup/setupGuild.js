@@ -116,6 +116,7 @@ async function setupGuild({ guild, templateKey, requestedByUserId, reglementText
     rulesChannelId: channelObjects.reglement.id,
     rolesChannelId: channelObjects.roles.id,
     vocauxCategoryId: channelObjects.vocaux.id,
+    publicVoiceBaseChannelIds: [channelObjects['vocal-public-1'].id, channelObjects['vocal-public-2'].id],
     botRoleId: roleObjects.bot.id,
     adminRoleId: roleObjects.administrateur.id,
     moderateurRoleId: roleObjects.moderateur.id,
