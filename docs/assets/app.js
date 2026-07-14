@@ -434,6 +434,35 @@ function renderSettingsPanel(guildId, key) {
   renderers[key]?.();
 }
 
+function contextualChannelSettingsHtml(channelId, config) {
+  if (config?.rulesChannelId && config.rulesChannelId === channelId) {
+    return `
+      <div class="dp-context-block">
+        <h2 style="font-size:0.85rem; margin:20px 0 8px;">Reglement</h2>
+        <label>Texte du reglement</label>
+        <textarea id="dp-ctx-reglement">${escapeHtml(config?.reglementText)}</textarea>
+        <div class="dp-toggle-row" style="margin-top:8px;">
+          <span>Verification anti-bot (captcha emoji) avant validation</span>
+          <input type="checkbox" id="dp-ctx-captcha" ${config?.captchaEnabled === false ? '' : 'checked'} />
+        </div>
+        <button class="btn secondary" id="dp-ctx-save-reglement" style="margin-top:8px;">Enregistrer le reglement</button>
+      </div>`;
+  }
+  if (config?.arrivalDepartureChannelId && config.arrivalDepartureChannelId === channelId) {
+    return `
+      <div class="dp-context-block">
+        <h2 style="font-size:0.85rem; margin:20px 0 8px;">Messages bienvenue / depart</h2>
+        <label>Message de bienvenue</label>
+        <textarea id="dp-ctx-welcome">${escapeHtml(config?.welcomeMessageTemplate)}</textarea>
+        <label>Message de depart</label>
+        <textarea id="dp-ctx-leave">${escapeHtml(config?.leaveMessageTemplate)}</textarea>
+        <p class="muted">Variables disponibles : {user} {username} {server} {membercount}</p>
+        <button class="btn secondary" id="dp-ctx-save-welcome" style="margin-top:8px;">Enregistrer les messages</button>
+      </div>`;
+  }
+  return '';
+}
+
 function renderChannelPanel(guildId, channelId, name, type, config, channels) {
   const main = document.getElementById('dp-main');
   const channel = channels.find((c) => c.id === channelId);
@@ -456,9 +485,41 @@ function renderChannelPanel(guildId, channelId, name, type, config, channels) {
         </div>
       ` : ''}
 
+      ${contextualChannelSettingsHtml(channelId, config)}
+
       <button class="btn danger" id="dp-delete" style="margin-top:20px;">Supprimer ce salon</button>
     </div>
   `;
+
+  const saveReglementBtn = document.getElementById('dp-ctx-save-reglement');
+  if (saveReglementBtn) {
+    saveReglementBtn.addEventListener('click', async () => {
+      try {
+        await Api.updateConfig(guildId, {
+          reglementText: document.getElementById('dp-ctx-reglement').value,
+          captchaEnabled: document.getElementById('dp-ctx-captcha').checked,
+        });
+        showToast('Reglement enregistre.');
+      } catch (err) {
+        showToast(err.message, 'error');
+      }
+    });
+  }
+
+  const saveWelcomeBtn = document.getElementById('dp-ctx-save-welcome');
+  if (saveWelcomeBtn) {
+    saveWelcomeBtn.addEventListener('click', async () => {
+      try {
+        await Api.updateConfig(guildId, {
+          welcomeMessageTemplate: document.getElementById('dp-ctx-welcome').value,
+          leaveMessageTemplate: document.getElementById('dp-ctx-leave').value,
+        });
+        showToast('Messages enregistres.');
+      } catch (err) {
+        showToast(err.message, 'error');
+      }
+    });
+  }
 
   document.getElementById('dp-save-name').addEventListener('click', async () => {
     const value = document.getElementById('dp-rename').value.trim();

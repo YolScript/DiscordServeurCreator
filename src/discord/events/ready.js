@@ -1,6 +1,7 @@
 const { Events } = require('discord.js');
 const client = require('../client');
 const { ensureStaffCategory } = require('../roles/staffCategory');
+const { syncCreatorChannel } = require('../roles/staffVoiceCreator');
 const guildConfigStore = require('../../kv/guildConfigStore');
 const scheduler = require('../automation/scheduler');
 const liveNotifier = require('../automation/liveNotifier');
@@ -18,6 +19,7 @@ client.once(Events.ClientReady, async (readyClient) => {
     const config = await guildConfigStore.find(guild.id).catch(() => null);
     if (config) {
       await ensureStaffCategory(guild).catch((err) => logger.error('ensureStaffCategory initial', err));
+      await syncCreatorChannel(guild).catch((err) => logger.error('syncCreatorChannel initial', err));
     }
     await inviteTracker.snapshotGuildInvites(guild).catch((err) => logger.error('snapshotGuildInvites', err));
   }
