@@ -314,6 +314,10 @@ async function init() {
   try {
     const me = await Api.me();
     document.getElementById('whoami').textContent = me.username;
+    const avatarUrl = me.avatar
+      ? `https://cdn.discordapp.com/avatars/${me.userId}/${me.avatar}.png?size=64`
+      : `https://cdn.discordapp.com/embed/avatars/${Number((BigInt(me.userId) >> 22n) % 6n)}.png`;
+    document.getElementById('user-avatar').src = avatarUrl;
   } catch {
     return; // Api.me() redirige deja vers index.html sur 401
   }

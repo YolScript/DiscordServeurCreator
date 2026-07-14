@@ -4,15 +4,19 @@
   <meta charset="utf-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1" />
   <title>Discord Serveur Creator - Dashboard</title>
+  <link rel="icon" type="image/png" href="assets/favicon-64.png" />
   <link rel="stylesheet" href="assets/style.css" />
 </head>
 <body>
   <header class="topbar">
-    <a href="app.html" class="brand"><span class="brand-mark"></span>Discord Serveur Creator</a>
-    <div class="row">
-      <span class="muted" id="whoami"></span>
-      <button class="btn secondary" id="logout-btn">Deconnexion</button>
-    </div>
+    <a href="app.html" class="brand" title="Discord Serveur Creator">
+      <img class="brand-icon" src="assets/logo-512.png" alt="Discord Serveur Creator" />
+      <span class="brand-text">Discord Serveur Creator</span>
+    </a>
+    <button class="user-chip" id="logout-btn" title="Se deconnecter">
+      <img class="user-avatar" id="user-avatar" alt="" />
+      <span id="whoami"></span>
+    </button>
   </header>
 
   <main id="app">

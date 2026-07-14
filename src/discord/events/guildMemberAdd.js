@@ -23,7 +23,19 @@ client.on(Events.GuildMemberAdd, async (member) => {
     if (!channel) return;
 
     const text = applyPlaceholders(config.welcomeMessageTemplate || 'Bienvenue {user} sur {server} !', member);
-    const embed = new EmbedBuilder().setDescription(text).setColor(0x90be6d).setThumbnail(member.user.displayAvatarURL());
+    const embed = new EmbedBuilder()
+      .setAuthor({ name: member.user.username, iconURL: member.user.displayAvatarURL() })
+      .setTitle('👋 Nouveau membre')
+      .setDescription(text)
+      .setThumbnail(member.user.displayAvatarURL({ size: 256 }))
+      .addFields(
+        { name: 'Membre', value: `<@${member.id}>`, inline: true },
+        { name: 'Total', value: `${member.guild.memberCount} membres`, inline: true },
+      )
+      .setColor(0x30a46c)
+      .setFooter({ text: member.guild.name, iconURL: member.guild.iconURL() ?? undefined })
+      .setTimestamp();
+
     await channel.send({ embeds: [embed] });
   } catch (err) {
     logger.error('guildMemberAdd', err);

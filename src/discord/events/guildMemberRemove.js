@@ -20,7 +20,16 @@ client.on(Events.GuildMemberRemove, async (member) => {
     if (!channel) return;
 
     const text = applyPlaceholders(config.leaveMessageTemplate || '{username} a quitte le serveur.', member);
-    const embed = new EmbedBuilder().setDescription(text).setColor(0xe63946).setThumbnail(member.user.displayAvatarURL());
+    const embed = new EmbedBuilder()
+      .setAuthor({ name: member.user.username, iconURL: member.user.displayAvatarURL() })
+      .setTitle('👋 Depart')
+      .setDescription(text)
+      .setThumbnail(member.user.displayAvatarURL({ size: 256 }))
+      .addFields({ name: 'Total', value: `${member.guild.memberCount} membres`, inline: true })
+      .setColor(0xe5484d)
+      .setFooter({ text: member.guild.name, iconURL: member.guild.iconURL() ?? undefined })
+      .setTimestamp();
+
     await channel.send({ embeds: [embed] });
   } catch (err) {
     logger.error('guildMemberRemove', err);
