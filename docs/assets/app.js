@@ -97,6 +97,7 @@ function renderSidebarForGuild(guild) {
     </div>
     <nav class="nav">
       <button class="nav-item" data-section="overview"><span class="nav-icon">▦</span>Vue d'ensemble</button>
+      <button class="nav-item" data-section="apercu"><span class="nav-icon">🖥</span>Aperçu du serveur</button>
       ${NAV_GROUPS.map((group) => `
         <div class="nav-group">
           <button class="nav-group-header" data-group="${escapeHtml(group.label)}">
@@ -123,6 +124,7 @@ function renderSidebarForGuild(guild) {
 function wireNavItems(id) {
   const renderers = {
     overview: () => renderOverviewPage(id),
+    apercu: () => renderPreviewPage(id),
     textes: () => renderTextsPage(id),
     permissions: () => renderPermissionsPage(id),
     jeux: () => renderGameRolesPage(id),
@@ -222,6 +224,141 @@ async function renderOverviewPage(id) {
     });
   });
   void config;
+}
+
+/* ---------- Pages: apercu (preview interactif) ---------- */
+
+function findOverwrite(channel, roleId) {
+  return (channel.permission_overwrites || []).find((o) => o.id === roleId);
+}
+
+function isViewAllowed(channel, roleId) {
+  const ow = findOverwrite(channel, roleId);
+  if (!ow) return null;
+  const VIEW_CHANNEL = 1024n;
+  if (BigInt(ow.allow || '0') & VIEW_CHANNEL) return true;
+  if (BigInt(ow.deny || '0') & VIEW_CHANNEL) return false;
+  return null;
+}
+
+async function renderPreviewPage(id) {
+  app.innerHTML = '<p class="muted">Chargement...</p>';
+  const [channels, config] = await Promise.all([Api.channels(id), Api.config(id)]);
+
+  const categories = channels.filter((c) => c.type === 4).sort((a, b) => a.position - b.position);
+  const uncategorized = channels.filter((c) => c.type !== 4 && !c.parent_id);
+  const channelIcon = (c) => (c.type === 2 ? '🔊' : c.type === 4 ? '' : '#');
+
+  const channelRow = (c) => `
+    <div class="dp-channel" data-channel="${c.id}" data-name="${escapeHtml(c.name)}" data-type="${c.type}">
+      <span class="hash">${channelIcon(c)}</span> ${escapeHtml(c.name)}
+    </div>`;
+
+  const categoryBlock = (cat) => {
+    const children = channels.filter((c) => c.parent_id === cat.id).sort((a, b) => a.position - b.position);
+    return `
+      <div class="dp-category" data-cat="${cat.id}"><span class="chevron">▾</span> ${escapeHtml(cat.name)}</div>
+      <div class="dp-channels">${children.map(channelRow).join('')}</div>
+    `;
+  };
+
+  app.innerHTML = `
+    <div class="inner" style="max-width:1040px;">
+      <div class="card">
+        <h2>Aperçu du serveur</h2>
+        <p class="muted">Clique sur un salon pour le renommer, changer sa visibilite ou le supprimer.</p>
+      </div>
+      <div class="discord-preview">
+        <div class="dp-sidebar">
+          ${uncategorized.map(channelRow).join('')}
+          ${categories.map(categoryBlock).join('')}
+        </div>
+        <div class="dp-main" id="dp-main">
+          <p class="dp-empty">Selectionne un salon a gauche pour le configurer.</p>
+        </div>
+      </div>
+    </div>
+  `;
+
+  app.querySelectorAll('.dp-category').forEach((catEl) => {
+    catEl.addEventListener('click', () => catEl.classList.toggle('collapsed'));
+  });
+
+  app.querySelectorAll('.dp-channel').forEach((chEl) => {
+    chEl.addEventListener('click', () => {
+      app.querySelectorAll('.dp-channel').forEach((el) => el.classList.remove('selected'));
+      chEl.classList.add('selected');
+      renderChannelPanel(id, chEl.dataset.channel, chEl.dataset.name, Number(chEl.dataset.type), config, channels);
+    });
+  });
+}
+
+function renderChannelPanel(guildId, channelId, name, type, config, channels) {
+  const main = document.getElementById('dp-main');
+  const channel = channels.find((c) => c.id === channelId);
+  const icon = type === 2 ? '🔊' : type === 4 ? '📁' : '#';
+  const currentlyVisible = config?.reglementValidatedRoleId
+    ? isViewAllowed(channel, config.reglementValidatedRoleId)
+    : null;
+
+  main.innerHTML = `
+    <div class="dp-panel">
+      <div class="dp-panel-title">${icon} ${escapeHtml(name)}</div>
+      <label>Nom du salon</label>
+      <input type="text" id="dp-rename" value="${escapeHtml(name)}" />
+      <button class="btn" id="dp-save-name" style="margin-top:10px;">Enregistrer le nom</button>
+
+      ${config?.reglementValidatedRoleId && type !== 4 ? `
+        <div class="dp-toggle-row">
+          <span>Visible pour "Reglement valide"</span>
+          <input type="checkbox" id="dp-visible-toggle" ${currentlyVisible !== false ? 'checked' : ''} />
+        </div>
+      ` : ''}
+
+      <button class="btn danger" id="dp-delete" style="margin-top:20px;">Supprimer ce salon</button>
+    </div>
+  `;
+
+  document.getElementById('dp-save-name').addEventListener('click', async () => {
+    const value = document.getElementById('dp-rename').value.trim();
+    if (!value) return;
+    try {
+      await Api.renameChannel(guildId, channelId, value);
+      showToast('Salon renomme.');
+      await renderPreviewPage(guildId);
+    } catch (err) {
+      showToast(err.message, 'error');
+    }
+  });
+
+  const toggle = document.getElementById('dp-visible-toggle');
+  if (toggle) {
+    toggle.addEventListener('change', async () => {
+      try {
+        await Api.bulkPermissions(guildId, {
+          channelIds: [channelId],
+          roleId: config.reglementValidatedRoleId,
+          allow: toggle.checked ? ['ViewChannel'] : [],
+          deny: toggle.checked ? [] : ['ViewChannel'],
+        });
+        showToast('Visibilite mise a jour.');
+      } catch (err) {
+        showToast(err.message, 'error');
+        toggle.checked = !toggle.checked;
+      }
+    });
+  }
+
+  document.getElementById('dp-delete').addEventListener('click', async () => {
+    if (!window.confirm(`Supprimer definitivement "${name}" ?`)) return;
+    try {
+      await Api.deleteChannel(guildId, channelId);
+      showToast('Salon supprime.');
+      await renderPreviewPage(guildId);
+    } catch (err) {
+      showToast(err.message, 'error');
+    }
+  });
 }
 
 /* ---------- Pages: textes ---------- */
