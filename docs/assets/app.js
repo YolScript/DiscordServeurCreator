@@ -234,7 +234,7 @@ async function renderPreviewPage(id) {
   const guildIcon = guild ? guildIconUrl(guild) : null;
 
   app.innerHTML = `
-    <div class="inner" style="max-width:none;">
+    <div class="inner fill" style="max-width:none;">
       <div class="row" style="justify-content:flex-end; margin-bottom:12px;">
         <button type="button" class="btn secondary" id="dp-fullscreen-btn">⛶ Plein ecran</button>
       </div>
