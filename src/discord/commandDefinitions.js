@@ -183,9 +183,28 @@ const giveawayCommand = new SlashCommandBuilder()
   .addIntegerOption((o) => o.setName('gagnants').setDescription('Nombre de gagnants (defaut 1)').setRequired(false).setMinValue(1))
   .toJSON();
 
+const invitesCommand = new SlashCommandBuilder()
+  .setName('invites')
+  .setDescription('Affiche le nombre d\'invitations d\'un membre.')
+  .addUserOption((o) => o.setName('membre').setDescription('Membre a consulter').setRequired(false))
+  .toJSON();
+
+const referralroleCommand = new SlashCommandBuilder()
+  .setName('referralrole')
+  .setDescription('Configure les roles automatiques par nombre d\'invitations.')
+  .setDefaultMemberPermissions(PermissionFlagsBits.ManageGuild)
+  .addSubcommand((s) => s.setName('set').setDescription('Definit un palier')
+    .addIntegerOption((o) => o.setName('invitations').setDescription('Nombre d\'invitations requis').setRequired(true).setMinValue(1))
+    .addRoleOption((o) => o.setName('role').setDescription('Role a attribuer').setRequired(true)))
+  .addSubcommand((s) => s.setName('remove').setDescription('Retire un palier')
+    .addIntegerOption((o) => o.setName('invitations').setDescription('Palier a retirer').setRequired(true)))
+  .addSubcommand((s) => s.setName('list').setDescription('Liste les paliers configures'))
+  .toJSON();
+
 module.exports = [
   setupCommand, warnCommand, warningsCommand, clearwarnsCommand, timeoutCommand, unlockCommand, automodCommand,
   scheduleAnnouncementCommand, scheduleEventCommand, scheduledListCommand, scheduledCancelCommand,
   rankCommand, leaderboardCommand, levelroleCommand, pollCommand, giveawayCommand,
+  invitesCommand, referralroleCommand,
   reglementTranslationCommand, streamerLinkCommand, streamerUnlinkCommand, streamerListCommand,
 ];

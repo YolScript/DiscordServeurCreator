@@ -31,6 +31,8 @@ const handleLeaderboardCommand = require('../commands/leaderboard');
 const handleLevelroleCommand = require('../commands/levelrole');
 const handlePollCommand = require('../commands/poll');
 const handleGiveawayCommand = require('../commands/giveaway');
+const handleInvitesCommand = require('../commands/invites');
+const handleReferralroleCommand = require('../commands/referralrole');
 const logger = require('../../shared/logger');
 
 const commandHandlers = {
@@ -54,6 +56,8 @@ const commandHandlers = {
   levelrole: handleLevelroleCommand,
   poll: handlePollCommand,
   giveaway: handleGiveawayCommand,
+  invites: handleInvitesCommand,
+  referralrole: handleReferralroleCommand,
 };
 
 async function routeInteraction(interaction) {

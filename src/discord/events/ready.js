@@ -6,6 +6,7 @@ const liveNotifier = require('../automation/liveNotifier');
 const xpManager = require('../engagement/xpManager');
 const pollManager = require('../engagement/pollManager');
 const giveawayManager = require('../engagement/giveawayManager');
+const inviteTracker = require('../engagement/inviteTracker');
 const logger = require('../../shared/logger');
 
 client.once(Events.ClientReady, async (readyClient) => {
@@ -17,6 +18,7 @@ client.once(Events.ClientReady, async (readyClient) => {
   for (const guild of readyClient.guilds.cache.values()) {
     await guild.members.fetch().catch(() => {});
     await staffVoiceManager.syncHub(guild).catch((err) => logger.error('syncHub initial', err));
+    await inviteTracker.snapshotGuildInvites(guild).catch((err) => logger.error('snapshotGuildInvites', err));
   }
 
   scheduler.start();

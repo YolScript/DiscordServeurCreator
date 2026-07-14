@@ -2,6 +2,7 @@ const { Events, EmbedBuilder } = require('discord.js');
 const client = require('../client');
 const guildConfigStore = require('../../kv/guildConfigStore');
 const antiRaid = require('../moderation/antiRaid');
+const inviteTracker = require('../engagement/inviteTracker');
 const logger = require('../../shared/logger');
 
 function applyPlaceholders(template, member) {
@@ -14,6 +15,7 @@ function applyPlaceholders(template, member) {
 
 client.on(Events.GuildMemberAdd, async (member) => {
   antiRaid.handleGuildMemberAdd(member);
+  inviteTracker.resolveInviterOnJoin(member).catch((err) => logger.error('resolveInviterOnJoin', err));
 
   try {
     const config = await guildConfigStore.find(member.guild.id);
