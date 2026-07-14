@@ -33,6 +33,7 @@ const handlePollCommand = require('../commands/poll');
 const handleGiveawayCommand = require('../commands/giveaway');
 const handleInvitesCommand = require('../commands/invites');
 const handleReferralroleCommand = require('../commands/referralrole');
+const handleBadgesCommand = require('../commands/badges');
 const logger = require('../../shared/logger');
 
 const commandHandlers = {
@@ -58,6 +59,7 @@ const commandHandlers = {
   giveaway: handleGiveawayCommand,
   invites: handleInvitesCommand,
   referralrole: handleReferralroleCommand,
+  badges: handleBadgesCommand,
 };
 
 async function routeInteraction(interaction) {

@@ -201,10 +201,16 @@ const referralroleCommand = new SlashCommandBuilder()
   .addSubcommand((s) => s.setName('list').setDescription('Liste les paliers configures'))
   .toJSON();
 
+const badgesCommand = new SlashCommandBuilder()
+  .setName('badges')
+  .setDescription('Affiche tes badges (ou ceux d\'un membre).')
+  .addUserOption((o) => o.setName('membre').setDescription('Membre a consulter').setRequired(false))
+  .toJSON();
+
 module.exports = [
   setupCommand, warnCommand, warningsCommand, clearwarnsCommand, timeoutCommand, unlockCommand, automodCommand,
   scheduleAnnouncementCommand, scheduleEventCommand, scheduledListCommand, scheduledCancelCommand,
   rankCommand, leaderboardCommand, levelroleCommand, pollCommand, giveawayCommand,
-  invitesCommand, referralroleCommand,
+  invitesCommand, referralroleCommand, badgesCommand,
   reglementTranslationCommand, streamerLinkCommand, streamerUnlinkCommand, streamerListCommand,
 ];

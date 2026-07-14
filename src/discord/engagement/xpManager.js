@@ -1,5 +1,6 @@
 const xpStore = require('../../kv/xpStore');
 const levelRoleStore = require('../../kv/levelRoleStore');
+const { checkAndAwardBadges } = require('./badgeManager');
 const logger = require('../../shared/logger');
 
 const XP_PER_MESSAGE = 15;
@@ -46,6 +47,7 @@ async function awardMessageXp(message) {
       await applyLevelRoles(message.member, newLevel);
       await message.channel.send(`🎉 <@${message.author.id}> passe niveau **${newLevel}** !`).catch(() => {});
     }
+    await checkAndAwardBadges(message.guild, message.author.id);
   } catch (err) {
     logger.error('xpManager.awardMessageXp', err);
   }
@@ -67,6 +69,7 @@ async function tickVoiceXp(client) {
           data.level = newLevel;
           await xpStore.setMember(guild.id, member.id, data);
           if (leveledUp) await applyLevelRoles(member, newLevel);
+          await checkAndAwardBadges(guild, member.id);
         } catch (err) {
           logger.error('xpManager.tickVoiceXp', err);
         }

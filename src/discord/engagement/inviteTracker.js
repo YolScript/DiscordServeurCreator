@@ -1,4 +1,5 @@
 const referralStore = require('../../kv/referralStore');
+const { checkAndAwardBadges } = require('./badgeManager');
 const logger = require('../../shared/logger');
 
 // Cache en memoire : guildId -> Map<inviteCode, uses>. Sert a determiner par
@@ -51,6 +52,7 @@ async function resolveInviterOnJoin(member) {
       }
     }
   }
+  await checkAndAwardBadges(member.guild, inviterId);
   return { inviterId, count };
 }
 
