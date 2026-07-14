@@ -14,4 +14,13 @@ module.exports = {
     namespaceId: required('CF_KV_NAMESPACE_ID'),
     apiToken: required('CF_API_TOKEN'),
   },
+  // Optionnels : sans ces cles, les fonctionnalites correspondantes restent
+  // simplement inactives (pas de crash au demarrage).
+  twitch: {
+    clientId: process.env.TWITCH_CLIENT_ID || null,
+    clientSecret: process.env.TWITCH_CLIENT_SECRET || null,
+  },
+  youtube: {
+    apiKey: process.env.YOUTUBE_API_KEY || null,
+  },
 };

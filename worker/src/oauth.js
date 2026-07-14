@@ -52,7 +52,7 @@ export async function handleCallback(request, env) {
 
   const sessionId = await createSession(env, {
     userId: discordUser.id,
-    username: discordUser.username,
+    username: discordUser.global_name || discordUser.username,
     avatar: discordUser.avatar,
     accessToken: tokens.access_token,
     refreshToken: tokens.refresh_token,
