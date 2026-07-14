@@ -202,10 +202,8 @@ async function renderPreviewPage(id) {
 
   app.innerHTML = `
     <div class="inner fill" style="max-width:none;">
-      <div class="row" style="justify-content:flex-end; margin-bottom:12px;">
-        <button type="button" class="btn secondary" id="dp-fullscreen-btn">⛶ Plein ecran</button>
-      </div>
-      <div class="discord-preview">
+      <div class="discord-preview" style="position:relative;">
+        <button type="button" class="btn secondary dp-fullscreen-btn" id="dp-fullscreen-btn">⛶ Plein ecran</button>
         <div class="dp-sidebar">
           <div class="dp-server-header">
             <span class="name">${escapeHtml(guild?.name || 'Serveur')}</span>

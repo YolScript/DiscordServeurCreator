@@ -376,21 +376,30 @@ textarea { min-height: 90px; resize: vertical; font-family: ui-monospace, "SF Mo
 /* ---------- Collapsible section (accordion) ---------- */
 
 .section {
-  background: var(--bg-elevated);
-  border: 1px solid var(--border);
+  background: linear-gradient(180deg, rgba(255,255,255,0.035), rgba(255,255,255,0) 40%), #1a1b1f;
+  border: 1px solid rgba(255,255,255,0.08);
   border-radius: var(--radius-lg);
   margin-bottom: 12px;
   overflow: hidden;
+  box-shadow: 0 4px 14px -8px rgba(0,0,0,0.5);
+  transition: border-color 0.15s ease;
 }
+.section:hover { border-color: rgba(255,255,255,0.16); }
 .section-header {
   display: flex; align-items: center; justify-content: space-between;
   width: 100%; padding: 16px 20px; background: none; border: none;
   color: var(--text); font-family: inherit; font-size: 0.92rem; font-weight: 600;
-  cursor: pointer; text-align: left;
+  cursor: pointer; text-align: left; transition: background 0.12s ease;
 }
-.section-header .chevron { color: var(--text-faint); transition: transform 0.15s ease; font-size: 0.75rem; }
+.section-header:hover { background: rgba(255,255,255,0.035); }
+.section-header .chevron {
+  color: var(--text-faint); transition: transform 0.15s ease, color 0.15s ease, background 0.15s ease;
+  font-size: 0.7rem; width: 22px; height: 22px; border-radius: 50%; flex: none;
+  display: flex; align-items: center; justify-content: center; background: rgba(255,255,255,0.05);
+}
+.section-header:hover .chevron { color: var(--text); background: rgba(255,255,255,0.09); }
 .section.collapsed .chevron { transform: rotate(-90deg); }
-.section-body { padding: 0 20px 20px; }
+.section-body { padding: 2px 20px 22px; border-top: 1px solid rgba(255,255,255,0.06); padding-top: 16px; margin-top: 2px; }
 .section.collapsed .section-body { display: none; }
 .section-hint { font-weight: 400; font-size: 0.78rem; color: var(--text-muted); margin-left: 10px; }
 
@@ -405,6 +414,11 @@ textarea { min-height: 90px; resize: vertical; font-family: ui-monospace, "SF Mo
 }
 .discord-preview:fullscreen, .discord-preview:-webkit-full-screen {
   height: 100vh; border-radius: 0; border: none;
+}
+.dp-fullscreen-btn {
+  position: absolute; bottom: 16px; right: 16px; z-index: 20;
+  background: rgba(30, 31, 34, 0.82); backdrop-filter: blur(6px); -webkit-backdrop-filter: blur(6px);
+  box-shadow: 0 4px 16px -4px rgba(0,0,0,0.5);
 }
 .dp-sidebar {
   width: 240px; flex: none; background: color-mix(in srgb, #2b2d31 78%, transparent);
