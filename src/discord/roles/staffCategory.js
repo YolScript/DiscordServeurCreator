@@ -50,7 +50,22 @@ async function ensureStaffCategory(guild) {
     await guildConfigStore.upsert(guild.id, { serviceStaffChannelId: serviceStaffChannel.id });
   }
 
-  return { category, serviceStaffChannel, staffActifRoleId: staffActifRole.id };
+  let staffChatChannel = config?.staffChatChannelId
+    ? await guild.channels.fetch(config.staffChatChannelId).catch(() => null)
+    : null;
+  if (!staffChatChannel) {
+    staffChatChannel = await guild.channels.create({
+      name: toSmallCaps('staff'),
+      type: ChannelType.GuildText,
+      parent: category.id,
+      permissionOverwrites: toggleOnlyOverwrites(guild, staffActifRole.id, [P.SendMessages]),
+    });
+    await guildConfigStore.upsert(guild.id, { staffChatChannelId: staffChatChannel.id });
+  }
+
+  return {
+    category, serviceStaffChannel, staffChatChannel, staffActifRoleId: staffActifRole.id,
+  };
 }
 
 // Permissions standard pour un salon "cache par defaut, revele via le role
