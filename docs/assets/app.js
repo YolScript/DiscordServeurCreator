@@ -469,6 +469,10 @@ async function renderTextsPage(id) {
     <div class="inner">
       ${sectionHtml('Reglement', `
         <textarea id="reglementText">${escapeHtml(config?.reglementText)}</textarea>
+        <div class="dp-toggle-row" style="margin-top:10px;">
+          <span>Verification anti-bot (captcha emoji) avant validation du reglement</span>
+          <input type="checkbox" id="captchaEnabled" ${config?.captchaEnabled === false ? '' : 'checked'} />
+        </div>
       `)}
       ${sectionHtml('Integration Bienvenue / Depart', `
         <label>Salon de destination</label>
@@ -491,6 +495,7 @@ async function renderTextsPage(id) {
         arrivalDepartureChannelId: document.getElementById('arrivalChannel').value,
         welcomeMessageTemplate: document.getElementById('welcomeTemplate').value,
         leaveMessageTemplate: document.getElementById('leaveTemplate').value,
+        captchaEnabled: document.getElementById('captchaEnabled').checked,
       });
       showToast('Textes enregistres.');
     } catch (err) {

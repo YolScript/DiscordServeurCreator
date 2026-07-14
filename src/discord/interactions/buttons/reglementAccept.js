@@ -20,6 +20,12 @@ async function handleReglementAccept(interaction) {
     return;
   }
 
+  if (config.captchaEnabled === false) {
+    await interaction.member.roles.add(config.reglementValidatedRoleId).catch(() => {});
+    await interaction.reply({ content: 'Reglement accepte, bienvenue !', flags: MessageFlags.Ephemeral });
+    return;
+  }
+
   const shuffled = [...EMOJI_POOL].sort(() => Math.random() - 0.5).slice(0, 4);
   const correctIndex = Math.floor(Math.random() * shuffled.length);
   const target = shuffled[correctIndex];
