@@ -50,22 +50,38 @@ async function ensureStaffCategory(guild) {
     await guildConfigStore.upsert(guild.id, { serviceStaffChannelId: serviceStaffChannel.id });
   }
 
-  let staffChatChannel = config?.staffChatChannelId
+  return {
+    category, serviceStaffChannel, staffActifRoleId: staffActifRole.id,
+  };
+}
+
+// Salon #staff temporaire : cree quand au moins un staff est en service,
+// supprime des que plus personne ne l'est (meme logique que le vocal
+// "Creer un vocal", cf staffVoiceCreator.syncCreatorChannel). Contrairement a
+// un salon permanent juste masque par permission, un salon supprime est
+// invisible meme pour un membre Administrator (qui bypasse toujours les
+// permission overwrites).
+async function syncStaffChatChannel(guild) {
+  const config = await guildConfigStore.find(guild.id);
+  if (!config?.staffActifRoleId || !config.staffCategoryId) return;
+
+  const onDuty = guild.members.cache.filter((m) => m.roles.cache.has(config.staffActifRoleId)).size;
+  const existing = config.staffChatChannelId
     ? await guild.channels.fetch(config.staffChatChannelId).catch(() => null)
     : null;
-  if (!staffChatChannel) {
-    staffChatChannel = await guild.channels.create({
+
+  if (onDuty > 0 && !existing) {
+    const channel = await guild.channels.create({
       name: toSmallCaps('staff'),
       type: ChannelType.GuildText,
-      parent: category.id,
-      permissionOverwrites: toggleOnlyOverwrites(guild, staffActifRole.id, [P.SendMessages]),
+      parent: config.staffCategoryId,
+      permissionOverwrites: toggleOnlyOverwrites(guild, config.staffActifRoleId, [P.SendMessages]),
     });
-    await guildConfigStore.upsert(guild.id, { staffChatChannelId: staffChatChannel.id });
+    await guildConfigStore.upsert(guild.id, { staffChatChannelId: channel.id });
+  } else if (onDuty === 0 && existing) {
+    await existing.delete().catch(() => {});
+    await guildConfigStore.upsert(guild.id, { staffChatChannelId: null });
   }
-
-  return {
-    category, serviceStaffChannel, staffChatChannel, staffActifRoleId: staffActifRole.id,
-  };
 }
 
 // Permissions standard pour un salon "cache par defaut, revele via le role
@@ -77,4 +93,4 @@ function toggleOnlyOverwrites(guild, staffActifRoleId, extraAllow = []) {
   ];
 }
 
-module.exports = { ensureStaffCategory, toggleOnlyOverwrites };
+module.exports = { ensureStaffCategory, syncStaffChatChannel, toggleOnlyOverwrites };

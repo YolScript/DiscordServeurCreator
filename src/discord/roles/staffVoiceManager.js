@@ -1,6 +1,6 @@
 const { Routes } = require('discord.js');
 const guildConfigStore = require('../../kv/guildConfigStore');
-const { ensureStaffCategory } = require('./staffCategory');
+const { ensureStaffCategory, syncStaffChatChannel } = require('./staffCategory');
 const { syncCreatorChannel } = require('./staffVoiceCreator');
 const logger = require('../../shared/logger');
 
@@ -53,6 +53,7 @@ async function handleVoiceStateUpdate(oldState, newState) {
 
     await updateServiceStaffStatus(guild, await guildConfigStore.find(guild.id));
     await syncCreatorChannel(guild);
+    await syncStaffChatChannel(guild).catch((err) => logger.error('syncStaffChatChannel', err));
   } catch (err) {
     logger.error('staffVoiceManager.handleVoiceStateUpdate', err);
   }

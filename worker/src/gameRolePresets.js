@@ -40,6 +40,8 @@ export const GAME_ROLE_CATALOG = [
   { key: 'destiny-2', name: 'Destiny 2', category: 'FPS', emoji: '🌌' },
   { key: 'escape-from-tarkov', name: 'Escape from Tarkov', category: 'FPS', emoji: '🎒' },
   { key: 'the-finals', name: 'The Finals', category: 'FPS', emoji: '🏆' },
+  { key: 'marvel-rivals', name: 'Marvel Rivals', category: 'FPS', emoji: '🦸' },
+  { key: 'helldivers-2', name: 'Helldivers 2', category: 'FPS', emoji: '🪳' },
   // --- Battle Royale ---
   { key: 'fortnite', name: 'Fortnite', category: 'Battle Royale', emoji: '🏗️' },
   { key: 'pubg', name: 'PUBG: Battlegrounds', category: 'Battle Royale', emoji: '🪖' },
@@ -48,6 +50,7 @@ export const GAME_ROLE_CATALOG = [
   { key: 'league-of-legends', name: 'League of Legends', category: 'MOBA', emoji: '⚔️' },
   { key: 'dota-2', name: 'Dota 2', category: 'MOBA', emoji: '🛡️' },
   { key: 'smite', name: 'Smite', category: 'MOBA', emoji: '⚡' },
+  { key: 'deadlock', name: 'Deadlock', category: 'MOBA', emoji: '🕸️' },
   { key: 'age-of-empires', name: 'Age of Empires', category: 'Strategie', emoji: '🏰' },
   { key: 'civilization-vi', name: 'Civilization VI', category: 'Strategie', emoji: '🌍' },
   { key: 'starcraft-2', name: 'StarCraft II', category: 'Strategie', emoji: '👽' },
@@ -55,6 +58,9 @@ export const GAME_ROLE_CATALOG = [
   { key: 'hearthstone', name: 'Hearthstone', category: 'Carte', emoji: '🃏' },
   { key: 'clash-royale', name: 'Clash Royale', category: 'Carte', emoji: '👑' },
   { key: 'teamfight-tactics', name: 'Teamfight Tactics', category: 'Carte', emoji: '♟️' },
+  { key: 'balatro', name: 'Balatro', category: 'Carte', emoji: '🃏' },
+  { key: 'slay-the-spire', name: 'Slay the Spire', category: 'Carte', emoji: '🔥' },
+  { key: 'chess-com', name: 'Chess.com', category: 'Carte', emoji: '♞' },
   // --- Sport / Course ---
   { key: 'rocket-league', name: 'Rocket League', category: 'Sport', emoji: '🚗' },
   { key: 'ea-fc', name: 'EA Sports FC', category: 'Sport', emoji: '⚽' },
@@ -78,6 +84,7 @@ export const GAME_ROLE_CATALOG = [
   { key: 'valheim', name: 'Valheim', category: 'Survie', emoji: '⚒️' },
   { key: 'dont-starve', name: "Don't Starve Together", category: 'Survie', emoji: '🔥' },
   { key: 'green-hell', name: 'Green Hell', category: 'Survie', emoji: '🌴' },
+  { key: 'palworld', name: 'Palworld', category: 'Survie', emoji: '🐣' },
   // --- Monde ouvert / Action-aventure ---
   { key: 'gta-v', name: 'GTA V', category: 'Monde ouvert', emoji: '🚔' },
   { key: 'red-dead-redemption-2', name: 'Red Dead Redemption 2', category: 'Monde ouvert', emoji: '🤠' },
@@ -85,6 +92,7 @@ export const GAME_ROLE_CATALOG = [
   { key: 'assassins-creed', name: "Assassin's Creed", category: 'Monde ouvert', emoji: '🗡️' },
   { key: 'the-legend-of-zelda', name: 'The Legend of Zelda', category: 'Monde ouvert', emoji: '🗺️' },
   { key: 'spider-man', name: 'Spider-Man', category: 'Monde ouvert', emoji: '🕷️' },
+  { key: 'sea-of-thieves', name: 'Sea of Thieves', category: 'Monde ouvert', emoji: '🏴‍☠️' },
   // --- RPG ---
   { key: 'elden-ring', name: 'Elden Ring', category: 'RPG', emoji: '💍' },
   { key: 'baldurs-gate-3', name: "Baldur's Gate 3", category: 'RPG', emoji: '🎲' },
@@ -95,6 +103,9 @@ export const GAME_ROLE_CATALOG = [
   { key: 'starfield', name: 'Starfield', category: 'RPG', emoji: '🚀' },
   { key: 'dark-souls', name: 'Dark Souls', category: 'RPG', emoji: '⚰️' },
   { key: 'persona-5', name: 'Persona 5', category: 'RPG', emoji: '🎭' },
+  { key: 'path-of-exile-2', name: 'Path of Exile 2', category: 'RPG', emoji: '💀' },
+  { key: 'black-myth-wukong', name: 'Black Myth: Wukong', category: 'RPG', emoji: '🐒' },
+  { key: 'warframe', name: 'Warframe', category: 'RPG', emoji: '🌀' },
   // --- MMO ---
   { key: 'world-of-warcraft', name: 'World of Warcraft', category: 'MMO', emoji: '🐉' },
   { key: 'final-fantasy-xiv', name: 'Final Fantasy XIV', category: 'MMO', emoji: '🔮' },
@@ -107,6 +118,8 @@ export const GAME_ROLE_CATALOG = [
   { key: 'resident-evil', name: 'Resident Evil', category: 'Horreur', emoji: '🧟' },
   { key: 'silent-hill', name: 'Silent Hill', category: 'Horreur', emoji: '🌫️' },
   { key: 'lethal-company', name: 'Lethal Company', category: 'Horreur', emoji: '🛸' },
+  { key: 'repo', name: 'R.E.P.O.', category: 'Horreur', emoji: '🤖' },
+  { key: 'content-warning', name: 'Content Warning', category: 'Horreur', emoji: '📹' },
   // --- Detente / Simulation ---
   { key: 'stardew-valley', name: 'Stardew Valley', category: 'Detente', emoji: '🌾' },
   { key: 'animal-crossing', name: 'Animal Crossing', category: 'Detente', emoji: '🍃' },
@@ -114,6 +127,7 @@ export const GAME_ROLE_CATALOG = [
   { key: 'planet-zoo', name: 'Planet Zoo', category: 'Detente', emoji: '🦁' },
   { key: 'euro-truck-simulator-2', name: 'Euro Truck Simulator 2', category: 'Detente', emoji: '🚚' },
   { key: 'flight-simulator', name: 'Microsoft Flight Simulator', category: 'Detente', emoji: '✈️' },
+  { key: 'schedule-i', name: 'Schedule I', category: 'Detente', emoji: '📦' },
   // --- Party / Coop ---
   { key: 'among-us', name: 'Among Us', category: 'Party', emoji: '🔴' },
   { key: 'fall-guys', name: 'Fall Guys', category: 'Party', emoji: '🫘' },
@@ -121,6 +135,7 @@ export const GAME_ROLE_CATALOG = [
   { key: 'it-takes-two', name: 'It Takes Two', category: 'Party', emoji: '🧸' },
   { key: 'jackbox-party-pack', name: 'Jackbox Party Pack', category: 'Party', emoji: '📦' },
   { key: 'gang-beasts', name: 'Gang Beasts', category: 'Party', emoji: '🥊' },
+  { key: 'peak', name: 'Peak', category: 'Party', emoji: '⛰️' },
   // --- Combat ---
   { key: 'street-fighter-6', name: 'Street Fighter 6', category: 'Combat', emoji: '🥋' },
   { key: 'tekken-8', name: 'Tekken 8', category: 'Combat', emoji: '👊' },
