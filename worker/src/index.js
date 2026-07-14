@@ -378,6 +378,14 @@ async function router(request, env) {
       await botFetch(env, `/channels/${ticket.channelId}`, { method: 'DELETE' });
       ticket.status = 'closed';
       await putTickets(env, guildId, items);
+
+      if (!items.some((t) => t.status === 'open')) {
+        const config = (await getGuildConfig(env, guildId)) || {};
+        if (config.ticketCategoryId) {
+          await botFetch(env, `/channels/${config.ticketCategoryId}`, { method: 'DELETE' });
+          await putGuildConfig(env, guildId, { ...config, ticketCategoryId: null });
+        }
+      }
       return json({ ok: true }, env);
     }
 

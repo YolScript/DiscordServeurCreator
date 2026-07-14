@@ -94,6 +94,25 @@ async function createTicket(guild, member) {
   return { channel, alreadyOpen: false };
 }
 
+// Supprime la categorie Tickets si plus aucun ticket n'est ouvert (evite une
+// categorie vide qui traine). Elle sera recreee automatiquement au prochain
+// ticket via ensureTicketCategory.
+async function removeCategoryIfEmpty(guild) {
+  try {
+    const tickets = await ticketStore.list(guild.id);
+    if (tickets.some((t) => t.status === 'open')) return;
+
+    const config = await guildConfigStore.find(guild.id);
+    if (!config?.ticketCategoryId) return;
+
+    const category = await guild.channels.fetch(config.ticketCategoryId).catch(() => null);
+    if (category) await category.delete().catch(() => {});
+    await guildConfigStore.upsert(guild.id, { ticketCategoryId: null });
+  } catch (err) {
+    logger.error('ticketManager.removeCategoryIfEmpty', err);
+  }
+}
+
 async function closeTicket(interaction) {
   const ticket = await ticketStore.findByChannel(interaction.guild.id, interaction.channel.id);
   if (!ticket) {
@@ -102,8 +121,11 @@ async function closeTicket(interaction) {
   }
   await ticketStore.close(interaction.guild.id, interaction.channel.id);
   await interaction.reply('Ticket ferme, ce salon sera supprime dans 5 secondes.');
+  const { guild } = interaction;
   setTimeout(() => {
-    interaction.channel.delete().catch((err) => logger.error('ticketManager.delete', err));
+    interaction.channel.delete()
+      .then(() => removeCategoryIfEmpty(guild))
+      .catch((err) => logger.error('ticketManager.delete', err));
   }, 5000);
 }
 
