@@ -646,7 +646,7 @@ async function renderGameRolesPage(id, container = app) {
   const catalogHtml = categories.map((cat) => `
     <div class="muted" style="margin:10px 0 4px;font-weight:600;">${escapeHtml(cat)}</div>
     <div class="preset-grid">
-      ${available.filter((g) => g.category === cat).map((g) => `<button class="preset-chip game-preset-chip" data-key="${g.key}">+ ${escapeHtml(g.name)}</button>`).join('')}
+      ${available.filter((g) => g.category === cat).map((g) => `<button class="preset-chip game-preset-chip" data-key="${g.key}"><span class="preset-chip-icon">${g.emoji || '🎮'}</span> ${escapeHtml(g.name)}</button>`).join('')}
     </div>
   `).join('') || '<p class="muted">Tous les jeux du catalogue sont deja ajoutes.</p>';
 

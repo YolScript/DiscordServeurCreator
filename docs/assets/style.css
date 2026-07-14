@@ -349,6 +349,7 @@ textarea { min-height: 90px; resize: vertical; font-family: ui-monospace, "SF Mo
   transition: border-color 0.12s ease, color 0.12s ease;
 }
 .preset-chip:hover { border-color: var(--accent); color: var(--accent); }
+.preset-chip-icon { font-size: 1rem; line-height: 1; }
 
 /* ---------- Game roles ---------- */
 
