@@ -1,8 +1,9 @@
 const { MessageFlags } = require('discord.js');
 const {
   REGLEMENT_ACCEPT, REGLEMENT_TRANSLATE, AGE_PLUS16, AGE_MINUS16,
-  GAME_SELECT_PREFIX, GAME_PSEUDO_MODAL_PREFIX, GAME_PSEUDO_BUTTON_PREFIX,
+  GAME_SELECT_PREFIX, GAME_PSEUDO_MODAL_PREFIX, GAME_PSEUDO_BUTTON_PREFIX, POLL_VOTE_PREFIX,
 } = require('./customIds');
+const pollManager = require('../engagement/pollManager');
 const handleReglementAccept = require('./buttons/reglementAccept');
 const { handleReglementTranslate, handleReglementTranslateSelect } = require('./buttons/reglementTranslate');
 const handleAgeButton = require('./buttons/ageButtons');
@@ -27,6 +28,7 @@ const handleStreamerListCommand = require('../commands/streamerList');
 const handleRankCommand = require('../commands/rank');
 const handleLeaderboardCommand = require('../commands/leaderboard');
 const handleLevelroleCommand = require('../commands/levelrole');
+const handlePollCommand = require('../commands/poll');
 const logger = require('../../shared/logger');
 
 const commandHandlers = {
@@ -48,6 +50,7 @@ const commandHandlers = {
   rank: handleRankCommand,
   leaderboard: handleLeaderboardCommand,
   levelrole: handleLevelroleCommand,
+  poll: handlePollCommand,
 };
 
 async function routeInteraction(interaction) {
@@ -66,6 +69,10 @@ async function routeInteraction(interaction) {
         await handleAgeButton(interaction);
       } else if (interaction.customId.startsWith(GAME_PSEUDO_BUTTON_PREFIX)) {
         await handleGamePseudoButton(interaction);
+      } else if (interaction.customId.startsWith(POLL_VOTE_PREFIX)) {
+        const [pollId, optionIndex] = interaction.customId.slice(POLL_VOTE_PREFIX.length).split(':');
+        await pollManager.handleVote(interaction, pollId, Number(optionIndex));
+        await interaction.reply({ content: 'Vote enregistre !', flags: MessageFlags.Ephemeral });
       }
       return;
     }

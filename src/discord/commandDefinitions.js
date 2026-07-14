@@ -167,9 +167,17 @@ const levelroleCommand = new SlashCommandBuilder()
   .addSubcommand((s) => s.setName('list').setDescription('Liste les paliers configures'))
   .toJSON();
 
+const pollCommand = new SlashCommandBuilder()
+  .setName('poll')
+  .setDescription('Lance un sondage avec boutons (5 options max).')
+  .addStringOption((o) => o.setName('question').setDescription('Question posee').setRequired(true))
+  .addStringOption((o) => o.setName('options').setDescription('Options separees par des virgules (2 a 5)').setRequired(true))
+  .addIntegerOption((o) => o.setName('duree_minutes').setDescription('Duree du sondage en minutes').setRequired(true).setMinValue(1))
+  .toJSON();
+
 module.exports = [
   setupCommand, warnCommand, warningsCommand, clearwarnsCommand, timeoutCommand, unlockCommand, automodCommand,
   scheduleAnnouncementCommand, scheduleEventCommand, scheduledListCommand, scheduledCancelCommand,
-  rankCommand, leaderboardCommand, levelroleCommand,
+  rankCommand, leaderboardCommand, levelroleCommand, pollCommand,
   reglementTranslationCommand, streamerLinkCommand, streamerUnlinkCommand, streamerListCommand,
 ];
