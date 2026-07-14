@@ -1,9 +1,10 @@
 const { MessageFlags } = require('discord.js');
 const {
   REGLEMENT_ACCEPT, REGLEMENT_TRANSLATE, AGE_PLUS16, AGE_MINUS16,
-  GAME_SELECT_PREFIX, GAME_PSEUDO_MODAL_PREFIX, GAME_PSEUDO_BUTTON_PREFIX, POLL_VOTE_PREFIX,
+  GAME_SELECT_PREFIX, GAME_PSEUDO_MODAL_PREFIX, GAME_PSEUDO_BUTTON_PREFIX, POLL_VOTE_PREFIX, GIVEAWAY_ENTER_PREFIX,
 } = require('./customIds');
 const pollManager = require('../engagement/pollManager');
+const giveawayManager = require('../engagement/giveawayManager');
 const handleReglementAccept = require('./buttons/reglementAccept');
 const { handleReglementTranslate, handleReglementTranslateSelect } = require('./buttons/reglementTranslate');
 const handleAgeButton = require('./buttons/ageButtons');
@@ -29,6 +30,7 @@ const handleRankCommand = require('../commands/rank');
 const handleLeaderboardCommand = require('../commands/leaderboard');
 const handleLevelroleCommand = require('../commands/levelrole');
 const handlePollCommand = require('../commands/poll');
+const handleGiveawayCommand = require('../commands/giveaway');
 const logger = require('../../shared/logger');
 
 const commandHandlers = {
@@ -51,6 +53,7 @@ const commandHandlers = {
   leaderboard: handleLeaderboardCommand,
   levelrole: handleLevelroleCommand,
   poll: handlePollCommand,
+  giveaway: handleGiveawayCommand,
 };
 
 async function routeInteraction(interaction) {
@@ -73,6 +76,10 @@ async function routeInteraction(interaction) {
         const [pollId, optionIndex] = interaction.customId.slice(POLL_VOTE_PREFIX.length).split(':');
         await pollManager.handleVote(interaction, pollId, Number(optionIndex));
         await interaction.reply({ content: 'Vote enregistre !', flags: MessageFlags.Ephemeral });
+      } else if (interaction.customId.startsWith(GIVEAWAY_ENTER_PREFIX)) {
+        const giveawayId = interaction.customId.slice(GIVEAWAY_ENTER_PREFIX.length);
+        await giveawayManager.handleEnter(interaction, giveawayId);
+        await interaction.reply({ content: 'Participation enregistree, bonne chance !', flags: MessageFlags.Ephemeral });
       }
       return;
     }

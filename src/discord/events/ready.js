@@ -5,6 +5,7 @@ const scheduler = require('../automation/scheduler');
 const liveNotifier = require('../automation/liveNotifier');
 const xpManager = require('../engagement/xpManager');
 const pollManager = require('../engagement/pollManager');
+const giveawayManager = require('../engagement/giveawayManager');
 const logger = require('../../shared/logger');
 
 client.once(Events.ClientReady, async (readyClient) => {
@@ -22,4 +23,5 @@ client.once(Events.ClientReady, async (readyClient) => {
   liveNotifier.start();
   xpManager.start(readyClient);
   pollManager.start();
+  giveawayManager.start();
 });

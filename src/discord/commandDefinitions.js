@@ -175,9 +175,17 @@ const pollCommand = new SlashCommandBuilder()
   .addIntegerOption((o) => o.setName('duree_minutes').setDescription('Duree du sondage en minutes').setRequired(true).setMinValue(1))
   .toJSON();
 
+const giveawayCommand = new SlashCommandBuilder()
+  .setName('giveaway')
+  .setDescription('Lance un giveaway avec bouton de participation.')
+  .addStringOption((o) => o.setName('prix').setDescription('Ce qui est a gagner').setRequired(true))
+  .addIntegerOption((o) => o.setName('duree_minutes').setDescription('Duree en minutes').setRequired(true).setMinValue(1))
+  .addIntegerOption((o) => o.setName('gagnants').setDescription('Nombre de gagnants (defaut 1)').setRequired(false).setMinValue(1))
+  .toJSON();
+
 module.exports = [
   setupCommand, warnCommand, warningsCommand, clearwarnsCommand, timeoutCommand, unlockCommand, automodCommand,
   scheduleAnnouncementCommand, scheduleEventCommand, scheduledListCommand, scheduledCancelCommand,
-  rankCommand, leaderboardCommand, levelroleCommand, pollCommand,
+  rankCommand, leaderboardCommand, levelroleCommand, pollCommand, giveawayCommand,
   reglementTranslationCommand, streamerLinkCommand, streamerUnlinkCommand, streamerListCommand,
 ];
