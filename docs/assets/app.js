@@ -24,6 +24,7 @@ const NAV_GROUPS = [
       { key: 'permissions', label: 'Permissions' },
       { key: 'salons', label: 'Salons pregeneres' },
       { key: 'jeux', label: 'Roles de jeu' },
+      { key: 'automatisations', label: 'Automatisations' },
     ],
   },
 ];
@@ -143,6 +144,7 @@ function wireNavItems(id) {
     permissions: () => renderPermissionsPage(id),
     jeux: () => renderGameRolesPage(id),
     salons: () => renderPresetsPage(id),
+    automatisations: () => renderAutomationsPage(id),
   };
   sidebarEl.querySelectorAll('.nav-item').forEach((btn) => {
     btn.addEventListener('click', () => {
@@ -742,6 +744,267 @@ async function renderPresetsPage(id) {
       try {
         await Api.addPresetChannel(id, chip.dataset.key, categoryId || undefined);
         showToast('Salon ajoute.');
+      } catch (err) {
+        showToast(err.message, 'error');
+      }
+    });
+  });
+}
+
+/* ---------- Pages: automatisations ---------- */
+
+async function renderAutomationsPage(id) {
+  app.innerHTML = '<p class="muted">Chargement...</p>';
+  const [
+    modConfig, roles, channels, levelRoles, referralRoles, referralCounts, streamers, scheduled, tickets,
+  ] = await Promise.all([
+    Api.modConfig(id), Api.roles(id), Api.channels(id), Api.levelRoles(id), Api.referralRoles(id),
+    Api.referrals(id), Api.streamers(id), Api.scheduled(id), Api.tickets(id),
+  ]);
+
+  const roleOptions = (selected) => roles.filter((r) => r.name !== '@everyone')
+    .map((r) => `<option value="${r.id}" ${r.id === selected ? 'selected' : ''}>${escapeHtml(r.name)}</option>`).join('');
+  const textChannelOptions = channels.filter((c) => c.type === 0)
+    .map((c) => `<option value="${c.id}">#${escapeHtml(c.name)}</option>`).join('');
+  const channelName = (cid) => {
+    const c = channels.find((ch) => ch.id === cid);
+    return c ? `#${c.name}` : cid;
+  };
+  const roleName = (rid) => roles.find((r) => r.id === rid)?.name || rid;
+
+  const levelRoleRows = levelRoles.map((lr) => `
+    <div class="row" data-level="${lr.level}" style="justify-content:space-between; margin-bottom:6px;">
+      <span>Niveau ${lr.level} → ${escapeHtml(roleName(lr.roleId))}</span>
+      <button class="btn danger delete-level-role" data-level="${lr.level}">Supprimer</button>
+    </div>
+  `).join('') || '<p class="muted">Aucun role de niveau configure.</p>';
+
+  const referralRoleRows = referralRoles.map((rr) => `
+    <div class="row" data-count="${rr.count}" style="justify-content:space-between; margin-bottom:6px;">
+      <span>${rr.count} invitation(s) → ${escapeHtml(roleName(rr.roleId))}</span>
+      <button class="btn danger delete-referral-role" data-count="${rr.count}">Supprimer</button>
+    </div>
+  `).join('') || '<p class="muted">Aucun role de parrainage configure.</p>';
+
+  const leaderboard = Object.entries(referralCounts).sort((a, b) => b[1] - a[1]).slice(0, 10);
+  const leaderboardRows = leaderboard.map(([userId, count]) => `
+    <div class="row" style="justify-content:space-between; margin-bottom:4px;">
+      <span class="muted">${escapeHtml(userId)}</span><span>${count}</span>
+    </div>
+  `).join('') || '<p class="muted">Aucune invitation suivie pour le moment.</p>';
+
+  const streamerRows = streamers.map((s) => `
+    <div class="row" data-user="${s.discordUserId}" data-platform="${s.platform}" style="justify-content:space-between; margin-bottom:6px;">
+      <span>${escapeHtml(s.platform)} : ${escapeHtml(s.identifier)} <span class="muted">(${escapeHtml(s.discordUserId)})</span></span>
+      <button class="btn danger delete-streamer" data-user="${s.discordUserId}" data-platform="${s.platform}">Supprimer</button>
+    </div>
+  `).join('') || '<p class="muted">Aucun streamer lie.</p>';
+
+  const scheduledRows = scheduled.map((t) => `
+    <div class="row" data-id="${t.id}" style="justify-content:space-between; align-items:flex-start; margin-bottom:6px;">
+      <span>${channelName(t.channelId)} — ${new Date(t.runAt).toLocaleString('fr-FR')}${t.repeatIntervalMs ? ' (recurrent)' : ''}<br /><span class="muted">${escapeHtml(t.message).slice(0, 80)}</span></span>
+      <button class="btn danger delete-scheduled" data-id="${t.id}">Supprimer</button>
+    </div>
+  `).join('') || '<p class="muted">Aucune annonce programmee.</p>';
+
+  const ticketRows = tickets.map((t) => `
+    <div class="row" data-id="${t.id}" style="justify-content:space-between; margin-bottom:6px;">
+      <span>${channelName(t.channelId)} <span class="muted">(${escapeHtml(t.userId)})</span> — <span class="badge ${t.status === 'open' ? 'configured' : 'not-configured'}">${t.status === 'open' ? 'Ouvert' : 'Ferme'}</span></span>
+      ${t.status === 'open' ? `<button class="btn danger close-ticket" data-id="${t.id}">Fermer</button>` : ''}
+    </div>
+  `).join('') || '<p class="muted">Aucun ticket pour le moment.</p>';
+
+  app.innerHTML = `
+    <div class="inner">
+      ${sectionHtml('Auto-moderation', `
+        <div class="dp-toggle-row"><span>Auto-moderation active</span><input type="checkbox" id="am-enabled" ${modConfig.autoModEnabled ? 'checked' : ''} /></div>
+        <div class="dp-toggle-row" style="margin-top:6px;"><span>Bloquer les liens d'invitation Discord</span><input type="checkbox" id="am-invites" ${modConfig.blockInvites ? 'checked' : ''} /></div>
+        <div class="dp-toggle-row" style="margin-top:6px;"><span>Bloquer tous les liens</span><input type="checkbox" id="am-links" ${modConfig.blockLinks ? 'checked' : ''} /></div>
+        <label>Seuil anti-spam (messages)</label>
+        <input type="number" id="am-spam-threshold" value="${modConfig.spamMessageThreshold}" min="1" />
+        <label>Mots bannis (separes par des virgules)</label>
+        <textarea id="am-banned-words">${escapeHtml((modConfig.bannedWords || []).join(', '))}</textarea>
+        <div class="dp-toggle-row" style="margin-top:6px;"><span>Anti-raid actif</span><input type="checkbox" id="am-antiraid" ${modConfig.antiRaidEnabled ? 'checked' : ''} /></div>
+        <label>Seuil anti-raid (arrivees rapprochees)</label>
+        <input type="number" id="am-antiraid-threshold" value="${modConfig.antiRaidJoinThreshold}" min="1" />
+        <button class="btn" id="save-modconfig" style="margin-top:12px;">Enregistrer</button>
+      `)}
+
+      ${sectionHtml('Roles de niveau (XP)', `
+        <div id="level-roles-list">${levelRoleRows}</div>
+        <div class="row" style="margin-top:10px;">
+          <input type="number" id="new-level" placeholder="Niveau" min="1" style="width:100px;" />
+          <select id="new-level-role">${roleOptions()}</select>
+          <button class="btn secondary" id="add-level-role">Ajouter</button>
+        </div>
+      `)}
+
+      ${sectionHtml('Parrainage', `
+        <div id="referral-roles-list">${referralRoleRows}</div>
+        <div class="row" style="margin-top:10px;">
+          <input type="number" id="new-referral-count" placeholder="Nb invitations" min="1" style="width:130px;" />
+          <select id="new-referral-role">${roleOptions()}</select>
+          <button class="btn secondary" id="add-referral-role">Ajouter</button>
+        </div>
+        <h2 style="margin-top:18px; font-size:0.85rem;">Classement</h2>
+        <div id="referral-leaderboard">${leaderboardRows}</div>
+      `)}
+
+      ${sectionHtml('Streamers lies', `
+        <div id="streamers-list">${streamerRows}</div>
+        <div class="row" style="margin-top:10px;">
+          <input type="text" id="new-streamer-user" placeholder="ID Discord" style="width:160px;" />
+          <select id="new-streamer-platform">
+            <option value="twitch">Twitch</option>
+            <option value="youtube">YouTube</option>
+          </select>
+          <input type="text" id="new-streamer-identifier" placeholder="Pseudo / chaine" style="width:160px;" />
+          <button class="btn secondary" id="add-streamer">Ajouter</button>
+        </div>
+      `)}
+
+      ${sectionHtml('Annonces programmees', `
+        <div id="scheduled-list">${scheduledRows}</div>
+        <div style="margin-top:10px;">
+          <label>Salon</label>
+          <select id="new-scheduled-channel">${textChannelOptions}</select>
+          <label>Message</label>
+          <textarea id="new-scheduled-message"></textarea>
+          <label>Date et heure</label>
+          <input type="datetime-local" id="new-scheduled-date" />
+          <button class="btn secondary" id="add-scheduled" style="margin-top:8px;">Programmer</button>
+        </div>
+      `)}
+
+      ${sectionHtml('Tickets', `
+        <div id="tickets-list">${ticketRows}</div>
+      `)}
+    </div>
+  `;
+  wireSections(app);
+
+  document.getElementById('save-modconfig').addEventListener('click', async () => {
+    try {
+      await Api.updateModConfig(id, {
+        autoModEnabled: document.getElementById('am-enabled').checked,
+        blockInvites: document.getElementById('am-invites').checked,
+        blockLinks: document.getElementById('am-links').checked,
+        spamMessageThreshold: Number(document.getElementById('am-spam-threshold').value) || 5,
+        bannedWords: document.getElementById('am-banned-words').value.split(',').map((w) => w.trim()).filter(Boolean),
+        antiRaidEnabled: document.getElementById('am-antiraid').checked,
+        antiRaidJoinThreshold: Number(document.getElementById('am-antiraid-threshold').value) || 8,
+      });
+      showToast('Auto-moderation enregistree.');
+    } catch (err) {
+      showToast(err.message, 'error');
+    }
+  });
+
+  document.getElementById('add-level-role').addEventListener('click', async () => {
+    const level = Number(document.getElementById('new-level').value);
+    const roleId = document.getElementById('new-level-role').value;
+    if (!level || !roleId) { showToast('Niveau et role requis.', 'error'); return; }
+    try {
+      await Api.setLevelRole(id, level, roleId);
+      showToast('Role de niveau ajoute.');
+      await renderAutomationsPage(id);
+    } catch (err) {
+      showToast(err.message, 'error');
+    }
+  });
+  app.querySelectorAll('.delete-level-role').forEach((btn) => {
+    btn.addEventListener('click', async () => {
+      try {
+        await Api.deleteLevelRole(id, btn.dataset.level);
+        showToast('Role de niveau supprime.');
+        await renderAutomationsPage(id);
+      } catch (err) {
+        showToast(err.message, 'error');
+      }
+    });
+  });
+
+  document.getElementById('add-referral-role').addEventListener('click', async () => {
+    const count = Number(document.getElementById('new-referral-count').value);
+    const roleId = document.getElementById('new-referral-role').value;
+    if (!count || !roleId) { showToast('Nombre et role requis.', 'error'); return; }
+    try {
+      await Api.setReferralRole(id, count, roleId);
+      showToast('Role de parrainage ajoute.');
+      await renderAutomationsPage(id);
+    } catch (err) {
+      showToast(err.message, 'error');
+    }
+  });
+  app.querySelectorAll('.delete-referral-role').forEach((btn) => {
+    btn.addEventListener('click', async () => {
+      try {
+        await Api.deleteReferralRole(id, btn.dataset.count);
+        showToast('Role de parrainage supprime.');
+        await renderAutomationsPage(id);
+      } catch (err) {
+        showToast(err.message, 'error');
+      }
+    });
+  });
+
+  document.getElementById('add-streamer').addEventListener('click', async () => {
+    const discordUserId = document.getElementById('new-streamer-user').value.trim();
+    const platform = document.getElementById('new-streamer-platform').value;
+    const identifier = document.getElementById('new-streamer-identifier').value.trim();
+    if (!discordUserId || !identifier) { showToast('ID Discord et pseudo/chaine requis.', 'error'); return; }
+    try {
+      await Api.addStreamer(id, discordUserId, platform, identifier);
+      showToast('Streamer lie.');
+      await renderAutomationsPage(id);
+    } catch (err) {
+      showToast(err.message, 'error');
+    }
+  });
+  app.querySelectorAll('.delete-streamer').forEach((btn) => {
+    btn.addEventListener('click', async () => {
+      try {
+        await Api.deleteStreamer(id, btn.dataset.user, btn.dataset.platform);
+        showToast('Streamer retire.');
+        await renderAutomationsPage(id);
+      } catch (err) {
+        showToast(err.message, 'error');
+      }
+    });
+  });
+
+  document.getElementById('add-scheduled').addEventListener('click', async () => {
+    const channelId = document.getElementById('new-scheduled-channel').value;
+    const message = document.getElementById('new-scheduled-message').value.trim();
+    const dateVal = document.getElementById('new-scheduled-date').value;
+    if (!channelId || !message || !dateVal) { showToast('Salon, message et date requis.', 'error'); return; }
+    try {
+      await Api.addScheduled(id, { channelId, message, runAt: new Date(dateVal).getTime() });
+      showToast('Annonce programmee.');
+      await renderAutomationsPage(id);
+    } catch (err) {
+      showToast(err.message, 'error');
+    }
+  });
+  app.querySelectorAll('.delete-scheduled').forEach((btn) => {
+    btn.addEventListener('click', async () => {
+      try {
+        await Api.deleteScheduled(id, btn.dataset.id);
+        showToast('Annonce supprimee.');
+        await renderAutomationsPage(id);
+      } catch (err) {
+        showToast(err.message, 'error');
+      }
+    });
+  });
+
+  app.querySelectorAll('.close-ticket').forEach((btn) => {
+    btn.addEventListener('click', async () => {
+      if (!window.confirm('Fermer ce ticket ? Le salon sera supprime.')) return;
+      try {
+        await Api.closeTicket(id, btn.dataset.id);
+        showToast('Ticket ferme.');
+        await renderAutomationsPage(id);
       } catch (err) {
         showToast(err.message, 'error');
       }

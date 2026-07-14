@@ -48,6 +48,29 @@ window.Api = (function api() {
     resetRoleDefault: (guildId, roleKey) => request(`/api/guilds/${guildId}/roles/${roleKey}/reset-default`, { method: 'POST' }),
     renameChannel: (guildId, channelId, name) => request(`/api/guilds/${guildId}/channels/${channelId}`, { method: 'PATCH', body: JSON.stringify({ name }) }),
     deleteChannel: (guildId, channelId) => request(`/api/guilds/${guildId}/channels/${channelId}`, { method: 'DELETE' }),
+
+    modConfig: (guildId) => request(`/api/guilds/${guildId}/modconfig`),
+    updateModConfig: (guildId, patch) => request(`/api/guilds/${guildId}/modconfig`, { method: 'PATCH', body: JSON.stringify(patch) }),
+
+    levelRoles: (guildId) => request(`/api/guilds/${guildId}/levelroles`),
+    setLevelRole: (guildId, level, roleId) => request(`/api/guilds/${guildId}/levelroles`, { method: 'POST', body: JSON.stringify({ level, roleId }) }),
+    deleteLevelRole: (guildId, level) => request(`/api/guilds/${guildId}/levelroles/${level}`, { method: 'DELETE' }),
+
+    referrals: (guildId) => request(`/api/guilds/${guildId}/referrals`),
+    referralRoles: (guildId) => request(`/api/guilds/${guildId}/referralroles`),
+    setReferralRole: (guildId, count, roleId) => request(`/api/guilds/${guildId}/referralroles`, { method: 'POST', body: JSON.stringify({ count, roleId }) }),
+    deleteReferralRole: (guildId, count) => request(`/api/guilds/${guildId}/referralroles/${count}`, { method: 'DELETE' }),
+
+    streamers: (guildId) => request(`/api/guilds/${guildId}/streamers`),
+    addStreamer: (guildId, discordUserId, platform, identifier) => request(`/api/guilds/${guildId}/streamers`, { method: 'POST', body: JSON.stringify({ discordUserId, platform, identifier }) }),
+    deleteStreamer: (guildId, discordUserId, platform) => request(`/api/guilds/${guildId}/streamers/${discordUserId}/${platform}`, { method: 'DELETE' }),
+
+    scheduled: (guildId) => request(`/api/guilds/${guildId}/scheduled`),
+    addScheduled: (guildId, payload) => request(`/api/guilds/${guildId}/scheduled`, { method: 'POST', body: JSON.stringify(payload) }),
+    deleteScheduled: (guildId, taskId) => request(`/api/guilds/${guildId}/scheduled/${taskId}`, { method: 'DELETE' }),
+
+    tickets: (guildId) => request(`/api/guilds/${guildId}/tickets`),
+    closeTicket: (guildId, ticketId) => request(`/api/guilds/${guildId}/tickets/${ticketId}/close`, { method: 'POST' }),
   };
 }());
 

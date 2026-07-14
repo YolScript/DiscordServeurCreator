@@ -4,7 +4,15 @@ import {
 } from './oauth.js';
 import { getSession, destroySession, clearSessionCookie } from './session.js';
 import { botFetch, botFetchJson } from './discordApi.js';
-import { getGuildConfig, putGuildConfig, getGameRoles, putGameRoles } from './kvStore.js';
+import {
+  getGuildConfig, putGuildConfig, getGameRoles, putGameRoles,
+  getModConfig, putModConfig,
+  getLevelRoles, putLevelRoles,
+  getReferralRoles, putReferralRoles, getReferralCounts,
+  getStreamerLinks, putStreamerLinks,
+  getScheduledTasks, putScheduledTasks,
+  getTickets, putTickets,
+} from './kvStore.js';
 import {
   bulkEditPermissions, exportChannelPermissions, importChannelPermissions, resetRoleToDefault,
 } from './permissions.js';
@@ -238,6 +246,135 @@ async function router(request, env) {
       const roleId = roleKey === 'administrateur' ? config?.adminRoleId : config?.moderateurRoleId;
       if (!roleId) throw new HttpError(404, 'Role introuvable dans la config.');
       await resetRoleToDefault(env, guildId, roleId, roleKey);
+      return json({ ok: true }, env);
+    }
+
+    // --- Automod ---
+    if (sub === 'modconfig' && parts.length === 4) {
+      await requireGuildAccess(env, request, guildId);
+      if (method === 'GET') return json(await getModConfig(env, guildId), env);
+      if (method === 'PATCH') {
+        const patch = await readJson(request);
+        const merged = { ...(await getModConfig(env, guildId)), ...patch };
+        await putModConfig(env, guildId, merged);
+        return json(merged, env);
+      }
+    }
+
+    // --- Roles de niveau (XP) ---
+    if (sub === 'levelroles' && parts.length === 4) {
+      await requireGuildAccess(env, request, guildId);
+      if (method === 'GET') return json(await getLevelRoles(env, guildId), env);
+      if (method === 'POST') {
+        const { level, roleId } = await readJson(request);
+        if (!Number.isInteger(level) || !roleId) throw new HttpError(400, 'level et roleId requis.');
+        const items = (await getLevelRoles(env, guildId)).filter((i) => i.level !== level);
+        items.push({ level, roleId });
+        items.sort((a, b) => a.level - b.level);
+        await putLevelRoles(env, guildId, items);
+        return json(items, env);
+      }
+    }
+    if (sub === 'levelroles' && parts.length === 5 && method === 'DELETE') {
+      await requireGuildAccess(env, request, guildId);
+      const level = Number(parts[4]);
+      const items = (await getLevelRoles(env, guildId)).filter((i) => i.level !== level);
+      await putLevelRoles(env, guildId, items);
+      return json({ ok: true }, env);
+    }
+
+    // --- Parrainage ---
+    if (sub === 'referrals' && parts.length === 4 && method === 'GET') {
+      await requireGuildAccess(env, request, guildId);
+      return json(await getReferralCounts(env, guildId), env);
+    }
+    if (sub === 'referralroles' && parts.length === 4) {
+      await requireGuildAccess(env, request, guildId);
+      if (method === 'GET') return json(await getReferralRoles(env, guildId), env);
+      if (method === 'POST') {
+        const { count, roleId } = await readJson(request);
+        if (!Number.isInteger(count) || !roleId) throw new HttpError(400, 'count et roleId requis.');
+        const items = (await getReferralRoles(env, guildId)).filter((i) => i.count !== count);
+        items.push({ count, roleId });
+        items.sort((a, b) => a.count - b.count);
+        await putReferralRoles(env, guildId, items);
+        return json(items, env);
+      }
+    }
+    if (sub === 'referralroles' && parts.length === 5 && method === 'DELETE') {
+      await requireGuildAccess(env, request, guildId);
+      const count = Number(parts[4]);
+      const items = (await getReferralRoles(env, guildId)).filter((i) => i.count !== count);
+      await putReferralRoles(env, guildId, items);
+      return json({ ok: true }, env);
+    }
+
+    // --- Streamers lies ---
+    if (sub === 'streamers' && parts.length === 4) {
+      await requireGuildAccess(env, request, guildId);
+      if (method === 'GET') return json(await getStreamerLinks(env, guildId), env);
+      if (method === 'POST') {
+        const { discordUserId, platform, identifier } = await readJson(request);
+        if (!discordUserId || !platform || !identifier) throw new HttpError(400, 'discordUserId, platform et identifier requis.');
+        const items = await getStreamerLinks(env, guildId);
+        const existing = items.find((i) => i.discordUserId === discordUserId && i.platform === platform);
+        if (existing) existing.identifier = identifier;
+        else items.push({
+          discordUserId, platform, identifier, isLive: false, liveRoleAssigned: false,
+        });
+        await putStreamerLinks(env, guildId, items);
+        return json(items, env);
+      }
+    }
+    if (sub === 'streamers' && parts.length === 6 && method === 'DELETE') {
+      await requireGuildAccess(env, request, guildId);
+      const [, discordUserId, platform] = parts.slice(4);
+      const items = (await getStreamerLinks(env, guildId)).filter((i) => !(i.discordUserId === discordUserId && i.platform === platform));
+      await putStreamerLinks(env, guildId, items);
+      return json({ ok: true }, env);
+    }
+
+    // --- Annonces / evenements programmes ---
+    if (sub === 'scheduled' && parts.length === 4) {
+      await requireGuildAccess(env, request, guildId);
+      if (method === 'GET') return json(await getScheduledTasks(env, guildId), env);
+      if (method === 'POST') {
+        const { channelId, message, runAt, repeatIntervalMs } = await readJson(request);
+        if (!channelId || !message || !runAt) throw new HttpError(400, 'channelId, message et runAt requis.');
+        const items = await getScheduledTasks(env, guildId);
+        const entry = {
+          id: `${Date.now().toString(36)}${Math.random().toString(36).slice(2, 6)}`,
+          channelId,
+          message,
+          runAt: Number(runAt),
+          ...(repeatIntervalMs ? { repeatIntervalMs: Number(repeatIntervalMs) } : {}),
+        };
+        items.push(entry);
+        await putScheduledTasks(env, guildId, items);
+        return json(entry, env);
+      }
+    }
+    if (sub === 'scheduled' && parts.length === 5 && method === 'DELETE') {
+      await requireGuildAccess(env, request, guildId);
+      const items = (await getScheduledTasks(env, guildId)).filter((i) => i.id !== parts[4]);
+      await putScheduledTasks(env, guildId, items);
+      return json({ ok: true }, env);
+    }
+
+    // --- Tickets ---
+    if (sub === 'tickets' && parts.length === 4 && method === 'GET') {
+      await requireGuildAccess(env, request, guildId);
+      return json(await getTickets(env, guildId), env);
+    }
+    if (sub === 'tickets' && parts[5] === 'close' && method === 'POST') {
+      await requireGuildAccess(env, request, guildId);
+      const ticketId = parts[4];
+      const items = await getTickets(env, guildId);
+      const ticket = items.find((t) => t.id === ticketId);
+      if (!ticket) throw new HttpError(404, 'Ticket introuvable.');
+      await botFetch(env, `/channels/${ticket.channelId}`, { method: 'DELETE' });
+      ticket.status = 'closed';
+      await putTickets(env, guildId, items);
       return json({ ok: true }, env);
     }
   }
