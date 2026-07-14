@@ -144,8 +144,32 @@ const streamerListCommand = new SlashCommandBuilder()
   .setDefaultMemberPermissions(PermissionFlagsBits.ManageGuild)
   .toJSON();
 
+const rankCommand = new SlashCommandBuilder()
+  .setName('rank')
+  .setDescription('Affiche ton niveau/XP (ou celui d\'un membre).')
+  .addUserOption((o) => o.setName('membre').setDescription('Membre a consulter').setRequired(false))
+  .toJSON();
+
+const leaderboardCommand = new SlashCommandBuilder()
+  .setName('leaderboard')
+  .setDescription('Classement XP du serveur.')
+  .toJSON();
+
+const levelroleCommand = new SlashCommandBuilder()
+  .setName('levelrole')
+  .setDescription('Configure les roles automatiques par palier de niveau.')
+  .setDefaultMemberPermissions(PermissionFlagsBits.ManageGuild)
+  .addSubcommand((s) => s.setName('set').setDescription('Definit un palier')
+    .addIntegerOption((o) => o.setName('niveau').setDescription('Niveau requis').setRequired(true).setMinValue(1))
+    .addRoleOption((o) => o.setName('role').setDescription('Role a attribuer').setRequired(true)))
+  .addSubcommand((s) => s.setName('remove').setDescription('Retire un palier')
+    .addIntegerOption((o) => o.setName('niveau').setDescription('Niveau a retirer').setRequired(true)))
+  .addSubcommand((s) => s.setName('list').setDescription('Liste les paliers configures'))
+  .toJSON();
+
 module.exports = [
   setupCommand, warnCommand, warningsCommand, clearwarnsCommand, timeoutCommand, unlockCommand, automodCommand,
   scheduleAnnouncementCommand, scheduleEventCommand, scheduledListCommand, scheduledCancelCommand,
+  rankCommand, leaderboardCommand, levelroleCommand,
   reglementTranslationCommand, streamerLinkCommand, streamerUnlinkCommand, streamerListCommand,
 ];

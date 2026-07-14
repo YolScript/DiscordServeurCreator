@@ -3,6 +3,7 @@ const client = require('../client');
 const staffVoiceManager = require('../roles/staffVoiceManager');
 const scheduler = require('../automation/scheduler');
 const liveNotifier = require('../automation/liveNotifier');
+const xpManager = require('../engagement/xpManager');
 const logger = require('../../shared/logger');
 
 client.once(Events.ClientReady, async (readyClient) => {
@@ -18,4 +19,5 @@ client.once(Events.ClientReady, async (readyClient) => {
 
   scheduler.start();
   liveNotifier.start();
+  xpManager.start(readyClient);
 });

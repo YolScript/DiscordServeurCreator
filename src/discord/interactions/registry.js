@@ -24,6 +24,9 @@ const handleScheduledCancelCommand = require('../commands/scheduledCancel');
 const handleStreamerLinkCommand = require('../commands/streamerLink');
 const handleStreamerUnlinkCommand = require('../commands/streamerUnlink');
 const handleStreamerListCommand = require('../commands/streamerList');
+const handleRankCommand = require('../commands/rank');
+const handleLeaderboardCommand = require('../commands/leaderboard');
+const handleLevelroleCommand = require('../commands/levelrole');
 const logger = require('../../shared/logger');
 
 const commandHandlers = {
@@ -42,6 +45,9 @@ const commandHandlers = {
   'streamer-link': handleStreamerLinkCommand,
   'streamer-unlink': handleStreamerUnlinkCommand,
   'streamer-list': handleStreamerListCommand,
+  rank: handleRankCommand,
+  leaderboard: handleLeaderboardCommand,
+  levelrole: handleLevelroleCommand,
 };
 
 async function routeInteraction(interaction) {
