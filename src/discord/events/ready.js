@@ -16,6 +16,7 @@ const panelActionsSync = require('../automation/panelActionsSync');
 const statsTracker = require('../automation/statsTracker');
 const statusRotator = require('../automation/statusRotator');
 const tempBanExpiry = require('../automation/tempBanExpiry');
+const birthdayAnnouncer = require('../automation/birthdayAnnouncer');
 const logger = require('../../shared/logger');
 
 client.once(Events.ClientReady, async (readyClient) => {
@@ -44,4 +45,5 @@ client.once(Events.ClientReady, async (readyClient) => {
   statsTracker.start();
   statusRotator.start();
   tempBanExpiry.start();
+  birthdayAnnouncer.start();
 });

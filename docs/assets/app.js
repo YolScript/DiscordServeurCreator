@@ -832,6 +832,21 @@ async function renderPermissionsPage(id, container = app) {
   });
 }
 
+const WEBHOOK_EVENT_LABELS = {
+  member_join: "Arrivee d'un membre",
+  member_leave: "Depart d'un membre",
+  mod_action: 'Action de moderation',
+};
+
+function webhookRows(webhooks) {
+  return webhooks.map((w, i) => `
+    <div class="row" data-index="${i}" style="justify-content:space-between; margin-bottom:6px;">
+      <span>${escapeHtml(WEBHOOK_EVENT_LABELS[w.event] || w.event)} → <span class="muted">${escapeHtml(w.url)}</span></span>
+      <button class="btn danger delete-webhook" data-index="${i}">Supprimer</button>
+    </div>
+  `).join('') || '<p class="muted">Aucun webhook configure.</p>';
+}
+
 /* ---------- Pages: roles de jeu ---------- */
 
 function wireReactionRoleRows(root) {
@@ -1090,6 +1105,34 @@ async function renderAutomationsPage(id, container = app) {
         <textarea id="bot-statuses" placeholder="Regarde ServeurCreator&#10;/setup pour demarrer&#10;{membercount} membres">${escapeHtml((config?.botStatuses || []).join('\n'))}</textarea>
         <p class="muted">Variable disponible : {membercount}</p>
         <button class="btn secondary" id="save-bot-statuses" style="margin-top:8px;">Enregistrer</button>
+
+        <label style="margin-top:18px;">Salon des annonces d'anniversaire (/birthday)</label>
+        <select id="birthday-channel-select">
+          <option value="">Meme salon que bienvenue/depart</option>
+          ${textChannelOptions}
+        </select>
+        <button class="btn secondary" id="save-birthday-channel" style="margin-top:8px;">Enregistrer</button>
+
+        <label style="margin-top:18px;">Salon des suggestions (/suggest)</label>
+        <select id="suggestions-channel-select">
+          <option value="">Aucun</option>
+          ${textChannelOptions}
+        </select>
+        <button class="btn secondary" id="save-suggestions-channel" style="margin-top:8px;">Enregistrer</button>
+      `)}
+
+      ${sectionHtml('Webhooks sortants', `
+        <p class="muted">Envoie une requete POST JSON vers une URL externe a chaque evenement choisi (arrivee, depart, action de moderation).</p>
+        <div id="webhooks-list">${webhookRows(config?.outgoingWebhooks || [])}</div>
+        <div class="row" style="margin-top:10px;">
+          <select id="new-webhook-event">
+            <option value="member_join">Arrivee d'un membre</option>
+            <option value="member_leave">Depart d'un membre</option>
+            <option value="mod_action">Action de moderation</option>
+          </select>
+          <input type="text" id="new-webhook-url" placeholder="https://..." style="flex:1; min-width:220px;" />
+          <button class="btn secondary" id="add-webhook">Ajouter</button>
+        </div>
       `)}
 
       ${sectionHtml('Auto-moderation', `
@@ -1257,6 +1300,59 @@ async function renderAutomationsPage(id, container = app) {
       showToast(err.message, 'error');
     }
   });
+
+  document.getElementById('save-birthday-channel').addEventListener('click', async () => {
+    try {
+      await Api.updateConfig(id, { birthdayChannelId: document.getElementById('birthday-channel-select').value || null });
+      showToast('Salon d\'anniversaire enregistre.');
+    } catch (err) {
+      showToast(err.message, 'error');
+    }
+  });
+
+  document.getElementById('save-suggestions-channel').addEventListener('click', async () => {
+    try {
+      await Api.updateConfig(id, { suggestionsChannelId: document.getElementById('suggestions-channel-select').value || null });
+      showToast('Salon de suggestions enregistre.');
+    } catch (err) {
+      showToast(err.message, 'error');
+    }
+  });
+
+  let currentWebhooks = config?.outgoingWebhooks || [];
+  const refreshWebhookRows = () => {
+    document.getElementById('webhooks-list').innerHTML = webhookRows(currentWebhooks);
+    wireWebhookDeleteButtons();
+  };
+  function wireWebhookDeleteButtons() {
+    document.querySelectorAll('.delete-webhook').forEach((btn) => {
+      btn.addEventListener('click', async () => {
+        try {
+          currentWebhooks = currentWebhooks.filter((_, i) => i !== Number(btn.dataset.index));
+          await Api.updateConfig(id, { outgoingWebhooks: currentWebhooks });
+          refreshWebhookRows();
+          showToast('Webhook supprime.');
+        } catch (err) {
+          showToast(err.message, 'error');
+        }
+      });
+    });
+  }
+  document.getElementById('add-webhook').addEventListener('click', async () => {
+    const url = document.getElementById('new-webhook-url').value.trim();
+    if (!url) { showToast('URL requise.', 'error'); return; }
+    try {
+      const event = document.getElementById('new-webhook-event').value;
+      currentWebhooks = [...currentWebhooks, { event, url }];
+      await Api.updateConfig(id, { outgoingWebhooks: currentWebhooks });
+      refreshWebhookRows();
+      document.getElementById('new-webhook-url').value = '';
+      showToast('Webhook ajoute.');
+    } catch (err) {
+      showToast(err.message, 'error');
+    }
+  });
+  wireWebhookDeleteButtons();
 
   document.getElementById('save-modconfig').addEventListener('click', async () => {
     try {

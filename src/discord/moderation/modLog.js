@@ -3,6 +3,7 @@ const guildConfigStore = require('../../kv/guildConfigStore');
 const auditLogStore = require('../../kv/auditLogStore');
 const { toSmallCaps } = require('../../shared/smallCaps');
 const { ensureStaffCategory, toggleOnlyOverwrites } = require('../roles/staffCategory');
+const webhookDispatcher = require('../automation/webhookDispatcher');
 const logger = require('../../shared/logger');
 
 // Cree le salon #mod-logs a la demande (premiere action de moderation sur ce
@@ -45,6 +46,8 @@ async function postModLog(guild, { title, description, color = 0xd3a13a, fields 
     title,
     description: detailsSuffix ? `${description} (${detailsSuffix})` : description,
   }).catch((err) => logger.error('auditLogStore.add', err));
+
+  webhookDispatcher.fireEvent(guild.id, 'mod_action', { title, description, fields }).catch(() => {});
 }
 
 module.exports = { ensureModLogChannel, postModLog };

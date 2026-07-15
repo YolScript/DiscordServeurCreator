@@ -3,9 +3,11 @@ const {
   REGLEMENT_ACCEPT, REGLEMENT_TRANSLATE, AGE_PLUS16, AGE_MINUS16,
   GAME_SELECT_PREFIX, GAME_PSEUDO_MODAL_PREFIX, GAME_PSEUDO_BUTTON_PREFIX, POLL_VOTE_PREFIX, GIVEAWAY_ENTER_PREFIX,
   CAPTCHA_OK, CAPTCHA_NO, TICKET_OPEN, POLL_CREATE_OPEN, POLL_CREATE_MODAL, TICKET_RATE_PREFIX,
+  SUGGESTION_VOTE_PREFIX, SUGGESTION_APPROVE_PREFIX, SUGGESTION_DENY_PREFIX,
 } = require('./customIds');
 const pollManager = require('../engagement/pollManager');
 const giveawayManager = require('../engagement/giveawayManager');
+const suggestionManager = require('../engagement/suggestionManager');
 const {
   createTicket, closeTicket, claimTicket, rateTicket, TICKET_CLOSE_ID, TICKET_CLAIM_ID,
 } = require('../support/ticketManager');
@@ -43,6 +45,8 @@ const handleGiveawayCommand = require('../commands/giveaway');
 const handleInvitesCommand = require('../commands/invites');
 const handleReferralroleCommand = require('../commands/referralrole');
 const handleBadgesCommand = require('../commands/badges');
+const handleBirthdayCommand = require('../commands/birthday');
+const handleSuggestCommand = require('../commands/suggest');
 const handleTicketCommand = require('../commands/ticket');
 const handleTicketPanelCommand = require('../commands/ticketPanel');
 const handleGiveawayRerollCommand = require('../commands/giveawayReroll');
@@ -77,6 +81,8 @@ const commandHandlers = {
   invites: handleInvitesCommand,
   referralrole: handleReferralroleCommand,
   badges: handleBadgesCommand,
+  birthday: handleBirthdayCommand,
+  suggest: handleSuggestCommand,
   ticket: handleTicketCommand,
   'ticket-panel': handleTicketPanelCommand,
   'poll-panel': handlePollPanelCommand,
@@ -132,6 +138,15 @@ async function routeInteraction(interaction) {
       } else if (interaction.customId.startsWith(TICKET_RATE_PREFIX)) {
         const [guildId, ticketId, stars] = interaction.customId.slice(TICKET_RATE_PREFIX.length).split(':');
         await rateTicket(interaction, guildId, ticketId, Number(stars));
+      } else if (interaction.customId.startsWith(SUGGESTION_VOTE_PREFIX)) {
+        const [suggestionId, direction] = interaction.customId.slice(SUGGESTION_VOTE_PREFIX.length).split(':');
+        await suggestionManager.handleVote(interaction, suggestionId, direction);
+      } else if (interaction.customId.startsWith(SUGGESTION_APPROVE_PREFIX)) {
+        const suggestionId = interaction.customId.slice(SUGGESTION_APPROVE_PREFIX.length);
+        await suggestionManager.handleModeration(interaction, suggestionId, 'approved');
+      } else if (interaction.customId.startsWith(SUGGESTION_DENY_PREFIX)) {
+        const suggestionId = interaction.customId.slice(SUGGESTION_DENY_PREFIX.length);
+        await suggestionManager.handleModeration(interaction, suggestionId, 'denied');
       }
       return;
     }

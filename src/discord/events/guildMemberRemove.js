@@ -1,6 +1,7 @@
 const { Events, EmbedBuilder } = require('discord.js');
 const client = require('../client');
 const guildConfigStore = require('../../kv/guildConfigStore');
+const webhookDispatcher = require('../automation/webhookDispatcher');
 const logger = require('../../shared/logger');
 
 function applyPlaceholders(template, member) {
@@ -12,6 +13,13 @@ function applyPlaceholders(template, member) {
 }
 
 client.on(Events.GuildMemberRemove, async (member) => {
+  webhookDispatcher.fireEvent(member.guild.id, 'member_leave', {
+    userId: member.id,
+    username: member.user.username,
+    tag: member.user.tag,
+    memberCount: member.guild.memberCount,
+  }).catch(() => {});
+
   try {
     const config = await guildConfigStore.find(member.guild.id);
     if (!config?.arrivalDepartureChannelId) return;

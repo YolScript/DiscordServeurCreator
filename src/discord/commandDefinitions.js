@@ -218,6 +218,19 @@ const referralroleCommand = new SlashCommandBuilder()
   .addSubcommand((s) => s.setName('list').setDescription('Liste les paliers configures'))
   .toJSON();
 
+const suggestCommand = new SlashCommandBuilder()
+  .setName('suggest')
+  .setDescription('Propose une suggestion (vote + validation staff).')
+  .addStringOption((o) => o.setName('texte').setDescription('Ta suggestion').setRequired(true).setMaxLength(1000))
+  .toJSON();
+
+const birthdayCommand = new SlashCommandBuilder()
+  .setName('birthday')
+  .setDescription('Enregistre ta date d\'anniversaire (annonce automatique le jour J).')
+  .addIntegerOption((o) => o.setName('mois').setDescription('Mois (1-12)').setRequired(true).setMinValue(1).setMaxValue(12))
+  .addIntegerOption((o) => o.setName('jour').setDescription('Jour (1-31)').setRequired(true).setMinValue(1).setMaxValue(31))
+  .toJSON();
+
 const badgesCommand = new SlashCommandBuilder()
   .setName('badges')
   .setDescription('Affiche tes badges (ou ceux d\'un membre).')
@@ -260,7 +273,7 @@ module.exports = [
   scheduleAnnouncementCommand, scheduleEventCommand, scheduledListCommand, scheduledCancelCommand,
   rankCommand, leaderboardCommand, levelroleCommand, pollCommand, pollPanelCommand, giveawayCommand,
   giveawayRerollCommand,
-  invitesCommand, referralroleCommand, badgesCommand, ticketCommand, ticketPanelCommand,
+  invitesCommand, referralroleCommand, badgesCommand, birthdayCommand, suggestCommand, ticketCommand, ticketPanelCommand,
   reglementTranslationCommand, streamerLinkCommand, streamerUnlinkCommand, streamerListCommand,
   reglementPanelCommand, rolesPanelCommand,
 ];

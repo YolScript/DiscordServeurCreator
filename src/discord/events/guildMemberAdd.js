@@ -3,6 +3,7 @@ const client = require('../client');
 const guildConfigStore = require('../../kv/guildConfigStore');
 const antiRaid = require('../moderation/antiRaid');
 const inviteTracker = require('../engagement/inviteTracker');
+const webhookDispatcher = require('../automation/webhookDispatcher');
 const logger = require('../../shared/logger');
 
 function applyPlaceholders(template, member) {
@@ -16,6 +17,12 @@ function applyPlaceholders(template, member) {
 client.on(Events.GuildMemberAdd, async (member) => {
   antiRaid.handleGuildMemberAdd(member);
   inviteTracker.resolveInviterOnJoin(member).catch((err) => logger.error('resolveInviterOnJoin', err));
+  webhookDispatcher.fireEvent(member.guild.id, 'member_join', {
+    userId: member.id,
+    username: member.user.username,
+    tag: member.user.tag,
+    memberCount: member.guild.memberCount,
+  }).catch(() => {});
 
   try {
     const config = await guildConfigStore.find(member.guild.id);
