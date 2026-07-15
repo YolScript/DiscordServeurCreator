@@ -601,12 +601,34 @@ async function renderPreviewPage(id) {
   });
 }
 
+const SETTINGS_PANEL_INTROS = {
+  permissions: 'Voici les permissions par salon et par role. Choisis une edition en masse ou exporte/importe une config.',
+  jeux: 'Voici les roles de jeu detectes automatiquement. Ajoute, renomme ou supprime-les ici.',
+  automatisations: "Voici les automatisations du serveur (niveaux, parrainage, service staff...).",
+  securite: 'Voici les reglages de securite et de moderation automatique.',
+  stats: "Un apercu des statistiques d'activite du serveur.",
+  auditlog: 'Le journal des dernieres actions effectuees depuis le dashboard.',
+  embedbuilder: 'Cree un embed personnalise et poste-le dans le salon de ton choix.',
+  botstatus: 'Configure le statut et l\'activite affiches par le bot.',
+  templates: 'Gere les templates de structure de serveur.',
+  customcommands: 'Cree tes propres commandes personnalisees.',
+};
+
 function renderSettingsPanel(guildId, key) {
   const main = document.getElementById('dp-main');
   const panel = SETTINGS_PANELS.find((p) => p.key === key);
+  const intro = SETTINGS_PANEL_INTROS[key] || `Voici ${panel?.label || key}.`;
   main.innerHTML = `
-    <div class="dp-channel-header"><span class="hash">⚙</span> ${escapeHtml(panel?.label || key)}</div>
-    <div class="dp-main-body" id="dp-settings-body"></div>
+    <div class="dp-chat">
+      <div class="dp-chat-msg bot">
+        <div class="dp-chat-avatar">🤖</div>
+        <div class="dp-chat-bubble">
+          <div class="dp-chat-author">ServeurCreator Bot</div>
+          <div class="dp-chat-text">${escapeHtml(intro)}</div>
+        </div>
+      </div>
+      <div class="dp-settings-body-wrap" id="dp-settings-body"></div>
+    </div>
   `;
   const body = document.getElementById('dp-settings-body');
   const renderers = {
