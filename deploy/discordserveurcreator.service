@@ -1,0 +1,16 @@
+[Unit]
+Description=DiscordServeurCreator bot
+After=network-online.target
+Wants=network-online.target
+
+[Service]
+Type=simple
+WorkingDirectory=/opt/discordserveurcreator
+EnvironmentFile=/opt/discordserveurcreator/.env
+ExecStart=/usr/bin/node src/index.js
+Restart=always
+RestartSec=5
+User=discordbot
+
+[Install]
+WantedBy=multi-user.target
