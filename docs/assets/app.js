@@ -141,31 +141,17 @@ function withViewTransition(renderFn) {
   document.startViewTransition(() => renderFn());
 }
 
-/* ---------- Collapsible sections ---------- */
+/* ---------- Modules (grille de cartes + un seul module affiche a la fois) ---------- */
 
-function sectionHtml(title, bodyHtml, {
-  hint = '', open = false, id = '',
-} = {}) {
-  return `
-    <div class="section${open ? '' : ' collapsed'}"${id ? ` id="section-${id}"` : ''}>
-      <button class="section-header" type="button">
-        <span>${escapeHtml(title)}${hint ? `<span class="section-hint">${escapeHtml(hint)}</span>` : ''}</span>
-        <span class="chevron">▾</span>
-      </button>
-      <div class="section-body"><div class="section-body-inner">${bodyHtml}</div></div>
-    </div>
-  `;
+// title n'est plus affiche (plus de barre d'en-tete a chevron) : conserve en
+// parametre pour que chaque appel documente clairement de quel module il
+// s'agit, et parce que sectionGridHtml() a besoin du meme libelle cote carte.
+function sectionHtml(title, bodyHtml, { id = '', alwaysOpen = false } = {}) {
+  return `<div class="section-panel${alwaysOpen ? ' active' : ''}"${id ? ` id="section-${id}"` : ''}>${bodyHtml}</div>`;
 }
 
-function wireSections(container) {
-  container.querySelectorAll('.section-header').forEach((header) => {
-    header.addEventListener('click', () => header.closest('.section').classList.toggle('collapsed'));
-  });
-}
-
-// Grille d'acces rapide au-dessus d'une liste de sections (sectionHtml avec
-// id) : clic sur une carte = ouvre uniquement cette section et y scroll,
-// sans toucher a la logique d'affichage/repliage existante.
+// Grille d'entree : un module a la fois est affiche (pas d'accordion). Rien
+// n'est visible tant qu'aucune carte n'a ete cliquee.
 function sectionGridHtml(items) {
   return `
     <div class="dp-action-grid" style="margin-bottom:20px;">
@@ -179,14 +165,16 @@ function sectionGridHtml(items) {
 }
 
 function wireSectionGrid(container) {
-  container.querySelectorAll('[data-goto-section]').forEach((btn) => {
+  const cards = container.querySelectorAll('[data-goto-section]');
+  cards.forEach((btn) => {
     btn.addEventListener('click', () => {
       window.UISound?.select();
-      const section = container.querySelector(`#section-${btn.dataset.gotoSection}`);
-      if (!section) return;
-      container.querySelectorAll('.section').forEach((s) => { if (s !== section) s.classList.add('collapsed'); });
-      section.classList.remove('collapsed');
-      section.scrollIntoView({ behavior: 'smooth', block: 'start' });
+      cards.forEach((c) => c.classList.remove('active'));
+      btn.classList.add('active');
+      container.querySelectorAll('.section-panel').forEach((p) => {
+        p.classList.toggle('active', p.id === `section-${btn.dataset.gotoSection}`);
+      });
+      container.querySelector('.section-panel.active')?.scrollIntoView({ behavior: 'smooth', block: 'start' });
     });
   });
 }
@@ -294,6 +282,42 @@ const SETTINGS_PANELS = [
   { key: 'templates', label: 'Templates', icon: '📁' },
   { key: 'customcommands', label: 'Commandes personnalisees', icon: '🧩' },
   { key: 'assistant-ia', label: 'Assistant IA', icon: '✨' },
+];
+
+// Grille d'accueil totalement a plat : chaque module (meme ceux qui vivaient
+// avant dans une sous-grille type Automatisations/Securite/Permissions) est
+// directement accessible en un clic depuis l'accueil du bot, sans page hub
+// intermediaire a traverser.
+const HOME_MODULES = [
+  { parent: 'permissions', section: 'perm-bulk', icon: '⚡', label: 'Edition en masse' },
+  { parent: 'permissions', section: 'perm-io', icon: '📋', label: 'Export / Import' },
+  { parent: 'permissions', section: 'perm-default', icon: '♻️', label: 'Permissions par defaut' },
+  { parent: 'permissions', section: 'perm-dashboard', icon: '🔑', label: 'Acces au dashboard' },
+  { parent: 'jeux', section: 'game-catalog', icon: '📚', label: 'Catalogue de jeux' },
+  { parent: 'jeux', section: 'game-active', icon: '🎮', label: 'Roles de jeu actifs' },
+  { parent: 'jeux', section: 'game-reaction', icon: '🎭', label: 'Roles-reaction' },
+  { parent: 'automatisations', section: 'bots', icon: '🧩', label: 'Bots complementaires' },
+  { parent: 'automatisations', section: 'arrivee', icon: '👋', label: 'Arrivee & statut du bot' },
+  { parent: 'automatisations', section: 'webhooks', icon: '🔗', label: 'Webhooks sortants' },
+  { parent: 'automatisations', section: 'economie', icon: '🪙', label: 'Economie / boutique' },
+  { parent: 'automatisations', section: 'automod', icon: '🛡️', label: 'Auto-moderation' },
+  { parent: 'automatisations', section: 'niveaux', icon: '⭐', label: 'Roles de niveau (XP)' },
+  { parent: 'automatisations', section: 'parrainage', icon: '🎗️', label: 'Parrainage' },
+  { parent: 'automatisations', section: 'streamers', icon: '📺', label: 'Streamers lies' },
+  { parent: 'automatisations', section: 'annonces', icon: '📅', label: 'Annonces programmees' },
+  { parent: 'automatisations', section: 'service', icon: '🚨', label: 'Service (staff)' },
+  { parent: 'automatisations', section: 'tickets', icon: '🎫', label: 'Tickets' },
+  { parent: 'securite', section: 'sec-export', icon: '💾', label: 'Export / Restauration' },
+  { parent: 'securite', section: 'sec-snapshots', icon: '📸', label: 'Snapshots automatiques' },
+  { parent: 'securite', section: 'sec-lockdown', icon: '🔒', label: 'Lockdown' },
+  { parent: 'stats', section: 'stats-members', icon: '👥', label: 'Membres' },
+  { parent: 'stats', section: 'stats-activity', icon: '💬', label: 'Activite' },
+  { parent: 'auditlog', icon: '📋', label: "Logs d'audit" },
+  { parent: 'embedbuilder', icon: '💬', label: 'Generateur embed' },
+  { parent: 'botstatus', icon: '🤖', label: 'Statut du bot' },
+  { parent: 'templates', icon: '📁', label: 'Templates' },
+  { parent: 'customcommands', icon: '🧩', label: 'Commandes personnalisees' },
+  { parent: 'assistant-ia', icon: '✨', label: 'Assistant IA' },
 ];
 
 function customChannelFormHtml(catId) {
@@ -420,10 +444,10 @@ function aiHomeHtml(guild) {
               <span class="icon">➕</span>
               <span class="label">Ajouter une categorie</span>
             </button>
-            ${SETTINGS_PANELS.map((p) => `
-              <button type="button" class="dp-action-card" data-goto-settings="${p.key}">
-                <span class="icon">${p.icon}</span>
-                <span class="label">${escapeHtml(p.label)}</span>
+            ${HOME_MODULES.map((m) => `
+              <button type="button" class="dp-action-card" data-goto-settings="${m.parent}"${m.section ? ` data-goto-settings-section="${m.section}"` : ''}>
+                <span class="icon">${m.icon}</span>
+                <span class="label">${escapeHtml(m.label)}</span>
               </button>
             `).join('')}
           </div>
@@ -748,7 +772,7 @@ async function renderPreviewPage(id) {
   app.querySelectorAll('[data-goto-settings]').forEach((btn) => {
     btn.addEventListener('click', () => {
       window.UISound?.select();
-      withViewTransition(() => { renderSettingsPanel(id, btn.dataset.gotoSettings); });
+      withViewTransition(() => { renderSettingsPanel(id, btn.dataset.gotoSettings, btn.dataset.gotoSettingsSection); });
     });
   });
 
@@ -812,18 +836,20 @@ const SETTINGS_PANEL_INTROS = {
   'assistant-ia': "Configure ta cle API pour discuter avec l'assistant et lui laisser creer/modifier des salons, categories et roles a ta place.",
 };
 
-function renderSettingsPanel(guildId, key) {
+async function renderSettingsPanel(guildId, key, preselectSectionId) {
   const main = document.getElementById('dp-main');
   const panel = SETTINGS_PANELS.find((p) => p.key === key);
   const intro = SETTINGS_PANEL_INTROS[key] || `Voici ${panel?.label || key}.`;
   main.innerHTML = `
+    <div class="dp-panel-topbar">
+      <button type="button" class="dp-panel-back-btn" id="dp-settings-back">← Retour</button>
+    </div>
     <div class="dp-chat">
       <div class="dp-chat-msg bot">
         <div class="dp-chat-avatar">🤖</div>
         <div class="dp-chat-bubble">
           <div class="dp-chat-author">ServeurCreator Bot</div>
           <div class="dp-chat-text">${escapeHtml(intro)}</div>
-          <button type="button" class="btn secondary" id="dp-settings-back" style="align-self:flex-start;">← Retour aux outils</button>
         </div>
       </div>
       <div class="dp-settings-body-wrap" id="dp-settings-body"></div>
@@ -847,7 +873,10 @@ function renderSettingsPanel(guildId, key) {
     customcommands: () => renderCustomCommandsPage(guildId, body),
     'assistant-ia': () => renderAiConfigPage(guildId, body),
   };
-  renderers[key]?.();
+  await renderers[key]?.();
+  if (preselectSectionId) {
+    body.querySelector(`[data-goto-section="${preselectSectionId}"]`)?.click();
+  }
 }
 
 function contextualChannelSettingsHtml(channelId, config) {
@@ -887,22 +916,6 @@ function contextualChannelSettingsHtml(channelId, config) {
   return '';
 }
 
-function channelPanelsBlockHtml(type) {
-  if (type !== 0) return '';
-  return `
-    <div class="dp-block">
-      <p class="dp-block-title">📋 Panneaux</p>
-      <p class="muted" style="margin:0 0 10px;">Poste un panneau interactif dans ce salon.</p>
-      <div class="row" style="flex-wrap:wrap;">
-        <button class="btn secondary" id="dp-post-ticket-panel">🎫 Panneau tickets</button>
-        <button class="btn secondary" id="dp-post-poll-panel">🗳️ Panneau sondage</button>
-        <button class="btn secondary" id="dp-post-embed-panel">💬 Panneau embed</button>
-        <button class="btn secondary" id="dp-post-reglement-panel">📜 Panneau reglement</button>
-        <button class="btn secondary" id="dp-post-roles-panel">🎭 Panneau roles</button>
-      </div>
-    </div>`;
-}
-
 function specialChannelToggleHtml(channelId, type, config) {
   if (type !== 0) return '';
   const isRules = config?.rulesChannelId === channelId;
@@ -936,9 +949,12 @@ function channelActionsFor(channelId, type, config) {
     ...(isTextChannel ? [
       { key: 'reglement', icon: '📜', label: 'Reglement', on: config?.rulesChannelId === channelId },
       { key: 'arrival', icon: '👋', label: 'Bienvenue', on: config?.arrivalDepartureChannelId === channelId },
-      { key: 'panels', icon: '📋', label: 'Panneaux' },
       { key: 'embed', icon: '💬', label: 'Embed' },
       { key: 'reactionroles', icon: '🎭', label: 'Roles' },
+      { key: 'ticketpanel', icon: '🎫', label: 'Panneau tickets' },
+      { key: 'pollpanel', icon: '🗳️', label: 'Panneau sondage' },
+      { key: 'reglementpanel', icon: '📜', label: 'Poster le reglement' },
+      { key: 'agerolepanel', icon: '🔞', label: 'Panneau age' },
     ] : []),
     ...(config?.reglementValidatedRoleId && type !== 4 ? [{ key: 'visibility', icon: '👁️', label: 'Visibilite' }] : []),
     { key: 'service', icon: '🛡️', label: 'Service staff', on: isServiceHidden },
@@ -992,7 +1008,38 @@ function channelActionDetailHtml(key, ctx) {
       </div>
       ${contextualChannelSettingsHtml(channelId, config)}`;
   }
-  if (key === 'panels') return channelPanelsBlockHtml(type);
+  if (key === 'ticketpanel') {
+    return `
+      <div class="dp-block">
+        <p class="dp-block-title">🎫 Panneau tickets</p>
+        <p class="muted" style="margin:0 0 12px;">Poste un bouton "Ouvrir un ticket" dans #${escapeHtml(name)}.</p>
+        <button class="btn" id="dp-post-ticket-panel">Poster le panneau</button>
+      </div>`;
+  }
+  if (key === 'pollpanel') {
+    return `
+      <div class="dp-block">
+        <p class="dp-block-title">🗳️ Panneau sondage</p>
+        <p class="muted" style="margin:0 0 12px;">Poste un bouton "Creer un sondage" dans #${escapeHtml(name)}.</p>
+        <button class="btn" id="dp-post-poll-panel">Poster le panneau</button>
+      </div>`;
+  }
+  if (key === 'reglementpanel') {
+    return `
+      <div class="dp-block">
+        <p class="dp-block-title">📜 Poster le reglement</p>
+        <p class="muted" style="margin:0 0 12px;">Reposte l'embed reglement dans le salon configure comme salon Reglement (pas forcement #${escapeHtml(name)}).</p>
+        <button class="btn" id="dp-post-reglement-panel">Poster le panneau</button>
+      </div>`;
+  }
+  if (key === 'agerolepanel') {
+    return `
+      <div class="dp-block">
+        <p class="dp-block-title">🔞 Panneau age (+16/-16)</p>
+        <p class="muted" style="margin:0 0 12px;">Reposte le message de selection de tranche d'age dans le salon configure pour les roles.</p>
+        <button class="btn" id="dp-post-roles-panel">Poster le panneau</button>
+      </div>`;
+  }
   if (key === 'visibility') {
     const currentlyVisible = config?.reglementValidatedRoleId
       ? isViewAllowed(channel, config.reglementValidatedRoleId)
@@ -1127,28 +1174,36 @@ function categoryActionDetailHtml(key, ctx) {
   if (key === 'create-channel') {
     const otherChannels = channels.filter((c) => c.type !== 4);
     return `
-      <div class="dp-block">
+      <div class="dp-block dp-form-grid">
         <p class="dp-block-title">➕ Creer un salon dans "${escapeHtml(name)}"</p>
-        <label>Nom du salon</label>
-        <input type="text" id="dp-cat-new-channel-name" placeholder="Nom du salon" maxlength="80" />
-        <label>Type</label>
-        <select id="dp-cat-new-channel-type">
-          <option value="text">💬 Texte</option>
-          <option value="voice">🔊 Vocal</option>
-          <option value="voice-temp">🔊 Vocal temporaire (cree un salon perso par membre)</option>
-          <option value="forum">🗂️ Forum</option>
-        </select>
-        <label>Visibilite</label>
-        <select id="dp-cat-new-channel-visibility">
-          <option value="private">🔒 Prive (reserve aux membres ayant valide le reglement)</option>
-          <option value="public">🌐 Public (herite de la categorie)</option>
-        </select>
-        <label>Importer les permissions d'un salon existant (optionnel)</label>
-        <select id="dp-cat-new-channel-import">
-          <option value="">Aucune (permissions par defaut)</option>
-          ${otherChannels.map((c) => `<option value="${c.id}">${c.type === 2 ? '🔊' : '#'}${escapeHtml(c.name)}</option>`).join('')}
-        </select>
-        <button class="btn" id="dp-cat-create-channel" style="margin-top:12px;">Creer le salon</button>
+        <div>
+          <label>Nom du salon</label>
+          <input type="text" id="dp-cat-new-channel-name" placeholder="Nom du salon" maxlength="80" />
+        </div>
+        <div>
+          <label>Type</label>
+          <select id="dp-cat-new-channel-type">
+            <option value="text">💬 Texte</option>
+            <option value="voice">🔊 Vocal</option>
+            <option value="voice-temp">🔊 Vocal temporaire (cree un salon perso par membre)</option>
+            <option value="forum">🗂️ Forum</option>
+          </select>
+        </div>
+        <div>
+          <label>Visibilite</label>
+          <select id="dp-cat-new-channel-visibility">
+            <option value="private">🔒 Prive (reserve aux membres ayant valide le reglement)</option>
+            <option value="public">🌐 Public (herite de la categorie)</option>
+          </select>
+        </div>
+        <div>
+          <label>Importer les permissions d'un salon existant (optionnel)</label>
+          <select id="dp-cat-new-channel-import">
+            <option value="">Aucune (permissions par defaut)</option>
+            ${otherChannels.map((c) => `<option value="${c.id}">${c.type === 2 ? '🔊' : '#'}${escapeHtml(c.name)}</option>`).join('')}
+          </select>
+        </div>
+        <button class="btn dp-form-full" id="dp-cat-create-channel" style="margin-top:12px;">Creer le salon</button>
       </div>`;
   }
   if (key === 'rename') {
@@ -1520,14 +1575,6 @@ function renderChannelPanel(guildId, channelId, name, type, config, channels) {
       });
     }
 
-    const postEmbedPanelBtn = scope.querySelector('#dp-post-embed-panel');
-    if (postEmbedPanelBtn) {
-      postEmbedPanelBtn.addEventListener('click', () => {
-        prefillChannelId = channelId;
-        withViewTransition(() => renderSettingsPanel(guildId, 'embedbuilder'));
-      });
-    }
-
     const postReglementPanelBtn = scope.querySelector('#dp-post-reglement-panel');
     if (postReglementPanelBtn) {
       postReglementPanelBtn.addEventListener('click', async () => {
@@ -1708,6 +1755,12 @@ async function renderPermissionsPage(id, container = app) {
 
   container.innerHTML = `
     <div class="inner">
+      ${sectionGridHtml([
+        { id: 'perm-bulk', icon: '⚡', label: 'Edition en masse' },
+        { id: 'perm-io', icon: '📋', label: 'Export / Import' },
+        { id: 'perm-default', icon: '♻️', label: 'Permissions par defaut' },
+        { id: 'perm-dashboard', icon: '🔑', label: 'Acces au dashboard' },
+      ])}
       ${sectionHtml('Edition en masse', `
         <p class="muted">Choisis les salons, le role, et une action rapide a appliquer partout en un clic.</p>
         <label>Salons</label>
@@ -1717,7 +1770,7 @@ async function renderPermissionsPage(id, container = app) {
         <label>Action</label>
         <select id="perm-preset">${presetOptions}</select>
         <button class="btn" id="apply-bulk" style="margin-top:12px;">Appliquer</button>
-      `, { open: true })}
+      `, { id: 'perm-bulk' })}
 
       ${sectionHtml('Export / Import (copier-coller)', `
         <label>Salon a exporter</label>
@@ -1730,7 +1783,7 @@ async function renderPermissionsPage(id, container = app) {
         <label>Salon cible</label>
         <select id="import-channel">${channelOptionsSimple}</select>
         <button class="btn secondary" id="import-btn" style="margin-top:8px;">Importer</button>
-      `)}
+      `, { id: 'perm-io' })}
 
       ${sectionHtml('Permissions par defaut', `
         <p class="muted">Reinitialise les permissions du role au preset recommande (utile si elles ont ete modifiees par erreur).</p>
@@ -1738,7 +1791,7 @@ async function renderPermissionsPage(id, container = app) {
           <button class="btn secondary" id="reset-admin">Reinitialiser Administrateur</button>
           <button class="btn secondary" id="reset-mod">Reinitialiser Moderateur</button>
         </div>
-      `)}
+      `, { id: 'perm-default' })}
 
       ${sectionHtml('Acces au dashboard (au-dela d\'Administrator Discord)', `
         <p class="muted">Donne acces a ce dashboard a des membres specifiques (par ID Discord) meme s'ils n'ont pas la permission Administrator sur le serveur. Ils pourront tout configurer ici, comme un administrateur du dashboard.</p>
@@ -1747,10 +1800,10 @@ async function renderPermissionsPage(id, container = app) {
           <input type="text" id="new-dashboard-access-id" placeholder="ID Discord du membre" style="flex:1;" />
           <button class="btn secondary" id="add-dashboard-access">Ajouter</button>
         </div>
-      `)}
+      `, { id: 'perm-dashboard' })}
     </div>
   `;
-  wireSections(container);
+  wireSectionGrid(container);
 
   document.getElementById('apply-bulk').addEventListener('click', async () => {
     const channelIds = [...container.querySelectorAll('.perm-channel:checked')].map((el) => el.value);
@@ -1915,15 +1968,20 @@ async function renderGameRolesPage(id, container = app) {
 
   container.innerHTML = `
     <div class="inner">
+      ${sectionGridHtml([
+        { id: 'game-catalog', icon: '📚', label: 'Catalogue de jeux' },
+        { id: 'game-active', icon: '🎮', label: 'Roles de jeu actifs' },
+        { id: 'game-reaction', icon: '🎭', label: 'Roles-reaction' },
+      ])}
       ${sectionHtml('Catalogue de jeux pregeneres', `
         <p class="muted">Ajoute un role de jeu sans attendre qu'un membre soit detecte en train d'y jouer.</p>
         ${catalogHtml}
-      `)}
+      `, { id: 'game-catalog' })}
       ${sectionHtml('Roles de jeu actifs', `
         <p class="muted">Generes automatiquement quand un membre est vu en train de jouer, ou ajoutes depuis le catalogue.</p>
         ${rows || '<p class="muted">Aucun role de jeu pour le moment.</p>'}
         <button class="btn secondary" id="force-roles-refresh" style="margin-top:12px;">🔁 Forcer la mise a jour du salon #roles</button>
-      `, { open: true })}
+      `, { id: 'game-active' })}
 
       ${sectionHtml('Roles-reaction personnalises', `
         <p class="muted">Groupes de roles au choix (pas limites aux jeux), poses en salon via un menu de selection. Clic droit sur un role dans Discord (mode developpeur) &gt; Copier l'ID.</p>
@@ -1936,10 +1994,10 @@ async function renderGameRolesPage(id, container = app) {
         <div id="reaction-role-rows"></div>
         <button type="button" class="btn secondary" id="rr-add-role" style="margin-top:8px;">+ Ajouter un role</button>
         <button type="button" class="btn" id="rr-create" style="margin-top:12px;">Creer et poster</button>
-      `)}
+      `, { id: 'game-reaction' })}
     </div>
   `;
-  wireSections(container);
+  wireSectionGrid(container);
 
   document.getElementById('rr-add-role').addEventListener('click', () => {
     document.getElementById('reaction-role-rows').insertAdjacentHTML('beforeend', reactionRoleRowHtml());
@@ -2310,7 +2368,6 @@ async function renderAutomationsPage(id, container = app) {
       `, { id: 'tickets' })}
     </div>
   `;
-  wireSections(container);
   wireSectionGrid(container);
 
   document.getElementById('save-service-config').addEventListener('click', async () => {
@@ -2611,19 +2668,24 @@ async function renderSecurityPage(id, container = app) {
 
   container.innerHTML = `
     <div class="inner">
+      ${sectionGridHtml([
+        { id: 'sec-export', icon: '💾', label: 'Export / Restauration' },
+        { id: 'sec-snapshots', icon: '📸', label: 'Snapshots automatiques' },
+        { id: 'sec-lockdown', icon: '🚨', label: 'Lockdown' },
+      ])}
       ${sectionHtml('Export / Restauration manuelle', `
         <p class="muted">Exporte la structure (noms/couleurs des roles, categories, salons) en fichier JSON. La restauration est additive : elle recree uniquement ce qui manque, sans jamais toucher a l'existant.</p>
         <button class="btn secondary" id="export-structure">⬇️ Telecharger la structure (.json)</button>
         <label>Restaurer depuis un fichier</label>
         <input type="file" id="structure-file-input" accept="application/json" />
         <button class="btn secondary" id="restore-structure" style="margin-top:8px;">Restaurer depuis ce fichier</button>
-      `)}
+      `, { id: 'sec-export' })}
 
       ${sectionHtml('Snapshots automatiques', `
         <p class="muted">Un snapshot de la structure est pris automatiquement chaque jour (5 derniers conserves).</p>
         <button class="btn secondary" id="snapshot-now" style="margin-bottom:10px;">Creer un snapshot maintenant</button>
         <div id="snapshots-list">${snapshotRows}</div>
-      `)}
+      `, { id: 'sec-snapshots' })}
 
       ${sectionHtml('Lockdown', `
         <p class="muted">Verrouille immediatement le serveur (verification maximale : email verifie + compte Discord de plus de 10 minutes requis pour interagir). Utile en cas de raid en cours.</p>
@@ -2631,10 +2693,10 @@ async function renderSecurityPage(id, container = app) {
           <button class="btn danger" id="lockdown-btn">Verrouiller le serveur</button>
           <button class="btn secondary" id="unlock-btn">Deverrouiller</button>
         </div>
-      `)}
+      `, { id: 'sec-lockdown' })}
     </div>
   `;
-  wireSections(container);
+  wireSectionGrid(container);
 
   document.getElementById('export-structure').addEventListener('click', async () => {
     try {
@@ -2739,10 +2801,9 @@ async function renderAuditLogPage(id, container = app) {
         <p class="muted">Historique des actions de moderation et de configuration (200 dernieres).</p>
         <input type="text" id="audit-search" placeholder="Rechercher (titre, auteur, action...)" style="margin-bottom:10px;" />
         <div class="audit-log-list" id="audit-log-list">${logs.map(rowHtml).join('') || '<p class="muted">Aucune action enregistree pour le moment.</p>'}</div>
-      `, { open: true })}
+      `, { alwaysOpen: true })}
     </div>
   `;
-  wireSections(container);
 
   document.getElementById('audit-search').addEventListener('input', (e) => {
     const q = e.target.value.trim().toLowerCase();
@@ -2786,18 +2847,22 @@ async function renderStatsPage(id, container = app) {
 
   container.innerHTML = `
     <div class="inner">
+      ${sectionGridHtml([
+        { id: 'stats-members', icon: '👥', label: 'Membres' },
+        { id: 'stats-activity', icon: '💬', label: 'Activite' },
+      ])}
       ${sectionHtml('Membres', `
         <p class="muted">Evolution du nombre de membres (${stats.length} jour(s) enregistre(s)${firstDate ? `, depuis le ${firstDate}` : ''}).</p>
         ${lineChartSvg(memberPoints, { color: '#5865f2' })}
         ${lastDate ? `<p class="muted" style="margin-top:8px;">Dernier releve : ${lastDate} — ${memberPoints[memberPoints.length - 1]} membre(s)</p>` : ''}
-      `, { open: true })}
+      `, { id: 'stats-members' })}
       ${sectionHtml('Activite (messages/jour)', `
         <p class="muted">Nombre de messages envoyes par jour (hors bots).</p>
         ${lineChartSvg(messagePoints, { color: '#43aa8b' })}
-      `, { open: true })}
+      `, { id: 'stats-activity' })}
     </div>
   `;
-  wireSections(container);
+  wireSectionGrid(container);
 }
 
 /* ---------- Pages: generateur d'embed ---------- */
@@ -3062,17 +3127,19 @@ async function renderEmbedBuilderPage(id, container = app) {
           </div>
 
           ${sectionHtml('Modeles enregistres', `
+            <p class="dp-block-title">💾 Modeles enregistres</p>
             <div id="embed-templates-list">${templateRows()}</div>
-          `)}
+          `, { alwaysOpen: true })}
 
           ${sectionHtml('JSON avance (import/export)', `
+            <p class="dp-block-title">🧾 JSON avance (import/export)</p>
             <p class="muted">Colle un JSON d'embed pour le charger, ou copie celui genere par le formulaire.</p>
             <textarea id="embed-json" style="min-height:160px;" placeholder='{"title": "...", "description": "...", "color": 5793266}'></textarea>
             <div class="row" style="margin-top:8px;">
               <button type="button" class="btn secondary" id="embed-json-apply">Appliquer ce JSON</button>
               <button type="button" class="btn secondary" id="embed-json-copy">Copier le JSON actuel</button>
             </div>
-          `)}
+          `, { alwaysOpen: true })}
         </div>
 
         <div class="embed-builder-preview-wrap">
@@ -3103,7 +3170,6 @@ async function renderEmbedBuilderPage(id, container = app) {
       </div>
     </div>
   `;
-  wireSections(container);
 
   container.__mb = { embeds: [{}], active: 0 };
   renderEmbedTabs(container);
@@ -3282,6 +3348,7 @@ async function renderAiConfigPage(guildId, container = app) {
   container.innerHTML = `
     <div class="inner">
       ${sectionHtml('Cle API', `
+        <p class="dp-block-title">🔑 Cle API</p>
         <p class="muted" style="margin:0 0 12px;">
           ${config?.hasKey
             ? `Cle configuree (${AI_PROVIDERS.find((p) => p.value === config.provider)?.label || config.provider}). La cle n'est jamais raffichee apres enregistrement.`
@@ -3297,18 +3364,18 @@ async function renderAiConfigPage(guildId, container = app) {
           <button class="btn" id="ai-save">Enregistrer</button>
           ${config?.hasKey ? '<button class="btn danger secondary" id="ai-clear">Retirer la cle</button>' : ''}
         </div>
-      `, { open: true })}
+      `, { alwaysOpen: true })}
       ${sectionHtml('A propos', `
+        <p class="dp-block-title">ℹ️ A propos</p>
         <p class="muted">
           Chaque serveur utilise sa propre cle API, fournie par toi. Elle est chiffree avant stockage et n'est
           jamais renvoyee en clair. Les actions non destructives (creer, renommer, changer une couleur...) sont
           executees directement depuis la conversation. Les suppressions demandent toujours une confirmation
           explicite avant d'etre executees.
         </p>
-      `)}
+      `, { alwaysOpen: true })}
     </div>
   `;
-  wireSections(container);
 
   container.querySelector('#ai-save').addEventListener('click', async () => {
     const provider = container.querySelector('#ai-provider').value;
@@ -3345,7 +3412,7 @@ async function renderBotStatusPage(container = app) {
   if (!status) {
     container.innerHTML = `
       <div class="inner">
-        ${sectionHtml('Statut du bot', '<p class="muted">Aucune donnee de statut disponible pour le moment.</p>')}
+        ${sectionHtml('Statut du bot', '<p class="muted">Aucune donnee de statut disponible pour le moment.</p>', { alwaysOpen: true })}
       </div>`;
     return;
   }
@@ -3380,10 +3447,9 @@ async function renderBotStatusPage(container = app) {
           <span>Derniere mise a jour</span>
           <span class="muted">${new Date(status.updatedAt).toLocaleString('fr-FR')}</span>
         </div>
-      `)}
+      `, { alwaysOpen: true })}
     </div>
   `;
-  wireSections(container);
 }
 
 async function renderTemplatesPage(guildId, container = app) {
@@ -3406,10 +3472,9 @@ async function renderTemplatesPage(guildId, container = app) {
           <input type="text" id="new-template-name" placeholder="Nom du template" style="flex:1;" />
           <button class="btn secondary" id="save-current-as-template">Enregistrer CE serveur comme template</button>
         </div>
-      `, { open: true })}
+      `, { alwaysOpen: true })}
     </div>
   `;
-  wireSections(container);
 
   document.getElementById('save-current-as-template').addEventListener('click', async () => {
     const name = document.getElementById('new-template-name').value.trim();
@@ -3469,10 +3534,9 @@ async function renderCustomCommandsPage(guildId, container = app) {
           ${roleOptions}
         </select>
         <button class="btn" id="add-custom-command" style="margin-top:10px;">Creer la commande</button>
-      `, { open: true })}
+      `, { alwaysOpen: true })}
     </div>
   `;
-  wireSections(container);
 
   document.getElementById('add-custom-command').addEventListener('click', async () => {
     const name = document.getElementById('new-cmd-name').value.trim().toLowerCase();
@@ -3521,6 +3585,7 @@ async function renderGenerateChoice(guildId, guildName) {
   app.innerHTML = `
     <div class="inner">
       ${sectionHtml(`Generer "${escapeHtml(guildName)}"`, `
+        <p class="dp-panel-title">🪄 Generer "${escapeHtml(guildName)}"</p>
         <p class="muted">Choisis un template : sa structure (roles, salons, permissions, textes) sera recreee en direct sur ce serveur.</p>
         <label>Template</label>
         <select id="gen-template">
@@ -3532,10 +3597,9 @@ async function renderGenerateChoice(guildId, guildName) {
           <button class="btn secondary" id="gen-cancel">Annuler</button>
           <button class="btn" id="gen-launch">🪄 Lancer la generation</button>
         </div>
-      `, { open: true })}
+      `, { alwaysOpen: true })}
     </div>
   `;
-  wireSections(app);
 
   document.getElementById('gen-cancel').addEventListener('click', () => {
     withViewTransition(() => renderGuildList());
@@ -3559,16 +3623,16 @@ function renderGenerationScreen(guildId, guildName) {
   app.innerHTML = `
     <div class="inner">
       ${sectionHtml(`Generation de "${escapeHtml(guildName)}"`, `
+        <p class="dp-panel-title">🪄 Generation de "${escapeHtml(guildName)}"</p>
         <div class="gen-status running" id="gen-status">
           <span class="gen-status-dot"></span>
           <span id="gen-status-text">En file d'attente...</span>
         </div>
         <div class="gen-timeline" id="gen-timeline"></div>
         <div class="gen-final-actions" id="gen-final-actions" style="display:none;"></div>
-      `, { open: true })}
+      `, { alwaysOpen: true })}
     </div>
   `;
-  wireSections(app);
 
   const timelineEl = document.getElementById('gen-timeline');
   const statusEl = document.getElementById('gen-status');
