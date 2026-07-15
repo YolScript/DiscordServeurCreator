@@ -5,7 +5,7 @@
   <meta name="viewport" content="width=device-width, initial-scale=1" />
   <title>Discord Serveur Creator - Dashboard</title>
   <link rel="icon" type="image/png" href="assets/favicon-64.png" />
-  <link rel="stylesheet" href="assets/style.css?v=22" />
+  <link rel="stylesheet" href="assets/style.css?v=23" />
   <script>
     (function () {
       var t = localStorage.getItem('theme');
@@ -21,19 +21,23 @@
     <div class="bg-overlay"></div>
   </div>
   <div class="shell">
-    <aside class="rail" id="rail"></aside>
     <aside class="sidebar" id="sidebar"></aside>
     <main class="content">
       <div class="content-topbar">
-        <div class="search-box" id="search-box" style="display:none;">
-          <input type="text" id="search-input" placeholder="Rechercher un serveur..." />
+        <a href="app.html" class="topbar-brand" title="Discord Serveur Creator">
+          <img class="brand-icon" src="assets/logo-512.png" alt="Accueil" />
+        </a>
+        <div class="topbar-guilds" id="topbar-guilds"></div>
+        <div class="topbar-right">
+          <div class="search-box" id="search-box" style="display:none;">
+            <input type="text" id="search-input" placeholder="Rechercher un serveur..." />
+          </div>
+          <button class="theme-toggle" id="theme-toggle-btn" title="Changer de theme">🌙</button>
+          <button class="user-chip" id="logout-btn" title="Se deconnecter">
+            <img class="user-avatar" id="user-avatar" alt="" />
+            <span id="whoami"></span>
+          </button>
         </div>
-        <span class="spacer"></span>
-        <button class="theme-toggle" id="theme-toggle-btn" title="Changer de theme">🌙</button>
-        <button class="user-chip" id="logout-btn" title="Se deconnecter">
-          <img class="user-avatar" id="user-avatar" alt="" />
-          <span id="whoami"></span>
-        </button>
       </div>
       <div class="content-body" id="app">
         <p class="muted">Chargement...</p>
@@ -44,7 +48,7 @@
   <script src="assets/config.js?v=5"></script>
   <script src="assets/sounds.js?v=1"></script>
   <script src="assets/api.js?v=17"></script>
-  <script src="assets/app.js?v=39"></script>
+  <script src="assets/app.js?v=40"></script>
   <script src="assets/microinteractions.js?v=1"></script>
   <script>
     document.querySelectorAll('.bg-video').forEach((v) => {

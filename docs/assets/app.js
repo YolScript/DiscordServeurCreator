@@ -1,5 +1,5 @@
 const app = document.getElementById('app');
-const railEl = document.getElementById('rail');
+const railEl = document.getElementById('topbar-guilds');
 const sidebarEl = document.getElementById('sidebar');
 const searchBox = document.getElementById('search-box');
 const searchInput = document.getElementById('search-input');
@@ -157,20 +157,14 @@ function wireSections(container) {
 
 function renderRail() {
   const managed = allGuilds.filter((g) => g.botPresent && g.configured);
-  railEl.innerHTML = `
-    <a href="app.html" title="Tes serveurs">
-      <img class="brand-icon" src="assets/logo-512.png" alt="Accueil" style="width:36px;height:36px;border-radius:11px;" />
-    </a>
-    <div class="rail-divider"></div>
-    ${managed.map((g) => {
-      const icon = guildIconUrl(g);
-      const active = g.guildId === guildId;
-      return `
-        <button class="rail-guild${active ? ' active' : ''}" data-guild="${g.guildId}" title="${escapeHtml(g.name)}">
-          ${icon ? `<img src="${icon}" alt="" />` : escapeHtml(initials(g.name))}
-        </button>`;
-    }).join('')}
-  `;
+  railEl.innerHTML = managed.map((g) => {
+    const icon = guildIconUrl(g);
+    const active = g.guildId === guildId;
+    return `
+      <button class="rail-guild${active ? ' active' : ''}" data-guild="${g.guildId}" title="${escapeHtml(g.name)}">
+        ${icon ? `<img src="${icon}" alt="" />` : escapeHtml(initials(g.name))}
+      </button>`;
+  }).join('');
   railEl.querySelectorAll('.rail-guild').forEach((btn) => {
     btn.addEventListener('click', () => { location.href = `app.html?guild=${btn.dataset.guild}`; });
   });
@@ -186,6 +180,7 @@ function hideSidebar() {
 /* ---------- Pages: guild list ---------- */
 
 async function renderGuildList() {
+  app.classList.remove('preview-fullbleed');
   searchBox.style.display = '';
   const rows = (list) => list.map((g) => {
     let badge = '<span class="badge not-invited">Bot absent</span>';
@@ -315,6 +310,7 @@ function roleRowHtml(role, members) {
 }
 
 async function renderPreviewPage(id) {
+  app.classList.add('preview-fullbleed');
   app.innerHTML = '<p class="muted">Chargement...</p>';
   const guild = allGuilds.find((g) => g.guildId === id);
   const [channels, config, roles, members] = await Promise.all([
@@ -351,13 +347,6 @@ async function renderPreviewPage(id) {
   app.innerHTML = `
     <div class="inner fill" style="max-width:none;">
       <div class="discord-preview" style="position:relative;">
-        <button type="button" class="btn secondary dp-fullscreen-btn" id="dp-fullscreen-btn">⛶ Plein ecran</button>
-        ${currentUser ? `
-          <div class="dp-user-chip" title="${escapeHtml(currentUser.username)}">
-            <img src="${currentUserAvatarUrl}" alt="" />
-            <span>${escapeHtml(currentUser.username)}</span>
-          </div>
-        ` : ''}
         <div class="dp-sidebar">
           <div class="dp-server-header">
             <span class="name">${escapeHtml(guild?.name || 'Serveur')}</span>
@@ -395,19 +384,6 @@ async function renderPreviewPage(id) {
       </div>
     </div>
   `;
-
-  const previewEl = app.querySelector('.discord-preview');
-  const fsBtn = document.getElementById('dp-fullscreen-btn');
-  fsBtn.addEventListener('click', () => {
-    if (!document.fullscreenElement) {
-      previewEl.requestFullscreen?.();
-    } else {
-      document.exitFullscreen?.();
-    }
-  });
-  document.onfullscreenchange = () => {
-    fsBtn.textContent = document.fullscreenElement === previewEl ? '⤢ Quitter le plein ecran' : '⛶ Plein ecran';
-  };
 
   app.querySelectorAll('.dp-category').forEach((catEl) => {
     catEl.addEventListener('click', () => catEl.classList.toggle('collapsed'));
