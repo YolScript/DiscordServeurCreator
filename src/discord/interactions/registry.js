@@ -47,6 +47,8 @@ const handleReferralroleCommand = require('../commands/referralrole');
 const handleBadgesCommand = require('../commands/badges');
 const handleBirthdayCommand = require('../commands/birthday');
 const handleSuggestCommand = require('../commands/suggest');
+const handleLinkGameCommand = require('../commands/linkGame');
+const handleGameProfileCommand = require('../commands/gameProfile');
 const handleTicketCommand = require('../commands/ticket');
 const handleTicketPanelCommand = require('../commands/ticketPanel');
 const handleGiveawayRerollCommand = require('../commands/giveawayReroll');
@@ -83,6 +85,8 @@ const commandHandlers = {
   badges: handleBadgesCommand,
   birthday: handleBirthdayCommand,
   suggest: handleSuggestCommand,
+  'link-jeu': handleLinkGameCommand,
+  'profil-jeu': handleGameProfileCommand,
   ticket: handleTicketCommand,
   'ticket-panel': handleTicketPanelCommand,
   'poll-panel': handlePollPanelCommand,

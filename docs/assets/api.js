@@ -91,7 +91,11 @@ window.Api = (function api() {
     reactionRoleGroups: (guildId) => request(`/api/guilds/${guildId}/reactionroles`),
     createReactionRoleGroup: (guildId, payload) => request(`/api/guilds/${guildId}/reactionroles`, { method: 'POST', body: JSON.stringify(payload) }),
     deleteReactionRoleGroup: (guildId, groupId) => request(`/api/guilds/${guildId}/reactionroles/${groupId}`, { method: 'DELETE' }),
-    postEmbed: (guildId, channelId, embed, content) => request(`/api/guilds/${guildId}/panels/embed`, { method: 'POST', body: JSON.stringify({ channelId, embed, content }) }),
+    postEmbed: (guildId, channelId, embeds, content) => request(`/api/guilds/${guildId}/panels/embed`, { method: 'POST', body: JSON.stringify({ channelId, embeds, content }) }),
+    getMessage: (guildId, channelId, messageId) => request(`/api/guilds/${guildId}/messages/${channelId}/${messageId}`),
+    editEmbedMessage: (guildId, channelId, messageId, embeds, content) => request(`/api/guilds/${guildId}/messages/${channelId}/${messageId}`, { method: 'PATCH', body: JSON.stringify({ embeds, content }) }),
+    createMemberCountChannel: (guildId, nameTemplate) => request(`/api/guilds/${guildId}/membercount`, { method: 'POST', body: JSON.stringify({ nameTemplate }) }),
+    botStatus: () => request('/api/botstatus'),
   };
 }());
 

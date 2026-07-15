@@ -39,13 +39,17 @@ async function executeAction(guild, action) {
     return;
   }
   if (action.type === 'embed') {
-    if (!action.channelId || !action.embed) return;
+    const source = action.embeds || (action.embed ? [action.embed] : []);
+    if (!action.channelId || !source.length) return;
     const channel = await guild.channels.fetch(action.channelId).catch(() => null);
     if (!channel) return;
-    const embed = { ...action.embed };
-    if (embed.timestamp) embed.timestamp = new Date().toISOString();
-    else delete embed.timestamp;
-    await channel.send({ content: action.content || undefined, embeds: [embed] });
+    const embeds = source.map((e) => {
+      const embed = { ...e };
+      if (embed.timestamp) embed.timestamp = new Date().toISOString();
+      else delete embed.timestamp;
+      return embed;
+    });
+    await channel.send({ content: action.content || undefined, embeds });
   }
 }
 

@@ -221,6 +221,7 @@ const SETTINGS_PANELS = [
   { key: 'stats', label: 'Statistiques' },
   { key: 'auditlog', label: "Logs d'audit" },
   { key: 'embedbuilder', label: 'Generateur embed' },
+  { key: 'botstatus', label: 'Statut du bot' },
 ];
 
 function customChannelFormHtml(catId) {
@@ -485,6 +486,7 @@ function renderSettingsPanel(guildId, key) {
     stats: () => renderStatsPage(guildId, body),
     auditlog: () => renderAuditLogPage(guildId, body),
     embedbuilder: () => renderEmbedBuilderPage(guildId, body),
+    botstatus: () => renderBotStatusPage(body),
   };
   renderers[key]?.();
 }
@@ -1071,7 +1073,7 @@ async function renderAutomationsPage(id, container = app) {
 
   const scheduledRows = scheduled.map((t) => `
     <div class="row" data-id="${t.id}" style="justify-content:space-between; align-items:flex-start; margin-bottom:6px;">
-      <span>${channelName(t.channelId)} — ${new Date(t.runAt).toLocaleString('fr-FR')}${t.repeatIntervalMs === 86400000 ? ' (tous les jours)' : t.repeatIntervalMs ? ' (recurrent)' : ''}<br /><span class="muted">${escapeHtml(t.message).slice(0, 80)}</span></span>
+      <span>${channelName(t.channelId)} — ${new Date(t.runAt).toLocaleString('fr-FR')}${t.repeatIntervalMs === 86400000 ? ' (tous les jours)' : t.repeatIntervalMs ? ' (recurrent)' : ''}<br /><span class="muted">${t.embeds?.length ? `${t.embeds.length} embed(s)${t.message ? ' + texte' : ''}` : escapeHtml(t.message || '').slice(0, 80)}</span></span>
       <button class="btn danger delete-scheduled" data-id="${t.id}">Supprimer</button>
     </div>
   `).join('') || '<p class="muted">Aucune annonce programmee.</p>';
@@ -1119,6 +1121,13 @@ async function renderAutomationsPage(id, container = app) {
           ${textChannelOptions}
         </select>
         <button class="btn secondary" id="save-suggestions-channel" style="margin-top:8px;">Enregistrer</button>
+
+        <label style="margin-top:18px;">Salon vocal "compteur de membres" (verrouille, nom auto)</label>
+        ${config?.memberCountChannelId ? `<p class="muted">Salon actif : ${channelName(config.memberCountChannelId)} (mise a jour toutes les ~10 minutes).</p>` : `
+          <input type="text" id="membercount-template" placeholder="Modele de nom" value="👥 Membres : {count}" />
+          <p class="muted">Variable disponible : {count}</p>
+          <button class="btn secondary" id="create-membercount-channel" style="margin-top:8px;">Creer le salon compteur</button>
+        `}
       `)}
 
       ${sectionHtml('Webhooks sortants', `
@@ -1353,6 +1362,17 @@ async function renderAutomationsPage(id, container = app) {
     }
   });
   wireWebhookDeleteButtons();
+
+  document.getElementById('create-membercount-channel')?.addEventListener('click', async () => {
+    try {
+      const template = document.getElementById('membercount-template').value.trim() || '👥 Membres : {count}';
+      await Api.createMemberCountChannel(id, template);
+      showToast('Salon compteur cree.');
+      await renderAutomationsPage(id, container);
+    } catch (err) {
+      showToast(err.message, 'error');
+    }
+  });
 
   document.getElementById('save-modconfig').addEventListener('click', async () => {
     try {
@@ -1821,7 +1841,63 @@ function populateEmbedForm(root, embed = {}, content = '') {
 
 function updateEmbedPreview(root) {
   const { embed } = buildEmbedFromForm(root);
-  root.querySelector('#embed-preview-slot').innerHTML = embedPreviewHtml(embed);
+  const state = root.__mb;
+  if (state) {
+    state.embeds[state.active] = embed;
+    root.querySelector('#embed-preview-slot').innerHTML = state.embeds.map(embedPreviewHtml).join('');
+  } else {
+    root.querySelector('#embed-preview-slot').innerHTML = embedPreviewHtml(embed);
+  }
+}
+
+function renderEmbedTabs(root) {
+  const state = root.__mb;
+  const tabsHtml = state.embeds.map((_, i) => `
+    <button type="button" class="btn ${i === state.active ? '' : 'secondary'} embed-tab-btn" data-index="${i}" style="padding:6px 12px;">Embed ${i + 1}${state.embeds.length > 1 ? ` <span class="embed-tab-remove" data-index="${i}" title="Supprimer cet embed">✕</span>` : ''}</button>
+  `).join('');
+  const addBtn = state.embeds.length < 10 ? '<button type="button" class="btn secondary" id="embed-tab-add" style="padding:6px 12px;">+ Embed</button>' : '';
+  root.querySelector('#embed-tabs').innerHTML = tabsHtml + addBtn;
+
+  root.querySelectorAll('.embed-tab-remove').forEach((el) => {
+    el.addEventListener('click', (e) => {
+      e.stopPropagation();
+      removeEmbedTab(root, Number(el.dataset.index));
+    });
+  });
+  root.querySelectorAll('.embed-tab-btn').forEach((btn) => {
+    btn.addEventListener('click', () => switchEmbedTab(root, Number(btn.dataset.index)));
+  });
+  const addTabBtn = root.querySelector('#embed-tab-add');
+  if (addTabBtn) addTabBtn.addEventListener('click', () => addEmbedTab(root));
+}
+
+function switchEmbedTab(root, index) {
+  const state = root.__mb;
+  if (index === state.active) return;
+  state.embeds[state.active] = buildEmbedFromForm(root).embed;
+  state.active = index;
+  populateEmbedForm(root, state.embeds[index] || {}, root.querySelector('#embed-content').value);
+  renderEmbedTabs(root);
+}
+
+function addEmbedTab(root) {
+  const state = root.__mb;
+  if (state.embeds.length >= 10) return;
+  state.embeds[state.active] = buildEmbedFromForm(root).embed;
+  state.embeds.push({});
+  state.active = state.embeds.length - 1;
+  populateEmbedForm(root, {}, root.querySelector('#embed-content').value);
+  renderEmbedTabs(root);
+}
+
+function removeEmbedTab(root, index) {
+  const state = root.__mb;
+  if (state.embeds.length <= 1) return;
+  state.embeds.splice(index, 1);
+  if (state.active >= state.embeds.length) state.active = state.embeds.length - 1;
+  else if (state.active > index) state.active -= 1;
+  populateEmbedForm(root, state.embeds[state.active] || {}, root.querySelector('#embed-content').value);
+  renderEmbedTabs(root);
 }
 
 function wireEmbedFieldRows(root) {
@@ -1852,9 +1928,11 @@ async function renderEmbedBuilderPage(id, container = app) {
         <div class="embed-builder-form">
           <div class="dp-block">
             <p class="dp-block-title">📨 Message</p>
-            <label>Texte au-dessus de l'embed (optionnel)</label>
-            <textarea id="embed-content" placeholder="Texte simple, en plus de l'embed"></textarea>
+            <label>Texte au-dessus des embeds (optionnel)</label>
+            <textarea id="embed-content" placeholder="Texte simple, en plus des embeds"></textarea>
           </div>
+
+          <div class="row" id="embed-tabs" style="flex-wrap:wrap; gap:6px; margin-bottom:10px;"></div>
 
           <div class="dp-block">
             <p class="dp-block-title">📝 Contenu principal</p>
@@ -1923,16 +2001,41 @@ async function renderEmbedBuilderPage(id, container = app) {
           <div id="embed-preview-slot"></div>
           <label style="margin-top:14px;">Salon de destination</label>
           <select id="embed-target-channel">${channelOptions}</select>
+          <label style="margin-top:10px;">ID du message a editer (optionnel — laisse vide pour poster un nouveau message)</label>
+          <input type="text" id="embed-target-message-id" placeholder="Clic droit sur le message > Copier l'ID" />
+          <button class="btn secondary" id="embed-load-message-btn" style="margin-top:8px; width:100%;">📥 Charger le contenu de ce message</button>
           <button class="btn" id="embed-post-btn" style="margin-top:10px; width:100%;">🚀 Poster dans Discord</button>
           <button class="btn secondary" id="embed-save-template-btn" style="margin-top:8px; width:100%;">💾 Enregistrer comme modele</button>
+
+          <div class="dp-toggle-row" style="margin-top:14px;">
+            <span>Programmer l'envoi</span>
+            <input type="checkbox" id="embed-schedule-toggle" />
+          </div>
+          <div id="embed-schedule-fields" style="display:none; margin-top:8px;">
+            <label>Date et heure</label>
+            <input type="datetime-local" id="embed-schedule-date" />
+            <div class="dp-toggle-row" style="margin-top:8px;">
+              <span>Repeter tous les jours a cette heure</span>
+              <input type="checkbox" id="embed-schedule-daily" />
+            </div>
+            <button class="btn" id="embed-schedule-btn" style="margin-top:8px; width:100%;">🗓️ Programmer</button>
+          </div>
         </div>
       </div>
     </div>
   `;
   wireSections(container);
 
+  container.__mb = { embeds: [{}], active: 0 };
+  renderEmbedTabs(container);
+
   container.querySelectorAll('input, textarea').forEach((el) => {
     el.addEventListener('input', () => updateEmbedPreview(container));
+  });
+  container.querySelector('#embed-target-message-id').addEventListener('input', (e) => {
+    container.querySelector('#embed-post-btn').textContent = e.target.value.trim()
+      ? '✏️ Mettre a jour le message'
+      : '🚀 Poster dans Discord';
   });
 
   container.querySelector('#embed-add-field').addEventListener('click', () => {
@@ -1945,17 +2048,71 @@ async function renderEmbedBuilderPage(id, container = app) {
     updateEmbedPreview(container);
   });
 
+  container.querySelector('#embed-load-message-btn').addEventListener('click', async () => {
+    const channelId = container.querySelector('#embed-target-channel').value;
+    const messageId = container.querySelector('#embed-target-message-id').value.trim();
+    if (!channelId || !messageId) { showToast('Choisis un salon et renseigne un ID de message.', 'error'); return; }
+    try {
+      const { embeds, content } = await Api.getMessage(id, channelId, messageId);
+      if (!embeds?.length) { showToast('Ce message ne contient pas d\'embed.', 'error'); return; }
+      container.__mb = { embeds, active: 0 };
+      populateEmbedForm(container, embeds[0], content || '');
+      renderEmbedTabs(container);
+      showToast('Message charge, modifie-le puis clique sur Mettre a jour.');
+    } catch (err) {
+      showToast(err.message, 'error');
+    }
+  });
+
   container.querySelector('#embed-post-btn').addEventListener('click', async () => {
     const channelId = container.querySelector('#embed-target-channel').value;
-    const { embed, content } = buildEmbedFromForm(container);
+    const messageId = container.querySelector('#embed-target-message-id').value.trim();
+    const state = container.__mb;
+    state.embeds[state.active] = buildEmbedFromForm(container).embed;
+    const embeds = state.embeds;
+    const content = container.querySelector('#embed-content').value.trim();
     if (!channelId) { showToast('Choisis un salon.', 'error'); return; }
-    if (!embed.title && !embed.description && !(embed.fields || []).length) {
+    if (!embeds.some((e) => e.title || e.description || (e.fields || []).length)) {
       showToast('Ajoute au moins un titre, une description ou un champ.', 'error');
       return;
     }
     try {
-      await Api.postEmbed(id, channelId, embed, content);
-      showToast('Embed en cours d\'envoi, actif sous quelques secondes.');
+      if (messageId) {
+        await Api.editEmbedMessage(id, channelId, messageId, embeds, content);
+        showToast('Message mis a jour.');
+      } else {
+        await Api.postEmbed(id, channelId, embeds, content);
+        showToast(`Embed${embeds.length > 1 ? 's' : ''} en cours d'envoi, actif sous quelques secondes.`);
+      }
+    } catch (err) {
+      showToast(err.message, 'error');
+    }
+  });
+
+  container.querySelector('#embed-schedule-toggle').addEventListener('change', (e) => {
+    container.querySelector('#embed-schedule-fields').style.display = e.target.checked ? 'block' : 'none';
+  });
+
+  container.querySelector('#embed-schedule-btn').addEventListener('click', async () => {
+    const channelId = container.querySelector('#embed-target-channel').value;
+    const dateVal = container.querySelector('#embed-schedule-date').value;
+    if (!channelId) { showToast('Choisis un salon.', 'error'); return; }
+    if (!dateVal) { showToast('Choisis une date et une heure.', 'error'); return; }
+    const state = container.__mb;
+    state.embeds[state.active] = buildEmbedFromForm(container).embed;
+    const embeds = state.embeds;
+    const content = container.querySelector('#embed-content').value.trim();
+    if (!embeds.some((e) => e.title || e.description || (e.fields || []).length)) {
+      showToast('Ajoute au moins un titre, une description ou un champ.', 'error');
+      return;
+    }
+    const runAt = new Date(dateVal).getTime();
+    const daily = container.querySelector('#embed-schedule-daily').checked;
+    try {
+      await Api.addScheduled(id, {
+        channelId, embeds, message: content, runAt, ...(daily ? { repeatIntervalMs: 86400000 } : {}),
+      });
+      showToast('Embed programme.');
     } catch (err) {
       showToast(err.message, 'error');
     }
@@ -2013,6 +2170,66 @@ async function renderEmbedBuilderPage(id, container = app) {
 
   wireEmbedFieldRows(container);
   updateEmbedPreview(container);
+}
+
+function formatUptime(ms) {
+  const totalMinutes = Math.floor(ms / 60000);
+  const days = Math.floor(totalMinutes / 1440);
+  const hours = Math.floor((totalMinutes % 1440) / 60);
+  const minutes = totalMinutes % 60;
+  const parts = [];
+  if (days) parts.push(`${days}j`);
+  if (hours || days) parts.push(`${hours}h`);
+  parts.push(`${minutes}min`);
+  return parts.join(' ');
+}
+
+async function renderBotStatusPage(container = app) {
+  container.innerHTML = '<p class="muted">Chargement...</p>';
+  const status = await Api.botStatus().catch(() => null);
+
+  if (!status) {
+    container.innerHTML = `
+      <div class="inner">
+        ${sectionHtml('Statut du bot', '<p class="muted">Aucune donnee de statut disponible pour le moment.</p>')}
+      </div>`;
+    return;
+  }
+
+  const isOnline = Date.now() - status.updatedAt < 3 * 60_000;
+  const ping = typeof status.ping === 'number' && status.ping >= 0 ? `${status.ping} ms` : 'N/A';
+
+  container.innerHTML = `
+    <div class="inner">
+      ${sectionHtml('Statut du bot', `
+        <div class="row" style="justify-content:space-between; margin-bottom:6px;">
+          <span>Etat</span>
+          <span class="badge ${isOnline ? 'configured' : 'not-configured'}">${isOnline ? '🟢 En ligne' : '🔴 Hors ligne'}</span>
+        </div>
+        <div class="row" style="justify-content:space-between; margin-bottom:6px;">
+          <span>Uptime</span>
+          <span>${formatUptime(Date.now() - status.startedAt)}</span>
+        </div>
+        <div class="row" style="justify-content:space-between; margin-bottom:6px;">
+          <span>Ping Discord</span>
+          <span>${ping}</span>
+        </div>
+        <div class="row" style="justify-content:space-between; margin-bottom:6px;">
+          <span>Serveurs geres</span>
+          <span>${status.guildCount ?? 'N/A'}</span>
+        </div>
+        <div class="row" style="justify-content:space-between; margin-bottom:6px;">
+          <span>Version</span>
+          <span>${escapeHtml(status.version || 'N/A')}</span>
+        </div>
+        <div class="row" style="justify-content:space-between;">
+          <span>Derniere mise a jour</span>
+          <span class="muted">${new Date(status.updatedAt).toLocaleString('fr-FR')}</span>
+        </div>
+      `)}
+    </div>
+  `;
+  wireSections(container);
 }
 
 /* ---------- Boot ---------- */

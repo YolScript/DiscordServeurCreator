@@ -237,6 +237,20 @@ const badgesCommand = new SlashCommandBuilder()
   .addUserOption((o) => o.setName('membre').setDescription('Membre a consulter').setRequired(false))
   .toJSON();
 
+const linkGameCommand = new SlashCommandBuilder()
+  .setName('link-jeu')
+  .setDescription('Lie ton pseudo Steam/Epic Games/Riot Games a ton profil.')
+  .addStringOption((o) => o.setName('plateforme').setDescription('Plateforme').setRequired(true)
+    .addChoices({ name: 'Steam', value: 'steam' }, { name: 'Epic Games', value: 'epic' }, { name: 'Riot Games', value: 'riot' }))
+  .addStringOption((o) => o.setName('pseudo').setDescription('Ton pseudo sur cette plateforme').setRequired(true).setMaxLength(64))
+  .toJSON();
+
+const gameProfileCommand = new SlashCommandBuilder()
+  .setName('profil-jeu')
+  .setDescription('Affiche les pseudos Steam/Epic/Riot lies (les tiens ou ceux d\'un membre).')
+  .addUserOption((o) => o.setName('membre').setDescription('Membre a consulter').setRequired(false))
+  .toJSON();
+
 const ticketCommand = new SlashCommandBuilder()
   .setName('ticket')
   .setDescription('Ouvre un ticket de support prive avec le staff.')
@@ -275,5 +289,5 @@ module.exports = [
   giveawayRerollCommand,
   invitesCommand, referralroleCommand, badgesCommand, birthdayCommand, suggestCommand, ticketCommand, ticketPanelCommand,
   reglementTranslationCommand, streamerLinkCommand, streamerUnlinkCommand, streamerListCommand,
-  reglementPanelCommand, rolesPanelCommand,
+  reglementPanelCommand, rolesPanelCommand, linkGameCommand, gameProfileCommand,
 ];

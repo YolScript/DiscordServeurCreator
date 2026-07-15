@@ -16,9 +16,10 @@ import {
   getStats,
   getEmbedTemplates, putEmbedTemplates,
   getReactionRoleGroups, putReactionRoleGroups,
+  getBotStatus,
 } from './kvStore.js';
 import {
-  bulkEditPermissions, exportChannelPermissions, importChannelPermissions, resetRoleToDefault,
+  bulkEditPermissions, exportChannelPermissions, importChannelPermissions, resetRoleToDefault, bitmaskFromNames,
 } from './permissions.js';
 import { createCustomChannel, createCustomCategory } from './customChannels.js';
 import { GAME_ROLE_CATALOG, createGameRolePreset } from './gameRolePresets.js';
@@ -83,6 +84,11 @@ async function router(request, env) {
 
   if (method === 'GET' && url.pathname === '/api/game-role-catalog') {
     return json(GAME_ROLE_CATALOG, env);
+  }
+
+  if (method === 'GET' && url.pathname === '/api/botstatus') {
+    await requireSession(env, request);
+    return json(await getBotStatus(env), env);
   }
 
   // --- /api/guilds ---
@@ -278,6 +284,38 @@ async function router(request, env) {
       return json(category, env);
     }
 
+    // --- Salon vocal "compteur de membres" : cree directement (pas besoin
+    // du bot pour la creation), verrouille (Connect refuse a @everyone),
+    // ensuite renomme periodiquement par memberCountChannel.js cote bot.
+    if (sub === 'membercount' && parts.length === 4 && method === 'POST') {
+      const session = await requireGuildAccess(env, request, guildId);
+      const config = (await getGuildConfig(env, guildId)) || {};
+      const template = (await readJson(request).catch(() => ({}))).nameTemplate || config.memberCountChannelNameTemplate || '👥 Membres : {count}';
+
+      if (config.memberCountChannelId) {
+        const existing = await botFetch(env, `/channels/${config.memberCountChannelId}`);
+        if (existing.ok) throw new HttpError(409, 'Le salon compteur existe deja.');
+      }
+
+      const botGuildRes = await botFetch(env, `/guilds/${guildId}`);
+      const botGuild = await botGuildRes.json();
+      const name = template.replaceAll('{count}', String(botGuild.approximate_member_count || 0)).slice(0, 100);
+
+      const channel = await botFetchJson(env, `/guilds/${guildId}/channels`, {
+        method: 'POST',
+        body: JSON.stringify({
+          name,
+          type: 2,
+          parent_id: config.vocauxCategoryId || undefined,
+          permission_overwrites: [{ id: guildId, type: 0, deny: bitmaskFromNames(['Connect']), allow: '0' }],
+        }),
+      });
+
+      await putGuildConfig(env, guildId, { ...config, memberCountChannelId: channel.id, memberCountChannelNameTemplate: template });
+      await logAudit(env, guildId, { title: 'Salon compteur cree', description: `${session.username} a cree le salon compteur de membres.` });
+      return json(channel, env);
+    }
+
     if (sub === 'channels' && parts.length === 5) {
       const session = await requireGuildAccess(env, request, guildId);
       const channelId = parts[4];
@@ -396,15 +434,21 @@ async function router(request, env) {
       await requireGuildAccess(env, request, guildId);
       if (method === 'GET') return json(await getScheduledTasks(env, guildId), env);
       if (method === 'POST') {
-        const { channelId, message, runAt, repeatIntervalMs } = await readJson(request);
-        if (!channelId || !message || !runAt) throw new HttpError(400, 'channelId, message et runAt requis.');
+        const {
+          channelId, message, runAt, repeatIntervalMs, embeds,
+        } = await readJson(request);
+        if (!channelId || !runAt || (!message && !embeds?.length)) {
+          throw new HttpError(400, 'channelId, runAt et (message ou embeds) requis.');
+        }
+        if (embeds?.length > 10) throw new HttpError(400, '10 embeds maximum par message.');
         const items = await getScheduledTasks(env, guildId);
         const entry = {
           id: `${Date.now().toString(36)}${Math.random().toString(36).slice(2, 6)}`,
           channelId,
-          message,
+          message: message || '',
           runAt: Number(runAt),
           ...(repeatIntervalMs ? { repeatIntervalMs: Number(repeatIntervalMs) } : {}),
+          ...(embeds?.length ? { embeds } : {}),
         };
         items.push(entry);
         await putScheduledTasks(env, guildId, items);
@@ -503,13 +547,45 @@ async function router(request, env) {
       if (!['reglement', 'roles', 'poll', 'ticket', 'embed'].includes(key)) throw new HttpError(400, 'Panneau inconnu.');
       const body = await readJson(request).catch(() => ({}));
       if (key === 'embed') {
-        if (!body.channelId || !body.embed) throw new HttpError(400, 'channelId et embed requis.');
-        await pushPendingPanelAction(env, guildId, { type: 'embed', channelId: body.channelId, embed: body.embed, content: body.content });
+        const embeds = body.embeds || (body.embed ? [body.embed] : null);
+        if (!body.channelId || !embeds?.length) throw new HttpError(400, 'channelId et embeds requis.');
+        if (embeds.length > 10) throw new HttpError(400, '10 embeds maximum par message.');
+        await pushPendingPanelAction(env, guildId, { type: 'embed', channelId: body.channelId, embeds, content: body.content });
         await logAudit(env, guildId, { title: 'Embed poste', description: `${session.username} a poste un embed dans <#${body.channelId}>.` });
         return json({ ok: true }, env);
       }
       await pushPendingPanelAction(env, guildId, { type: key, channelId: body.channelId });
       return json({ ok: true }, env);
+    }
+
+    // --- Lecture/edition directe d'un message existant (pour "editer un
+    // embed deja poste") : appel direct a l'API Discord, pas besoin de
+    // passer par la file d'attente du bot puisque c'est une simple requete
+    // REST ponctuelle.
+    if (sub === 'messages' && parts.length === 6) {
+      await requireGuildAccess(env, request, guildId);
+      const channelId = parts[4];
+      const messageId = parts[5];
+      if (method === 'GET') {
+        const res = await botFetch(env, `/channels/${channelId}/messages/${messageId}`);
+        if (!res.ok) throw new HttpError(res.status === 404 ? 404 : 502, 'Message introuvable.');
+        const message = await res.json();
+        return json({ content: message.content, embeds: message.embeds || [] }, env);
+      }
+      if (method === 'PATCH') {
+        const session = await requireGuildAccess(env, request, guildId);
+        const body = await readJson(request);
+        const embeds = body.embeds || (body.embed ? [body.embed] : null);
+        if (!embeds?.length) throw new HttpError(400, 'embeds requis.');
+        if (embeds.length > 10) throw new HttpError(400, '10 embeds maximum par message.');
+        const res = await botFetch(env, `/channels/${channelId}/messages/${messageId}`, {
+          method: 'PATCH',
+          body: JSON.stringify({ content: body.content || null, embeds }),
+        });
+        if (!res.ok) throw new HttpError(res.status === 404 ? 404 : 502, "Impossible d'editer ce message.");
+        await logAudit(env, guildId, { title: 'Embed edite', description: `${session.username} a edite un message dans <#${channelId}>.` });
+        return json({ ok: true }, env);
+      }
     }
 
     // --- Modeles d'embed sauvegardes ---

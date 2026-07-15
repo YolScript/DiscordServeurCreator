@@ -23,7 +23,12 @@ async function tick() {
       changed = true;
 
       const channel = await guild.channels.fetch(item.channelId).catch(() => null);
-      if (channel) await channel.send(item.message).catch((err) => logger.error('scheduler.send', err));
+      if (channel) {
+        const payload = item.embeds?.length
+          ? { content: item.message || undefined, embeds: item.embeds }
+          : item.message;
+        await channel.send(payload).catch((err) => logger.error('scheduler.send', err));
+      }
 
       if (item.repeatIntervalMs) {
         item.runAt = now + item.repeatIntervalMs;

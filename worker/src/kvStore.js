@@ -88,6 +88,11 @@ export async function pushPendingPanelAction(env, guildId, action) {
 export const getStats = (env, guildId) => getList(env, statsKey(guildId));
 
 export const getEmbedTemplates = (env, guildId) => getList(env, embedTemplatesKey(guildId));
+
+export async function getBotStatus(env) {
+  const raw = await env.GUILD_KV.get('bot:status');
+  return raw ? JSON.parse(raw) : null;
+}
 export const putEmbedTemplates = (env, guildId, items) => putList(env, embedTemplatesKey(guildId), items);
 
 export const getReactionRoleGroups = (env, guildId) => getList(env, reactionRolesKey(guildId));
