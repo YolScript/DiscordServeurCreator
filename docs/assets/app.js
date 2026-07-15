@@ -99,6 +99,27 @@ function initials(name) {
   return (name || '?').trim().slice(0, 2).toUpperCase();
 }
 
+// Reorganisation animee (FLIP) : mesure la position des elements freres,
+// applique la mutation DOM (insertBefore du drag), puis anime chaque voisin
+// depuis son ancienne position avec une courbe a leger rebond — l'effet
+// "les voisins s'ecartent avec une physique" du drag&drop, sans bibliotheque.
+function animateReorder(list, itemSelector, mutate) {
+  const reduceMotion = window.matchMedia?.('(prefers-reduced-motion: reduce)').matches;
+  if (reduceMotion || !list.animate) { mutate(); return; }
+
+  const items = [...list.querySelectorAll(itemSelector)];
+  const before = new Map(items.map((el) => [el, el.getBoundingClientRect().top]));
+  mutate();
+  for (const el of items) {
+    const delta = before.get(el) - el.getBoundingClientRect().top;
+    if (!delta || el.classList.contains('dragging')) continue;
+    el.animate(
+      [{ transform: `translateY(${delta}px)` }, { transform: 'translateY(0)' }],
+      { duration: 320, easing: 'cubic-bezier(.22,1.4,.36,1)' },
+    );
+  }
+}
+
 // Transition douce (crossfade natif) entre deux etats du panel principal du
 // Server Builder, via l'API View Transitions du navigateur. Se degrade en
 // appel direct si l'API est absente ou si l'utilisateur demande moins de
@@ -309,7 +330,7 @@ async function renderPreviewPage(id) {
   const channelIcon = (c) => (c.type === 2 ? '🔊' : c.type === 4 ? '' : '#');
 
   const channelRow = (c) => `
-    <div class="dp-channel" data-channel="${c.id}" data-name="${escapeHtml(c.name)}" data-type="${c.type}">
+    <div class="dp-channel" draggable="true" data-channel="${c.id}" data-name="${escapeHtml(c.name)}" data-type="${c.type}">
       <span class="hash">${channelIcon(c)}</span> ${escapeHtml(c.name)}
     </div>`;
 
@@ -405,7 +426,9 @@ async function renderPreviewPage(id) {
       if (!dragging || dragging === row) return;
       const rect = row.getBoundingClientRect();
       const before = (e.clientY - rect.top) < rect.height / 2;
-      list.insertBefore(dragging, before ? row : row.nextSibling);
+      const target = before ? row : row.nextSibling;
+      if (dragging.nextSibling === target) return;
+      animateReorder(list, '.dp-role-row', () => list.insertBefore(dragging, target));
     });
     row.addEventListener('dragend', async () => {
       row.classList.remove('dragging');
@@ -416,6 +439,38 @@ async function renderPreviewPage(id) {
       try {
         await Api.setRolePositions(id, positions);
         showToast('Ordre des roles mis a jour.');
+      } catch (err) {
+        showToast(err.message, 'error');
+        await renderPreviewPage(id);
+      }
+    });
+  });
+
+  // Drag&drop des salons : reordonnancement au sein de la meme liste (meme
+  // categorie ou racine), avec ecart anime des voisins. La position envoyee
+  // est l'index dans la liste reordonnee ; Discord regroupe ensuite par type
+  // (texte/vocal) comme dans son propre client.
+  app.querySelectorAll('.dp-channel[data-channel]').forEach((chEl) => {
+    chEl.addEventListener('dragstart', () => chEl.classList.add('dragging'));
+    chEl.addEventListener('dragover', (e) => {
+      e.preventDefault();
+      const list = chEl.parentElement;
+      const dragging = list.querySelector('.dp-channel.dragging');
+      if (!dragging || dragging === chEl || dragging.parentElement !== list) return;
+      const rect = chEl.getBoundingClientRect();
+      const before = (e.clientY - rect.top) < rect.height / 2;
+      const target = before ? chEl : chEl.nextSibling;
+      if (dragging.nextSibling === target) return;
+      animateReorder(list, '.dp-channel[data-channel]', () => list.insertBefore(dragging, target));
+    });
+    chEl.addEventListener('dragend', async () => {
+      chEl.classList.remove('dragging');
+      const list = chEl.parentElement;
+      const orderedIds = [...list.querySelectorAll('.dp-channel[data-channel]')].map((el) => el.dataset.channel);
+      const positions = orderedIds.map((cid, idx) => ({ id: cid, position: idx }));
+      try {
+        await Api.setChannelPositions(id, positions);
+        showToast('Ordre des salons mis a jour.');
       } catch (err) {
         showToast(err.message, 'error');
         await renderPreviewPage(id);

@@ -533,6 +533,7 @@ textarea { min-height: 90px; resize: vertical; font-family: ui-monospace, "SF Mo
 }
 .dp-channel:hover { background: #35373c; color: #dcddde; }
 .dp-channel.selected { background: #3f4147; color: #fff; }
+.dp-channel.dragging { opacity: 0.4; box-shadow: 0 8px 20px -8px rgba(0,0,0,0.7); }
 .dp-channel .hash { opacity: 0.7; }
 .dp-main { flex: 1; display: flex; flex-direction: column; background: transparent; overflow: hidden; }
 .dp-channel-header {

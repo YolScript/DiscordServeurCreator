@@ -260,6 +260,16 @@ async function router(request, env) {
       return json(role, env);
     }
 
+    if (sub === 'channels' && parts[4] === 'positions' && method === 'PATCH') {
+      const session = await requireGuildAccess(env, request, guildId);
+      const { positions } = await readJson(request);
+      if (!Array.isArray(positions) || !positions.length) throw new HttpError(400, 'positions requis.');
+      const res = await botFetch(env, `/guilds/${guildId}/channels`, { method: 'PATCH', body: JSON.stringify(positions) });
+      if (!res.ok) throw new HttpError(502, `Discord a refuse le reordonnancement : ${await res.text()}`);
+      await logAudit(env, guildId, { title: 'Ordre des salons modifie', description: `${session.username} a reordonne les salons.` });
+      return json({ ok: true }, env);
+    }
+
     if (sub === 'roles' && parts[4] === 'positions' && method === 'PATCH') {
       const session = await requireGuildAccess(env, request, guildId);
       const { positions } = await readJson(request);

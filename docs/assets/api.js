@@ -83,6 +83,7 @@ window.Api = (function api() {
     auditLog: (guildId) => request(`/api/guilds/${guildId}/auditlog`),
     stats: (guildId) => request(`/api/guilds/${guildId}/stats`),
     setRolePositions: (guildId, positions) => request(`/api/guilds/${guildId}/roles/positions`, { method: 'PATCH', body: JSON.stringify({ positions }) }),
+    setChannelPositions: (guildId, positions) => request(`/api/guilds/${guildId}/channels/positions`, { method: 'PATCH', body: JSON.stringify({ positions }) }),
     setRoleColor: (guildId, roleId, color) => request(`/api/guilds/${guildId}/roles/${roleId}`, { method: 'PATCH', body: JSON.stringify({ color }) }),
     postPanel: (guildId, key, channelId) => request(`/api/guilds/${guildId}/panels/${key}`, { method: 'POST', body: JSON.stringify({ channelId }) }),
     embedTemplates: (guildId) => request(`/api/guilds/${guildId}/embedtemplates`),
