@@ -2,12 +2,12 @@ const { MessageFlags } = require('discord.js');
 const {
   REGLEMENT_ACCEPT, REGLEMENT_TRANSLATE, AGE_PLUS16, AGE_MINUS16,
   GAME_SELECT_PREFIX, GAME_PSEUDO_MODAL_PREFIX, GAME_PSEUDO_BUTTON_PREFIX, POLL_VOTE_PREFIX, GIVEAWAY_ENTER_PREFIX,
-  CAPTCHA_OK, CAPTCHA_NO, TICKET_OPEN, POLL_CREATE_OPEN, POLL_CREATE_MODAL,
+  CAPTCHA_OK, CAPTCHA_NO, TICKET_OPEN, POLL_CREATE_OPEN, POLL_CREATE_MODAL, TICKET_RATE_PREFIX,
 } = require('./customIds');
 const pollManager = require('../engagement/pollManager');
 const giveawayManager = require('../engagement/giveawayManager');
 const {
-  createTicket, closeTicket, claimTicket, TICKET_CLOSE_ID, TICKET_CLAIM_ID,
+  createTicket, closeTicket, claimTicket, rateTicket, TICKET_CLOSE_ID, TICKET_CLAIM_ID,
 } = require('../support/ticketManager');
 const handlePollCreateButton = require('./buttons/pollCreateButton');
 const handlePollCreateModal = require('./modals/pollCreateModal');
@@ -42,6 +42,7 @@ const handleReferralroleCommand = require('../commands/referralrole');
 const handleBadgesCommand = require('../commands/badges');
 const handleTicketCommand = require('../commands/ticket');
 const handleTicketPanelCommand = require('../commands/ticketPanel');
+const handleGiveawayRerollCommand = require('../commands/giveawayReroll');
 const handlePollPanelCommand = require('../commands/pollPanel');
 const handleReglementPanelCommand = require('../commands/reglementPanel');
 const handleRolesPanelCommand = require('../commands/rolesPanel');
@@ -68,6 +69,7 @@ const commandHandlers = {
   levelrole: handleLevelroleCommand,
   poll: handlePollCommand,
   giveaway: handleGiveawayCommand,
+  'giveaway-reroll': handleGiveawayRerollCommand,
   invites: handleInvitesCommand,
   referralrole: handleReferralroleCommand,
   badges: handleBadgesCommand,
@@ -100,8 +102,13 @@ async function routeInteraction(interaction) {
         await interaction.reply({ content: 'Vote enregistre !', flags: MessageFlags.Ephemeral });
       } else if (interaction.customId.startsWith(GIVEAWAY_ENTER_PREFIX)) {
         const giveawayId = interaction.customId.slice(GIVEAWAY_ENTER_PREFIX.length);
-        await giveawayManager.handleEnter(interaction, giveawayId);
-        await interaction.reply({ content: 'Participation enregistree, bonne chance !', flags: MessageFlags.Ephemeral });
+        const result = await giveawayManager.handleEnter(interaction, giveawayId);
+        await interaction.reply({
+          content: result?.deniedRoleId
+            ? `Reserve aux membres avec le role <@&${result.deniedRoleId}>.`
+            : 'Participation enregistree, bonne chance !',
+          flags: MessageFlags.Ephemeral,
+        });
       } else if (interaction.customId === TICKET_CLOSE_ID) {
         await closeTicket(interaction);
       } else if (interaction.customId === TICKET_CLAIM_ID) {
@@ -118,6 +125,9 @@ async function routeInteraction(interaction) {
         await handleCaptchaResult(interaction, true);
       } else if (interaction.customId === CAPTCHA_NO) {
         await handleCaptchaResult(interaction, false);
+      } else if (interaction.customId.startsWith(TICKET_RATE_PREFIX)) {
+        const [guildId, ticketId, stars] = interaction.customId.slice(TICKET_RATE_PREFIX.length).split(':');
+        await rateTicket(interaction, guildId, ticketId, Number(stars));
       }
       return;
     }

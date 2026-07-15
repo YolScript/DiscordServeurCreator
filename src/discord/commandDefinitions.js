@@ -181,6 +181,14 @@ const giveawayCommand = new SlashCommandBuilder()
   .addStringOption((o) => o.setName('prix').setDescription('Ce qui est a gagner').setRequired(true))
   .addIntegerOption((o) => o.setName('duree_minutes').setDescription('Duree en minutes').setRequired(true).setMinValue(1))
   .addIntegerOption((o) => o.setName('gagnants').setDescription('Nombre de gagnants (defaut 1)').setRequired(false).setMinValue(1))
+  .addRoleOption((o) => o.setName('role_requis').setDescription('Role obligatoire pour participer (optionnel)').setRequired(false))
+  .toJSON();
+
+const giveawayRerollCommand = new SlashCommandBuilder()
+  .setName('giveaway-reroll')
+  .setDescription('Tire de nouveaux gagnants pour un giveaway termine.')
+  .setDefaultMemberPermissions(PermissionFlagsBits.ManageGuild)
+  .addStringOption((o) => o.setName('message_id').setDescription('ID du message du giveaway (clic droit sur le message > Copier l\'ID)').setRequired(true))
   .toJSON();
 
 const invitesCommand = new SlashCommandBuilder()
@@ -242,6 +250,7 @@ module.exports = [
   setupCommand, warnCommand, warningsCommand, clearwarnsCommand, timeoutCommand, unlockCommand, automodCommand,
   scheduleAnnouncementCommand, scheduleEventCommand, scheduledListCommand, scheduledCancelCommand,
   rankCommand, leaderboardCommand, levelroleCommand, pollCommand, pollPanelCommand, giveawayCommand,
+  giveawayRerollCommand,
   invitesCommand, referralroleCommand, badgesCommand, ticketCommand, ticketPanelCommand,
   reglementTranslationCommand, streamerLinkCommand, streamerUnlinkCommand, streamerListCommand,
   reglementPanelCommand, rolesPanelCommand,

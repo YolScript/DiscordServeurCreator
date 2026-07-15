@@ -19,7 +19,11 @@ client.on(Events.GuildMemberAdd, async (member) => {
 
   try {
     const config = await guildConfigStore.find(member.guild.id);
-    if (!config?.arrivalDepartureChannelId) return;
+    if (!config) return;
+
+    if (config.autoRoleId) await member.roles.add(config.autoRoleId).catch((err) => logger.error('autoRole', err));
+
+    if (!config.arrivalDepartureChannelId) return;
 
     const channel = await member.guild.channels.fetch(config.arrivalDepartureChannelId).catch(() => null);
     if (!channel) return;

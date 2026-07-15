@@ -13,12 +13,14 @@ const CAPTCHA_NO = 'captcha_no';
 const TICKET_OPEN = 'ticket_open';
 const POLL_CREATE_OPEN = 'poll_create_open';
 const POLL_CREATE_MODAL = 'poll_create_modal';
+const TICKET_RATE_PREFIX = 'ticket_rate:';
 
 const buildGameSelectId = (pageIndex) => `${GAME_SELECT_PREFIX}${pageIndex}`;
 const buildGamePseudoModalId = (gameRoleId) => `${GAME_PSEUDO_MODAL_PREFIX}${gameRoleId}`;
 const buildGamePseudoButtonId = (gameRoleId) => `${GAME_PSEUDO_BUTTON_PREFIX}${gameRoleId}`;
 const buildPollVoteId = (pollId, optionIndex) => `${POLL_VOTE_PREFIX}${pollId}:${optionIndex}`;
 const buildGiveawayEnterId = (giveawayId) => `${GIVEAWAY_ENTER_PREFIX}${giveawayId}`;
+const buildTicketRateId = (guildId, ticketId, stars) => `${TICKET_RATE_PREFIX}${guildId}:${ticketId}:${stars}`;
 
 module.exports = {
   REGLEMENT_ACCEPT,
@@ -35,9 +37,11 @@ module.exports = {
   TICKET_OPEN,
   POLL_CREATE_OPEN,
   POLL_CREATE_MODAL,
+  TICKET_RATE_PREFIX,
   buildGameSelectId,
   buildGamePseudoModalId,
   buildGamePseudoButtonId,
   buildPollVoteId,
   buildGiveawayEnterId,
+  buildTicketRateId,
 };

@@ -599,7 +599,7 @@ textarea { min-height: 90px; resize: vertical; font-family: ui-monospace, "SF Mo
 }
 
 @media (prefers-color-scheme: light) {
-  :root {
+  :root:not([data-theme]) {
     --bg: #f7f7f8;
     --bg-elevated: #ffffff;
     --bg-input: #f1f2f4;
@@ -611,6 +611,26 @@ textarea { min-height: 90px; resize: vertical; font-family: ui-monospace, "SF Mo
     --shadow: 0 1px 2px rgba(0,0,0,0.04), 0 12px 28px -12px rgba(0,0,0,0.12);
   }
 }
+
+:root[data-theme="light"] {
+  --bg: #f7f7f8; --bg-elevated: #ffffff; --bg-input: #f1f2f4;
+  --border: #e5e6e9; --border-strong: #d4d5da;
+  --text: #17181c; --text-muted: #6b6d76; --text-faint: #9a9ba3;
+  --shadow: 0 1px 2px rgba(0,0,0,0.04), 0 12px 28px -12px rgba(0,0,0,0.12);
+}
+:root[data-theme="dark"] {
+  --bg: #101114; --bg-rail: #0a0b0d; --bg-sidebar: #141519; --bg-elevated: #17181c; --bg-input: #1d1e23;
+  --border: #26272c; --border-strong: #35363d;
+  --text: #edeef0; --text-muted: #8b8d95; --text-faint: #5c5e66;
+  --shadow: 0 1px 2px rgba(0, 0, 0, 0.24), 0 12px 28px -12px rgba(0, 0, 0, 0.45);
+}
+
+.theme-toggle {
+  background: none; border: 1px solid var(--border-strong); border-radius: var(--radius-sm);
+  color: var(--text-muted); width: 34px; height: 34px; cursor: pointer; font-size: 0.95rem;
+  display: flex; align-items: center; justify-content: center; transition: background 0.12s ease, color 0.12s ease;
+}
+.theme-toggle:hover { background: var(--bg-input); color: var(--text); }
 
 /* ---------- Generateur d'embed ---------- */
 

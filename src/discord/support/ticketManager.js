@@ -4,8 +4,9 @@ const {
 const guildConfigStore = require('../../kv/guildConfigStore');
 const ticketStore = require('../../kv/ticketStore');
 const { toSmallCaps } = require('../../shared/smallCaps');
-const { TICKET_OPEN } = require('../interactions/customIds');
+const { TICKET_OPEN, buildTicketRateId } = require('../interactions/customIds');
 const { ensureStaffCategory, toggleOnlyOverwrites } = require('../roles/staffCategory');
+const { ensureModLogChannel } = require('../moderation/modLog');
 const logger = require('../../shared/logger');
 
 const TICKET_CLOSE_ID = 'ticket_close';
@@ -125,6 +126,15 @@ async function claimTicket(interaction) {
   await interaction.reply(`🙋 <@${interaction.member.id}> a pris en charge ce ticket.`);
 }
 
+// Recupere les 100 derniers messages (limite d'un seul appel API, suffisant
+// pour l'immense majorite des tickets) et les met en forme en texte brut
+// avant que le salon ne soit supprime.
+async function buildTranscript(channel) {
+  const messages = await channel.messages.fetch({ limit: 100 });
+  const sorted = [...messages.values()].reverse();
+  return sorted.map((m) => `[${m.createdAt.toISOString()}] ${m.author.tag}: ${m.content || '(sans texte)'}`).join('\n');
+}
+
 async function closeTicket(interaction) {
   const ticket = await ticketStore.findByChannel(interaction.guild.id, interaction.channel.id);
   if (!ticket) {
@@ -133,14 +143,44 @@ async function closeTicket(interaction) {
   }
   await ticketStore.close(interaction.guild.id, interaction.channel.id);
   await interaction.reply('Ticket ferme, ce salon sera supprime dans 5 secondes.');
-  const { guild } = interaction;
+  const { guild, channel } = interaction;
+
+  const transcript = await buildTranscript(channel).catch(() => '');
+  if (transcript) {
+    const modLogChannel = await ensureModLogChannel(guild).catch(() => null);
+    if (modLogChannel) {
+      await modLogChannel.send({
+        content: `📄 Transcript du ticket #${channel.name}`,
+        files: [{ attachment: Buffer.from(transcript, 'utf8'), name: `transcript-${channel.name}.txt` }],
+      }).catch((err) => logger.error('ticketManager.transcript', err));
+    }
+  }
+
+  const opener = await guild.members.fetch(ticket.userId).catch(() => null);
+  if (opener) {
+    const rateRow = new ActionRowBuilder().addComponents(
+      [1, 2, 3, 4, 5].map((n) => new ButtonBuilder()
+        .setCustomId(buildTicketRateId(guild.id, ticket.id, n))
+        .setLabel('⭐'.repeat(n))
+        .setStyle(ButtonStyle.Secondary)),
+    );
+    await opener.send({ content: 'Ton ticket a ete ferme. Comment evaluerais-tu le support recu ?', components: [rateRow] }).catch(() => {});
+  }
+
   setTimeout(() => {
-    interaction.channel.delete()
+    channel.delete()
       .then(() => removeCategoryIfEmpty(guild))
       .catch((err) => logger.error('ticketManager.delete', err));
   }, 5000);
 }
 
+// Appele depuis une interaction en MP (pas de contexte guilde) : guildId est
+// encode dans le customId (cf buildTicketRateId).
+async function rateTicket(interaction, guildId, ticketId, stars) {
+  await ticketStore.rate(guildId, ticketId, stars).catch(() => {});
+  await interaction.update({ content: `Merci pour ta note : ${'⭐'.repeat(stars)}`, components: [] }).catch(() => {});
+}
+
 module.exports = {
-  createTicket, closeTicket, claimTicket, postTicketPanel, TICKET_CLOSE_ID, TICKET_CLAIM_ID,
+  createTicket, closeTicket, claimTicket, rateTicket, postTicketPanel, TICKET_CLOSE_ID, TICKET_CLAIM_ID,
 };

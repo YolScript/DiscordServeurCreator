@@ -984,7 +984,7 @@ async function renderAutomationsPage(id, container = app) {
 
   const ticketRows = tickets.map((t) => `
     <div class="row" data-id="${t.id}" style="justify-content:space-between; margin-bottom:6px;">
-      <span>${channelName(t.channelId)} <span class="muted">(${escapeHtml(t.userId)})</span> — <span class="badge ${t.status === 'open' ? 'configured' : 'not-configured'}">${t.status === 'open' ? 'Ouvert' : 'Ferme'}</span>${t.assignedToTag ? ` <span class="muted">— pris en charge par ${escapeHtml(t.assignedToTag)}</span>` : ''}</span>
+      <span>${channelName(t.channelId)} <span class="muted">(${escapeHtml(t.userId)})</span> — <span class="badge ${t.status === 'open' ? 'configured' : 'not-configured'}">${t.status === 'open' ? 'Ouvert' : 'Ferme'}</span>${t.assignedToTag ? ` <span class="muted">— pris en charge par ${escapeHtml(t.assignedToTag)}</span>` : ''}${t.rating ? ` <span class="muted">— ${'⭐'.repeat(t.rating)}</span>` : ''}</span>
       ${t.status === 'open' ? `<button class="btn danger close-ticket" data-id="${t.id}">Fermer</button>` : ''}
     </div>
   `).join('') || '<p class="muted">Aucun ticket pour le moment.</p>';
@@ -997,6 +997,20 @@ async function renderAutomationsPage(id, container = app) {
           <a class="btn secondary" href="https://discord.com/oauth2/authorize?client_id=1526016642411135107&permissions=286262288&scope=bot" target="_blank" rel="noopener">➕ Ajouter FortniteParty</a>
           <a class="btn secondary" href="https://discord.com/oauth2/authorize?client_id=1449858112054886442&scope=bot%20applications.commands&permissions=268520448&guild_id=1526242972989915307" target="_blank" rel="noopener">➕ Ajouter BotStream</a>
         </div>
+      `)}
+
+      ${sectionHtml('Arrivee & statut du bot', `
+        <label>Role attribue automatiquement a l'arrivee (en plus du reglement)</label>
+        <select id="auto-role-select">
+          <option value="">Aucun</option>
+          ${roleOptions(config?.autoRoleId)}
+        </select>
+        <button class="btn secondary" id="save-auto-role" style="margin-top:8px;">Enregistrer</button>
+
+        <label style="margin-top:18px;">Statuts du bot (un par ligne, tournent automatiquement)</label>
+        <textarea id="bot-statuses" placeholder="Regarde ServeurCreator&#10;/setup pour demarrer&#10;{membercount} membres">${escapeHtml((config?.botStatuses || []).join('\n'))}</textarea>
+        <p class="muted">Variable disponible : {membercount}</p>
+        <button class="btn secondary" id="save-bot-statuses" style="margin-top:8px;">Enregistrer</button>
       `)}
 
       ${sectionHtml('Auto-moderation', `
@@ -1139,6 +1153,25 @@ async function renderAutomationsPage(id, container = app) {
       const ticketAllowedRoleIds = [...container.querySelectorAll('.ticket-role:checked')].map((el) => el.value);
       await Api.updateConfig(id, { ticketAllowedRoleIds });
       showToast('Roles autorises pour les tickets enregistres.');
+    } catch (err) {
+      showToast(err.message, 'error');
+    }
+  });
+
+  document.getElementById('save-auto-role').addEventListener('click', async () => {
+    try {
+      await Api.updateConfig(id, { autoRoleId: document.getElementById('auto-role-select').value || null });
+      showToast('Auto-role enregistre.');
+    } catch (err) {
+      showToast(err.message, 'error');
+    }
+  });
+
+  document.getElementById('save-bot-statuses').addEventListener('click', async () => {
+    try {
+      const botStatuses = document.getElementById('bot-statuses').value.split('\n').map((s) => s.trim()).filter(Boolean);
+      await Api.updateConfig(id, { botStatuses });
+      showToast('Statuts enregistres.');
     } catch (err) {
       showToast(err.message, 'error');
     }
@@ -1413,7 +1446,7 @@ async function renderAuditLogPage(id, container = app) {
     Api.auditLog(id), Api.members(id).catch(() => []), Api.roles(id).catch(() => []),
   ]);
 
-  const rows = logs.map((entry) => `
+  const rowHtml = (entry) => `
     <div class="audit-row">
       <div class="audit-row-header">
         <strong>${escapeHtml(entry.title)}</strong>
@@ -1421,17 +1454,26 @@ async function renderAuditLogPage(id, container = app) {
       </div>
       <p class="muted" style="margin:4px 0 0;">${resolveMentions(entry.description, members, roles)}</p>
     </div>
-  `).join('') || '<p class="muted">Aucune action enregistree pour le moment.</p>';
+  `;
 
   container.innerHTML = `
     <div class="inner">
       ${sectionHtml("Logs d'audit", `
         <p class="muted">Historique des actions de moderation et de configuration (200 dernieres).</p>
-        <div class="audit-log-list">${rows}</div>
+        <input type="text" id="audit-search" placeholder="Rechercher (titre, auteur, action...)" style="margin-bottom:10px;" />
+        <div class="audit-log-list" id="audit-log-list">${logs.map(rowHtml).join('') || '<p class="muted">Aucune action enregistree pour le moment.</p>'}</div>
       `, { open: true })}
     </div>
   `;
   wireSections(container);
+
+  document.getElementById('audit-search').addEventListener('input', (e) => {
+    const q = e.target.value.trim().toLowerCase();
+    const filtered = q
+      ? logs.filter((l) => `${l.title} ${l.description}`.toLowerCase().includes(q))
+      : logs;
+    document.getElementById('audit-log-list').innerHTML = filtered.map(rowHtml).join('') || '<p class="muted">Aucun resultat.</p>';
+  });
 }
 
 /* ---------- Pages: statistiques ---------- */
@@ -1825,6 +1867,24 @@ async function init() {
     await Api.logout();
     location.href = 'index.html';
   });
+
+  const themeToggleBtn = document.getElementById('theme-toggle-btn');
+  if (themeToggleBtn) {
+    const systemPrefersLight = window.matchMedia?.('(prefers-color-scheme: light)').matches;
+    const paintTheme = () => {
+      const current = document.documentElement.getAttribute('data-theme') || (systemPrefersLight ? 'light' : 'dark');
+      themeToggleBtn.textContent = current === 'light' ? '☀️' : '🌙';
+    };
+    paintTheme();
+    themeToggleBtn.addEventListener('click', () => {
+      const current = document.documentElement.getAttribute('data-theme') || (systemPrefersLight ? 'light' : 'dark');
+      const next = current === 'light' ? 'dark' : 'light';
+      document.documentElement.setAttribute('data-theme', next);
+      localStorage.setItem('theme', next);
+      paintTheme();
+      window.UISound?.click();
+    });
+  }
 
   allGuilds = await Api.guilds();
   renderRail();

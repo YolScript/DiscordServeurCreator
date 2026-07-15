@@ -13,6 +13,7 @@ function buildGiveawayEmbed(giveaway) {
     .addFields(
       { name: 'Participants', value: String(giveaway.entrants.length), inline: true },
       { name: 'Gagnants', value: String(giveaway.winnersCount), inline: true },
+      ...(giveaway.requiredRoleId ? [{ name: 'Role requis', value: `<@&${giveaway.requiredRoleId}>`, inline: true }] : []),
     );
   if (giveaway.closed) {
     embed.setDescription(giveaway.winners.length
@@ -42,11 +43,33 @@ async function refreshMessage(guild, giveaway) {
 }
 
 async function handleEnter(interaction, giveawayId) {
+  const existing = (await giveawayStore.list(interaction.guild.id)).find((g) => g.id === giveawayId);
+  if (existing?.requiredRoleId && !interaction.member.roles.cache.has(existing.requiredRoleId)) {
+    return { deniedRoleId: existing.requiredRoleId };
+  }
   const giveaway = await giveawayStore.update(interaction.guild.id, giveawayId, (g) => {
     if (!g.entrants.includes(interaction.user.id)) g.entrants.push(interaction.user.id);
   });
-  if (!giveaway) return;
+  if (!giveaway) return null;
   await refreshMessage(interaction.guild, giveaway);
+  return null;
+}
+
+// Retire les gagnants precedents des entrants pour ne jamais les retirer au
+// hasard (permet de relancer plusieurs fois si un gagnant ne repond pas).
+// Identifie par messageId (recuperable via clic droit > Copier l'ID sur le
+// message du giveaway), pas par l'id interne jamais affiche a l'utilisateur.
+async function reroll(guild, messageId) {
+  const giveaways = await giveawayStore.list(guild.id);
+  const giveaway = giveaways.find((g) => g.messageId === messageId);
+  if (!giveaway || !giveaway.closed) return null;
+
+  const pool = giveaway.entrants.filter((id) => !giveaway.winners.includes(id));
+  const newWinners = pickWinners(pool, giveaway.winnersCount);
+  giveaway.winners = newWinners;
+  await giveawayStore.replaceAll(guild.id, giveaways);
+  await refreshMessage(guild, giveaway);
+  return giveaway;
 }
 
 function pickWinners(entrants, count) {
@@ -90,5 +113,5 @@ function start() {
 }
 
 module.exports = {
-  buildGiveawayEmbed, buildGiveawayComponents, handleEnter, start,
+  buildGiveawayEmbed, buildGiveawayComponents, handleEnter, reroll, start,
 };

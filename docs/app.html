@@ -5,7 +5,13 @@
   <meta name="viewport" content="width=device-width, initial-scale=1" />
   <title>Discord Serveur Creator - Dashboard</title>
   <link rel="icon" type="image/png" href="assets/favicon-64.png" />
-  <link rel="stylesheet" href="assets/style.css?v=17" />
+  <link rel="stylesheet" href="assets/style.css?v=18" />
+  <script>
+    (function () {
+      var t = localStorage.getItem('theme');
+      if (t) document.documentElement.setAttribute('data-theme', t);
+    }());
+  </script>
 </head>
 <body>
   <div class="bg-video-wrap">
@@ -23,6 +29,7 @@
           <input type="text" id="search-input" placeholder="Rechercher un serveur..." />
         </div>
         <span class="spacer"></span>
+        <button class="theme-toggle" id="theme-toggle-btn" title="Changer de theme">🌙</button>
         <button class="user-chip" id="logout-btn" title="Se deconnecter">
           <img class="user-avatar" id="user-avatar" alt="" />
           <span id="whoami"></span>
@@ -37,7 +44,7 @@
   <script src="assets/config.js?v=5"></script>
   <script src="assets/sounds.js?v=1"></script>
   <script src="assets/api.js?v=11"></script>
-  <script src="assets/app.js?v=29"></script>
+  <script src="assets/app.js?v=30"></script>
   <script>
     document.querySelectorAll('.bg-video').forEach((v) => {
       v.play().catch(() => {});

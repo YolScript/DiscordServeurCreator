@@ -47,6 +47,19 @@ async function assign(guildId, channelId, staffId, staffTag) {
   return ticket;
 }
 
+async function findById(guildId, ticketId) {
+  const items = await list(guildId);
+  return items.find((t) => t.id === ticketId) ?? null;
+}
+
+async function rate(guildId, ticketId, stars) {
+  const items = await list(guildId);
+  const ticket = items.find((t) => t.id === ticketId);
+  if (ticket) ticket.rating = stars;
+  await replaceAll(guildId, items);
+  return ticket;
+}
+
 module.exports = {
-  list, replaceAll, add, findByChannel, findOpenByUser, close, assign,
+  list, replaceAll, add, findByChannel, findOpenByUser, findById, close, assign, rate,
 };

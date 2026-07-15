@@ -5,6 +5,7 @@ async function handleGiveawayCommand(interaction) {
   const prize = interaction.options.getString('prix', true);
   const durationMinutes = interaction.options.getInteger('duree_minutes', true);
   const winnersCount = interaction.options.getInteger('gagnants') || 1;
+  const requiredRole = interaction.options.getRole('role_requis');
 
   await interaction.deferReply();
 
@@ -17,6 +18,7 @@ async function handleGiveawayCommand(interaction) {
     endsAt: Date.now() + durationMinutes * 60 * 1000,
     closed: false,
     winners: [],
+    requiredRoleId: requiredRole?.id || null,
   });
 
   const message = await interaction.editReply({
