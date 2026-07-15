@@ -43,7 +43,9 @@ window.Api = (function api() {
     bulkPermissions: (guildId, payload) => request(`/api/guilds/${guildId}/permissions/bulk`, { method: 'POST', body: JSON.stringify(payload) }),
     exportPermissions: (guildId, channelId) => request(`/api/guilds/${guildId}/permissions/export?channelId=${channelId}`),
     importPermissions: (guildId, channelId, permissionOverwrites) => request(`/api/guilds/${guildId}/permissions/import`, { method: 'POST', body: JSON.stringify({ channelId, permissionOverwrites }) }),
-    createChannel: (guildId, name, type, categoryId) => request(`/api/guilds/${guildId}/channels`, { method: 'POST', body: JSON.stringify({ name, type, categoryId }) }),
+    createChannel: (guildId, name, type, categoryId, isPrivate, importFromChannelId) => request(`/api/guilds/${guildId}/channels`, { method: 'POST', body: JSON.stringify({
+      name, type, categoryId, isPrivate, importFromChannelId,
+    }) }),
     createCategory: (guildId, name) => request(`/api/guilds/${guildId}/categories`, { method: 'POST', body: JSON.stringify({ name }) }),
     resetRoleDefault: (guildId, roleKey) => request(`/api/guilds/${guildId}/roles/${roleKey}/reset-default`, { method: 'POST' }),
     renameChannel: (guildId, channelId, name) => request(`/api/guilds/${guildId}/channels/${channelId}`, { method: 'PATCH', body: JSON.stringify({ name }) }),

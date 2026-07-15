@@ -143,9 +143,11 @@ function withViewTransition(renderFn) {
 
 /* ---------- Collapsible sections ---------- */
 
-function sectionHtml(title, bodyHtml, { hint = '', open = false } = {}) {
+function sectionHtml(title, bodyHtml, {
+  hint = '', open = false, id = '',
+} = {}) {
   return `
-    <div class="section${open ? '' : ' collapsed'}">
+    <div class="section${open ? '' : ' collapsed'}"${id ? ` id="section-${id}"` : ''}>
       <button class="section-header" type="button">
         <span>${escapeHtml(title)}${hint ? `<span class="section-hint">${escapeHtml(hint)}</span>` : ''}</span>
         <span class="chevron">▾</span>
@@ -158,6 +160,34 @@ function sectionHtml(title, bodyHtml, { hint = '', open = false } = {}) {
 function wireSections(container) {
   container.querySelectorAll('.section-header').forEach((header) => {
     header.addEventListener('click', () => header.closest('.section').classList.toggle('collapsed'));
+  });
+}
+
+// Grille d'acces rapide au-dessus d'une liste de sections (sectionHtml avec
+// id) : clic sur une carte = ouvre uniquement cette section et y scroll,
+// sans toucher a la logique d'affichage/repliage existante.
+function sectionGridHtml(items) {
+  return `
+    <div class="dp-action-grid" style="margin-bottom:20px;">
+      ${items.map((it) => `
+        <button type="button" class="dp-action-card" data-goto-section="${it.id}">
+          <span class="icon">${it.icon}</span>
+          <span class="label">${escapeHtml(it.label)}</span>
+        </button>
+      `).join('')}
+    </div>`;
+}
+
+function wireSectionGrid(container) {
+  container.querySelectorAll('[data-goto-section]').forEach((btn) => {
+    btn.addEventListener('click', () => {
+      window.UISound?.select();
+      const section = container.querySelector(`#section-${btn.dataset.gotoSection}`);
+      if (!section) return;
+      container.querySelectorAll('.section').forEach((s) => { if (s !== section) s.classList.add('collapsed'); });
+      section.classList.remove('collapsed');
+      section.scrollIntoView({ behavior: 'smooth', block: 'start' });
+    });
   });
 }
 
@@ -386,6 +416,10 @@ function aiHomeHtml(guild) {
           <div class="dp-chat-author">ServeurCreator Bot</div>
           <div class="dp-chat-text">Salut, je suis le bot de configuration de ${escapeHtml(guild?.name || 'ton serveur')} ! Glisse un salon, une categorie ou un role ici pour le configurer, choisis un outil ci-dessous, ou ecris-moi directement.</div>
           <div class="dp-action-grid">
+            <button type="button" class="dp-action-card" id="dp-goto-add-category">
+              <span class="icon">➕</span>
+              <span class="label">Ajouter une categorie</span>
+            </button>
             ${SETTINGS_PANELS.map((p) => `
               <button type="button" class="dp-action-card" data-goto-settings="${p.key}">
                 <span class="icon">${p.icon}</span>
@@ -721,6 +755,12 @@ async function renderPreviewPage(id) {
   document.getElementById('dp-add-cat-btn').addEventListener('click', () => {
     const form = app.querySelector('.dp-custom-form[data-form-for="__category"]');
     form.style.display = form.style.display === 'none' ? 'flex' : 'none';
+  });
+  document.getElementById('dp-goto-add-category')?.addEventListener('click', () => {
+    window.UISound?.select();
+    document.getElementById('dp-add-cat-btn').click();
+    document.getElementById('dp-add-cat-btn').scrollIntoView({ behavior: 'smooth', block: 'center' });
+    document.getElementById('dp-new-cat-name')?.focus();
   });
   document.getElementById('dp-create-cat-btn').addEventListener('click', async () => {
     const name = document.getElementById('dp-new-cat-name').value.trim();
@@ -1084,6 +1124,33 @@ function categoryActionDetailHtml(key, ctx) {
   const {
     guildId, categoryId, name, config, channels,
   } = ctx;
+  if (key === 'create-channel') {
+    const otherChannels = channels.filter((c) => c.type !== 4);
+    return `
+      <div class="dp-block">
+        <p class="dp-block-title">➕ Creer un salon dans "${escapeHtml(name)}"</p>
+        <label>Nom du salon</label>
+        <input type="text" id="dp-cat-new-channel-name" placeholder="Nom du salon" maxlength="80" />
+        <label>Type</label>
+        <select id="dp-cat-new-channel-type">
+          <option value="text">💬 Texte</option>
+          <option value="voice">🔊 Vocal</option>
+          <option value="voice-temp">🔊 Vocal temporaire (cree un salon perso par membre)</option>
+          <option value="forum">🗂️ Forum</option>
+        </select>
+        <label>Visibilite</label>
+        <select id="dp-cat-new-channel-visibility">
+          <option value="private">🔒 Prive (reserve aux membres ayant valide le reglement)</option>
+          <option value="public">🌐 Public (herite de la categorie)</option>
+        </select>
+        <label>Importer les permissions d'un salon existant (optionnel)</label>
+        <select id="dp-cat-new-channel-import">
+          <option value="">Aucune (permissions par defaut)</option>
+          ${otherChannels.map((c) => `<option value="${c.id}">${c.type === 2 ? '🔊' : '#'}${escapeHtml(c.name)}</option>`).join('')}
+        </select>
+        <button class="btn" id="dp-cat-create-channel" style="margin-top:12px;">Creer le salon</button>
+      </div>`;
+  }
   if (key === 'rename') {
     return `
       <div class="dp-block">
@@ -1143,6 +1210,7 @@ function categoryActionDetailHtml(key, ctx) {
 function renderCategoryPanel(guildId, categoryId, name, config, channels) {
   const main = document.getElementById('dp-main');
   const actions = [
+    { key: 'create-channel', icon: '➕', label: 'Creer un salon' },
     { key: 'rename', icon: '✏️', label: 'Renommer' },
     { key: 'emoji', icon: '😀', label: 'Emoji' },
     { key: 'service', icon: '🛡️', label: 'Service staff', on: (config?.onDutyHiddenCategoryIds || []).includes(categoryId) },
@@ -1154,6 +1222,22 @@ function renderCategoryPanel(guildId, categoryId, name, config, channels) {
   };
 
   function wireDetail(scope, key) {
+    if (key === 'create-channel') {
+      scope.querySelector('#dp-cat-create-channel').addEventListener('click', async () => {
+        const chName = scope.querySelector('#dp-cat-new-channel-name').value.trim();
+        if (!chName) { showToast('Nom du salon requis.', 'error'); return; }
+        const type = scope.querySelector('#dp-cat-new-channel-type').value;
+        const isPrivate = scope.querySelector('#dp-cat-new-channel-visibility').value === 'private';
+        const importFromChannelId = scope.querySelector('#dp-cat-new-channel-import').value || undefined;
+        try {
+          await Api.createChannel(guildId, chName, type, categoryId, isPrivate, importFromChannelId);
+          showToast('Salon cree.');
+          await renderPreviewPage(guildId);
+        } catch (err) {
+          showToast(err.message, 'error');
+        }
+      });
+    }
     if (key === 'rename' || key === 'emoji') {
       scope.querySelectorAll('.dp-cat-emoji-pick').forEach((btn) => {
         btn.addEventListener('click', () => {
@@ -2027,13 +2111,26 @@ async function renderAutomationsPage(id, container = app) {
 
   container.innerHTML = `
     <div class="inner">
+      ${sectionGridHtml([
+        { id: 'bots', icon: '🧩', label: 'Bots complementaires' },
+        { id: 'arrivee', icon: '👋', label: 'Arrivee & statut du bot' },
+        { id: 'webhooks', icon: '🔗', label: 'Webhooks sortants' },
+        { id: 'economie', icon: '🪙', label: 'Economie / boutique' },
+        { id: 'automod', icon: '🛡️', label: 'Auto-moderation' },
+        { id: 'niveaux', icon: '⭐', label: 'Roles de niveau (XP)' },
+        { id: 'parrainage', icon: '🎗️', label: 'Parrainage' },
+        { id: 'streamers', icon: '📺', label: 'Streamers lies' },
+        { id: 'annonces', icon: '📅', label: 'Annonces programmees' },
+        { id: 'service', icon: '🚨', label: 'Service (staff)' },
+        { id: 'tickets', icon: '🎫', label: 'Tickets' },
+      ])}
       ${sectionHtml('Bots complementaires', `
         <p class="muted">Ajoute des modules complementaires a ce serveur en invitant ces bots.</p>
         <div class="row">
           <a class="btn secondary" href="https://discord.com/oauth2/authorize?client_id=1526016642411135107&permissions=286262288&scope=bot" target="_blank" rel="noopener">➕ Ajouter FortniteParty</a>
           <a class="btn secondary" href="https://discord.com/oauth2/authorize?client_id=1449858112054886442&scope=bot%20applications.commands&permissions=268520448&guild_id=1526242972989915307" target="_blank" rel="noopener">➕ Ajouter BotStream</a>
         </div>
-      `)}
+      `, { id: 'bots' })}
 
       ${sectionHtml('Arrivee & statut du bot', `
         <label>Role attribue automatiquement a l'arrivee (en plus du reglement)</label>
@@ -2068,7 +2165,7 @@ async function renderAutomationsPage(id, container = app) {
           <p class="muted">Variable disponible : {count}</p>
           <button class="btn secondary" id="create-membercount-channel" style="margin-top:8px;">Creer le salon compteur</button>
         `}
-      `)}
+      `, { id: 'arrivee' })}
 
       ${sectionHtml('Webhooks sortants', `
         <p class="muted">Envoie une requete POST JSON vers une URL externe a chaque evenement choisi (arrivee, depart, action de moderation).</p>
@@ -2082,7 +2179,7 @@ async function renderAutomationsPage(id, container = app) {
           <input type="text" id="new-webhook-url" placeholder="https://..." style="flex:1; min-width:220px;" />
           <button class="btn secondary" id="add-webhook">Ajouter</button>
         </div>
-      `)}
+      `, { id: 'webhooks' })}
 
       ${sectionHtml('Economie : boutique (/shop, /daily, /pay, /balance)', `
         <p class="muted">Les membres gagnent des pieces via /daily, peuvent en envoyer via /pay, et les depenser ici. Un article peut donner un role automatiquement.</p>
@@ -2098,7 +2195,7 @@ async function renderAutomationsPage(id, container = app) {
         </div>
         <h2 style="margin-top:18px; font-size:0.85rem;">Classement richesse</h2>
         <div id="economy-leaderboard">${economyLeaderboardRows}</div>
-      `)}
+      `, { id: 'economie' })}
 
       ${sectionHtml('Auto-moderation', `
         <div class="dp-toggle-row"><span>Auto-moderation active</span><input type="checkbox" id="am-enabled" ${modConfig.autoModEnabled ? 'checked' : ''} /></div>
@@ -2114,7 +2211,7 @@ async function renderAutomationsPage(id, container = app) {
         <label>Seuil anti-raid (arrivees rapprochees)</label>
         <input type="number" id="am-antiraid-threshold" value="${modConfig.antiRaidJoinThreshold}" min="1" />
         <button class="btn" id="save-modconfig" style="margin-top:12px;">Enregistrer</button>
-      `)}
+      `, { id: 'automod' })}
 
       ${sectionHtml('Roles de niveau (XP)', `
         <div id="level-roles-list">${levelRoleRows}</div>
@@ -2123,7 +2220,7 @@ async function renderAutomationsPage(id, container = app) {
           <select id="new-level-role">${roleOptions()}</select>
           <button class="btn secondary" id="add-level-role">Ajouter</button>
         </div>
-      `)}
+      `, { id: 'niveaux' })}
 
       ${sectionHtml('Parrainage', `
         <div id="referral-roles-list">${referralRoleRows}</div>
@@ -2135,7 +2232,7 @@ async function renderAutomationsPage(id, container = app) {
         <button class="btn secondary" id="generate-referral-role" style="margin-top:8px;">🎗️ Generer un role Parrain automatiquement</button>
         <h2 style="margin-top:18px; font-size:0.85rem;">Classement</h2>
         <div id="referral-leaderboard">${leaderboardRows}</div>
-      `)}
+      `, { id: 'parrainage' })}
 
       ${sectionHtml('Streamers lies', `
         <div id="streamers-list">${streamerRows}</div>
@@ -2148,7 +2245,7 @@ async function renderAutomationsPage(id, container = app) {
           <input type="text" id="new-streamer-identifier" placeholder="Pseudo / chaine" style="width:160px;" />
           <button class="btn secondary" id="add-streamer">Ajouter</button>
         </div>
-      `)}
+      `, { id: 'streamers' })}
 
       ${sectionHtml('Annonces programmees', `
         <div id="scheduled-list">${scheduledRows}</div>
@@ -2165,7 +2262,7 @@ async function renderAutomationsPage(id, container = app) {
           </div>
           <button class="btn secondary" id="add-scheduled" style="margin-top:8px;">Programmer</button>
         </div>
-      `)}
+      `, { id: 'annonces' })}
 
       ${sectionHtml('Service (Staff en service)', `
         <p class="muted">Le salon vocal SERVICE STAFF (categorie 🛡️ Staff) sert d'interrupteur : un membre du staff qui s'y connecte est immediatement deconnecte et bascule son statut "en service", qui revele la categorie Staff et les categories/salons choisis ci-dessous.</p>
@@ -2197,7 +2294,7 @@ async function renderAutomationsPage(id, container = app) {
         </div>
         <p class="muted" style="margin-top:8px;">Enregistrer applique immediatement les permissions choisies (SERVICE STAFF + categories/salons coches). La visibilite se met ensuite a jour automatiquement a chaque bascule de service.</p>
         <button class="btn" id="save-service-config" style="margin-top:8px;">Enregistrer et appliquer</button>
-      `)}
+      `, { id: 'service' })}
 
       ${sectionHtml('Tickets', `
         <label>Roles autorises a voir/repondre aux tickets (si non limite au service)</label>
@@ -2210,10 +2307,11 @@ async function renderAutomationsPage(id, container = app) {
 
         <h2 style="margin-top:18px; font-size:0.85rem;">Tickets</h2>
         <div id="tickets-list">${ticketRows}</div>
-      `)}
+      `, { id: 'tickets' })}
     </div>
   `;
   wireSections(container);
+  wireSectionGrid(container);
 
   document.getElementById('save-service-config').addEventListener('click', async () => {
     const btn = document.getElementById('save-service-config');

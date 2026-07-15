@@ -479,9 +479,27 @@ async function router(request, env) {
 
     if (sub === 'channels' && parts.length === 4 && method === 'POST') {
       const session = await requireGuildAccess(env, request, guildId);
-      const { name, type, categoryId } = await readJson(request);
+      const {
+        name, type, categoryId, isPrivate, importFromChannelId,
+      } = await readJson(request);
       const config = (await getGuildConfig(env, guildId)) || {};
-      const channel = await createCustomChannel(env, guildId, config, { name, type, categoryId });
+      const channel = await createCustomChannel(env, guildId, config, {
+        name, type, categoryId, isPrivate,
+      });
+
+      if (importFromChannelId) {
+        const source = await exportChannelPermissions(env, importFromChannelId).catch(() => null);
+        if (source?.permissionOverwrites?.length) {
+          await importChannelPermissions(env, channel.id, source.permissionOverwrites).catch(() => {});
+        }
+      }
+
+      if (type === 'voice-temp') {
+        const hubs = new Set(config.extraVoiceHubChannelIds || []);
+        hubs.add(channel.id);
+        await putGuildConfig(env, guildId, { ...config, extraVoiceHubChannelIds: [...hubs] });
+      }
+
       await logAudit(env, guildId, { title: 'Salon cree', description: `${session.username} a cree #${name}.` });
       return json(channel, env);
     }
