@@ -11,6 +11,8 @@ const pendingPanelActionsKey = (guildId) => `guild:${guildId}:pendingpanelaction
 const statsKey = (guildId) => `guild:${guildId}:stats`;
 const embedTemplatesKey = (guildId) => `guild:${guildId}:embedtemplates`;
 const reactionRolesKey = (guildId) => `guild:${guildId}:reactionroles`;
+const shopKey = (guildId) => `guild:${guildId}:shop`;
+const economyKey = (guildId) => `guild:${guildId}:economy`;
 
 const MOD_CONFIG_DEFAULTS = {
   autoModEnabled: true,
@@ -88,6 +90,14 @@ export async function pushPendingPanelAction(env, guildId, action) {
 export const getStats = (env, guildId) => getList(env, statsKey(guildId));
 
 export const getEmbedTemplates = (env, guildId) => getList(env, embedTemplatesKey(guildId));
+
+export const getShopItems = (env, guildId) => getList(env, shopKey(guildId));
+export const putShopItems = (env, guildId, items) => putList(env, shopKey(guildId), items);
+
+export async function getEconomyAccounts(env, guildId) {
+  const raw = await env.GUILD_KV.get(economyKey(guildId));
+  return raw ? JSON.parse(raw) : {};
+}
 
 export async function getBotStatus(env) {
   const raw = await env.GUILD_KV.get('bot:status');

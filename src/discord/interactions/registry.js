@@ -3,7 +3,7 @@ const {
   REGLEMENT_ACCEPT, REGLEMENT_TRANSLATE, AGE_PLUS16, AGE_MINUS16,
   GAME_SELECT_PREFIX, GAME_PSEUDO_MODAL_PREFIX, GAME_PSEUDO_BUTTON_PREFIX, POLL_VOTE_PREFIX, GIVEAWAY_ENTER_PREFIX,
   CAPTCHA_OK, CAPTCHA_NO, TICKET_OPEN, POLL_CREATE_OPEN, POLL_CREATE_MODAL, TICKET_RATE_PREFIX,
-  SUGGESTION_VOTE_PREFIX, SUGGESTION_APPROVE_PREFIX, SUGGESTION_DENY_PREFIX,
+  SUGGESTION_VOTE_PREFIX, SUGGESTION_APPROVE_PREFIX, SUGGESTION_DENY_PREFIX, SHOP_BUY_PREFIX,
 } = require('./customIds');
 const pollManager = require('../engagement/pollManager');
 const giveawayManager = require('../engagement/giveawayManager');
@@ -49,6 +49,12 @@ const handleBirthdayCommand = require('../commands/birthday');
 const handleSuggestCommand = require('../commands/suggest');
 const handleLinkGameCommand = require('../commands/linkGame');
 const handleGameProfileCommand = require('../commands/gameProfile');
+const handleBalanceCommand = require('../commands/balance');
+const handleDailyCommand = require('../commands/daily');
+const handlePayCommand = require('../commands/pay');
+const handleShopCommand = require('../commands/shop');
+const handleEconomyLeaderboardCommand = require('../commands/economyLeaderboard');
+const handleShopBuyButton = require('./buttons/shopBuyButton');
 const handleTicketCommand = require('../commands/ticket');
 const handleTicketPanelCommand = require('../commands/ticketPanel');
 const handleGiveawayRerollCommand = require('../commands/giveawayReroll');
@@ -87,6 +93,11 @@ const commandHandlers = {
   suggest: handleSuggestCommand,
   'link-jeu': handleLinkGameCommand,
   'profil-jeu': handleGameProfileCommand,
+  balance: handleBalanceCommand,
+  daily: handleDailyCommand,
+  pay: handlePayCommand,
+  shop: handleShopCommand,
+  'economy-leaderboard': handleEconomyLeaderboardCommand,
   ticket: handleTicketCommand,
   'ticket-panel': handleTicketPanelCommand,
   'poll-panel': handlePollPanelCommand,
@@ -151,6 +162,9 @@ async function routeInteraction(interaction) {
       } else if (interaction.customId.startsWith(SUGGESTION_DENY_PREFIX)) {
         const suggestionId = interaction.customId.slice(SUGGESTION_DENY_PREFIX.length);
         await suggestionManager.handleModeration(interaction, suggestionId, 'denied');
+      } else if (interaction.customId.startsWith(SHOP_BUY_PREFIX)) {
+        const itemId = interaction.customId.slice(SHOP_BUY_PREFIX.length);
+        await handleShopBuyButton(interaction, itemId);
       }
       return;
     }

@@ -17,6 +17,7 @@ const TICKET_RATE_PREFIX = 'ticket_rate:';
 const SUGGESTION_VOTE_PREFIX = 'suggestion_vote:';
 const SUGGESTION_APPROVE_PREFIX = 'suggestion_approve:';
 const SUGGESTION_DENY_PREFIX = 'suggestion_deny:';
+const SHOP_BUY_PREFIX = 'shop_buy:';
 
 const buildGameSelectId = (pageIndex) => `${GAME_SELECT_PREFIX}${pageIndex}`;
 const buildGamePseudoModalId = (gameRoleId) => `${GAME_PSEUDO_MODAL_PREFIX}${gameRoleId}`;
@@ -27,6 +28,7 @@ const buildTicketRateId = (guildId, ticketId, stars) => `${TICKET_RATE_PREFIX}${
 const buildSuggestionVoteId = (suggestionId, direction) => `${SUGGESTION_VOTE_PREFIX}${suggestionId}:${direction}`;
 const buildSuggestionApproveId = (suggestionId) => `${SUGGESTION_APPROVE_PREFIX}${suggestionId}`;
 const buildSuggestionDenyId = (suggestionId) => `${SUGGESTION_DENY_PREFIX}${suggestionId}`;
+const buildShopBuyId = (itemId) => `${SHOP_BUY_PREFIX}${itemId}`;
 
 module.exports = {
   REGLEMENT_ACCEPT,
@@ -47,6 +49,7 @@ module.exports = {
   SUGGESTION_VOTE_PREFIX,
   SUGGESTION_APPROVE_PREFIX,
   SUGGESTION_DENY_PREFIX,
+  SHOP_BUY_PREFIX,
   buildGameSelectId,
   buildGamePseudoModalId,
   buildGamePseudoButtonId,
@@ -56,4 +59,5 @@ module.exports = {
   buildSuggestionVoteId,
   buildSuggestionApproveId,
   buildSuggestionDenyId,
+  buildShopBuyId,
 };

@@ -96,6 +96,10 @@ window.Api = (function api() {
     editEmbedMessage: (guildId, channelId, messageId, embeds, content) => request(`/api/guilds/${guildId}/messages/${channelId}/${messageId}`, { method: 'PATCH', body: JSON.stringify({ embeds, content }) }),
     createMemberCountChannel: (guildId, nameTemplate) => request(`/api/guilds/${guildId}/membercount`, { method: 'POST', body: JSON.stringify({ nameTemplate }) }),
     botStatus: () => request('/api/botstatus'),
+    shopItems: (guildId) => request(`/api/guilds/${guildId}/shop`),
+    addShopItem: (guildId, payload) => request(`/api/guilds/${guildId}/shop`, { method: 'POST', body: JSON.stringify(payload) }),
+    deleteShopItem: (guildId, itemId) => request(`/api/guilds/${guildId}/shop/${itemId}`, { method: 'DELETE' }),
+    economyAccounts: (guildId) => request(`/api/guilds/${guildId}/economy`),
   };
 }());
 

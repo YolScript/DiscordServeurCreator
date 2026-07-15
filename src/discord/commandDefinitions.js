@@ -251,6 +251,34 @@ const gameProfileCommand = new SlashCommandBuilder()
   .addUserOption((o) => o.setName('membre').setDescription('Membre a consulter').setRequired(false))
   .toJSON();
 
+const balanceCommand = new SlashCommandBuilder()
+  .setName('balance')
+  .setDescription('Affiche ton solde de pieces (ou celui d\'un membre).')
+  .addUserOption((o) => o.setName('membre').setDescription('Membre a consulter').setRequired(false))
+  .toJSON();
+
+const dailyCommand = new SlashCommandBuilder()
+  .setName('daily')
+  .setDescription('Recupere ta recompense quotidienne de pieces.')
+  .toJSON();
+
+const payCommand = new SlashCommandBuilder()
+  .setName('pay')
+  .setDescription('Envoie des pieces a un autre membre.')
+  .addUserOption((o) => o.setName('membre').setDescription('Destinataire').setRequired(true))
+  .addIntegerOption((o) => o.setName('montant').setDescription('Montant a envoyer').setRequired(true).setMinValue(1))
+  .toJSON();
+
+const shopCommand = new SlashCommandBuilder()
+  .setName('shop')
+  .setDescription('Affiche la boutique du serveur.')
+  .toJSON();
+
+const economyLeaderboardCommand = new SlashCommandBuilder()
+  .setName('economy-leaderboard')
+  .setDescription('Classement des membres les plus riches.')
+  .toJSON();
+
 const ticketCommand = new SlashCommandBuilder()
   .setName('ticket')
   .setDescription('Ouvre un ticket de support prive avec le staff.')
@@ -290,4 +318,5 @@ module.exports = [
   invitesCommand, referralroleCommand, badgesCommand, birthdayCommand, suggestCommand, ticketCommand, ticketPanelCommand,
   reglementTranslationCommand, streamerLinkCommand, streamerUnlinkCommand, streamerListCommand,
   reglementPanelCommand, rolesPanelCommand, linkGameCommand, gameProfileCommand,
+  balanceCommand, dailyCommand, payCommand, shopCommand, economyLeaderboardCommand,
 ];

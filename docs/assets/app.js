@@ -731,9 +731,18 @@ function renderChannelPanel(guildId, channelId, name, type, config, channels) {
 
 /* ---------- Pages: permissions ---------- */
 
+function dashboardAccessRows(userIds) {
+  return userIds.map((uid) => `
+    <div class="row" data-uid="${uid}" style="justify-content:space-between; margin-bottom:6px;">
+      <span class="muted">${escapeHtml(uid)}</span>
+      <button class="btn danger delete-dashboard-access" data-uid="${uid}">Retirer</button>
+    </div>
+  `).join('') || '<p class="muted">Aucun acces delegue.</p>';
+}
+
 async function renderPermissionsPage(id, container = app) {
   container.innerHTML = '<p class="muted">Chargement...</p>';
-  const [channels, roles] = await Promise.all([Api.channels(id), Api.roles(id)]);
+  const [channels, roles, config] = await Promise.all([Api.channels(id), Api.roles(id), Api.config(id)]);
   const editableChannels = channels.filter((c) => c.type === 0 || c.type === 2 || c.type === 4);
   const roleOptions = roles.filter((r) => r.name !== '@everyone').map((r) => `<option value="${r.id}">${escapeHtml(r.name)}</option>`).join('');
   const channelCheckboxes = editableChannels.map((c) => `
@@ -741,6 +750,7 @@ async function renderPermissionsPage(id, container = app) {
   `).join('');
   const presetOptions = PERMISSION_PRESETS.map((p) => `<option value="${p.key}">${escapeHtml(p.label)}</option>`).join('');
   const channelOptionsSimple = editableChannels.map((c) => `<option value="${c.id}">#${escapeHtml(c.name)}</option>`).join('');
+  let dashboardAllowedUserIds = config?.dashboardAllowedUserIds || [];
 
   container.innerHTML = `
     <div class="inner">
@@ -773,6 +783,15 @@ async function renderPermissionsPage(id, container = app) {
         <div class="row">
           <button class="btn secondary" id="reset-admin">Reinitialiser Administrateur</button>
           <button class="btn secondary" id="reset-mod">Reinitialiser Moderateur</button>
+        </div>
+      `)}
+
+      ${sectionHtml('Acces au dashboard (au-dela d\'Administrator Discord)', `
+        <p class="muted">Donne acces a ce dashboard a des membres specifiques (par ID Discord) meme s'ils n'ont pas la permission Administrator sur le serveur. Ils pourront tout configurer ici, comme un administrateur du dashboard.</p>
+        <div id="dashboard-access-list">${dashboardAccessRows(dashboardAllowedUserIds)}</div>
+        <div class="row" style="margin-top:10px;">
+          <input type="text" id="new-dashboard-access-id" placeholder="ID Discord du membre" style="flex:1;" />
+          <button class="btn secondary" id="add-dashboard-access">Ajouter</button>
         </div>
       `)}
     </div>
@@ -832,6 +851,40 @@ async function renderPermissionsPage(id, container = app) {
       showToast(err.message, 'error');
     }
   });
+
+  const refreshDashboardAccessRows = () => {
+    document.getElementById('dashboard-access-list').innerHTML = dashboardAccessRows(dashboardAllowedUserIds);
+    wireDashboardAccessDeleteButtons();
+  };
+  function wireDashboardAccessDeleteButtons() {
+    document.querySelectorAll('.delete-dashboard-access').forEach((btn) => {
+      btn.addEventListener('click', async () => {
+        try {
+          dashboardAllowedUserIds = dashboardAllowedUserIds.filter((uid) => uid !== btn.dataset.uid);
+          await Api.updateConfig(id, { dashboardAllowedUserIds });
+          refreshDashboardAccessRows();
+          showToast('Acces retire.');
+        } catch (err) {
+          showToast(err.message, 'error');
+        }
+      });
+    });
+  }
+  document.getElementById('add-dashboard-access').addEventListener('click', async () => {
+    const uid = document.getElementById('new-dashboard-access-id').value.trim();
+    if (!/^\d{5,25}$/.test(uid)) { showToast('ID Discord invalide.', 'error'); return; }
+    if (dashboardAllowedUserIds.includes(uid)) { showToast('Deja dans la liste.', 'error'); return; }
+    try {
+      dashboardAllowedUserIds = [...dashboardAllowedUserIds, uid];
+      await Api.updateConfig(id, { dashboardAllowedUserIds });
+      refreshDashboardAccessRows();
+      document.getElementById('new-dashboard-access-id').value = '';
+      showToast('Acces accorde.');
+    } catch (err) {
+      showToast(err.message, 'error');
+    }
+  });
+  wireDashboardAccessDeleteButtons();
 }
 
 const WEBHOOK_EVENT_LABELS = {
@@ -1028,9 +1081,11 @@ async function renderAutomationsPage(id, container = app) {
   container.innerHTML = '<p class="muted">Chargement...</p>';
   const [
     modConfig, roles, channels, levelRoles, referralRoles, referralCounts, streamers, scheduled, tickets, config,
+    shopItems, economyAccounts,
   ] = await Promise.all([
     Api.modConfig(id), Api.roles(id), Api.channels(id), Api.levelRoles(id), Api.referralRoles(id),
     Api.referrals(id), Api.streamers(id), Api.scheduled(id), Api.tickets(id), Api.config(id),
+    Api.shopItems(id).catch(() => []), Api.economyAccounts(id).catch(() => ({})),
   ]);
 
   const roleOptions = (selected) => roles.filter((r) => r.name !== '@everyone')
@@ -1056,6 +1111,21 @@ async function renderAutomationsPage(id, container = app) {
       <button class="btn danger delete-referral-role" data-count="${rr.count}">Supprimer</button>
     </div>
   `).join('') || '<p class="muted">Aucun role de parrainage configure.</p>';
+
+  const shopItemRows = shopItems.map((it) => `
+    <div class="row" data-id="${it.id}" style="justify-content:space-between; margin-bottom:6px;">
+      <span>${escapeHtml(it.name)} — 🪙 ${it.price}${it.roleId ? ` → ${escapeHtml(roleName(it.roleId))}` : ''}</span>
+      <button class="btn danger delete-shop-item" data-id="${it.id}">Supprimer</button>
+    </div>
+  `).join('') || '<p class="muted">Aucun article en boutique.</p>';
+
+  const economyLeaderboard = Object.entries(economyAccounts)
+    .sort((a, b) => b[1].balance - a[1].balance).slice(0, 10);
+  const economyLeaderboardRows = economyLeaderboard.map(([userId, acc], i) => `
+    <div class="row" style="justify-content:space-between; margin-bottom:4px;">
+      <span class="muted">${i + 1}. ${escapeHtml(userId)}</span><span>🪙 ${acc.balance}</span>
+    </div>
+  `).join('') || '<p class="muted">Aucune donnee pour le moment.</p>';
 
   const leaderboard = Object.entries(referralCounts).sort((a, b) => b[1] - a[1]).slice(0, 10);
   const leaderboardRows = leaderboard.map(([userId, count]) => `
@@ -1142,6 +1212,22 @@ async function renderAutomationsPage(id, container = app) {
           <input type="text" id="new-webhook-url" placeholder="https://..." style="flex:1; min-width:220px;" />
           <button class="btn secondary" id="add-webhook">Ajouter</button>
         </div>
+      `)}
+
+      ${sectionHtml('Economie : boutique (/shop, /daily, /pay, /balance)', `
+        <p class="muted">Les membres gagnent des pieces via /daily, peuvent en envoyer via /pay, et les depenser ici. Un article peut donner un role automatiquement.</p>
+        <div id="shop-items-list">${shopItemRows}</div>
+        <div class="row" style="margin-top:10px;">
+          <input type="text" id="new-shop-name" placeholder="Nom de l'article" style="flex:1; min-width:160px;" />
+          <input type="number" id="new-shop-price" placeholder="Prix" min="1" style="width:100px;" />
+          <select id="new-shop-role">
+            <option value="">Aucun role</option>
+            ${roleOptions()}
+          </select>
+          <button class="btn secondary" id="add-shop-item">Ajouter</button>
+        </div>
+        <h2 style="margin-top:18px; font-size:0.85rem;">Classement richesse</h2>
+        <div id="economy-leaderboard">${economyLeaderboardRows}</div>
       `)}
 
       ${sectionHtml('Auto-moderation', `
@@ -1362,6 +1448,31 @@ async function renderAutomationsPage(id, container = app) {
     }
   });
   wireWebhookDeleteButtons();
+
+  document.getElementById('add-shop-item').addEventListener('click', async () => {
+    const name = document.getElementById('new-shop-name').value.trim();
+    const price = Number(document.getElementById('new-shop-price').value);
+    const roleId = document.getElementById('new-shop-role').value || null;
+    if (!name || !price || price < 1) { showToast('Nom et prix valides requis.', 'error'); return; }
+    try {
+      await Api.addShopItem(id, { name, price, roleId });
+      showToast('Article ajoute.');
+      await renderAutomationsPage(id, container);
+    } catch (err) {
+      showToast(err.message, 'error');
+    }
+  });
+  container.querySelectorAll('.delete-shop-item').forEach((btn) => {
+    btn.addEventListener('click', async () => {
+      try {
+        await Api.deleteShopItem(id, btn.dataset.id);
+        showToast('Article supprime.');
+        await renderAutomationsPage(id, container);
+      } catch (err) {
+        showToast(err.message, 'error');
+      }
+    });
+  });
 
   document.getElementById('create-membercount-channel')?.addEventListener('click', async () => {
     try {

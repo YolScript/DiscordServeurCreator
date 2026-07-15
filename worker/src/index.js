@@ -17,6 +17,7 @@ import {
   getEmbedTemplates, putEmbedTemplates,
   getReactionRoleGroups, putReactionRoleGroups,
   getBotStatus,
+  getShopItems, putShopItems, getEconomyAccounts,
 } from './kvStore.js';
 import {
   bulkEditPermissions, exportChannelPermissions, importChannelPermissions, resetRoleToDefault, bitmaskFromNames,
@@ -42,11 +43,40 @@ async function requireSession(env, request) {
   return refreshTokenIfNeeded(env, session);
 }
 
+// Liste tous les guildId ayant une config KV (meme scan que
+// snapshotAllGuilds) puis filtre ceux ou userId a ete ajoute a
+// dashboardAllowedUserIds (acces dashboard delegue, independant du bit
+// Administrator Discord).
+async function getDelegatedGuildIds(env, userId) {
+  const guildIds = new Set();
+  let cursor;
+  do {
+    // eslint-disable-next-line no-await-in-loop
+    const page = await env.GUILD_KV.list({ prefix: 'guild:', cursor });
+    for (const { name } of page.keys) {
+      const match = name.match(/^guild:([^:]+):config$/);
+      if (match) guildIds.add(match[1]);
+    }
+    cursor = page.list_complete ? undefined : page.cursor;
+  } while (cursor);
+
+  const delegated = [];
+  for (const gid of guildIds) {
+    // eslint-disable-next-line no-await-in-loop
+    const config = await getGuildConfig(env, gid);
+    if (config?.dashboardAllowedUserIds?.includes(userId)) delegated.push(gid);
+  }
+  return delegated;
+}
+
 async function requireGuildAccess(env, request, guildId) {
   const session = await requireSession(env, request);
   const adminGuildIds = await getUserAdminGuildIds(env, session);
   if (!adminGuildIds.includes(guildId)) {
-    throw new HttpError(403, "Tu n'es pas administrateur de ce serveur.");
+    const config = await getGuildConfig(env, guildId);
+    if (!config?.dashboardAllowedUserIds?.includes(session.userId)) {
+      throw new HttpError(403, "Tu n'es pas administrateur de ce serveur.");
+    }
   }
   const botGuildRes = await botFetch(env, `/guilds/${guildId}`);
   if (!botGuildRes.ok) throw new HttpError(404, "Le bot n'est pas present sur ce serveur.");
@@ -114,6 +144,23 @@ async function router(request, env) {
           configured: Boolean(config), template: config?.template ?? null,
         });
       }
+
+      // Serveurs ou l'utilisateur n'est pas Administrator Discord mais a ete
+      // ajoute a dashboardAllowedUserIds (acces dashboard delegue).
+      const knownIds = new Set(results.map((r) => r.guildId));
+      const delegatedGuildIds = await getDelegatedGuildIds(env, session.userId);
+      for (const gid of delegatedGuildIds) {
+        if (knownIds.has(gid)) continue;
+        const botGuildRes = await botFetch(env, `/guilds/${gid}`);
+        if (!botGuildRes.ok) continue;
+        const guild = await botGuildRes.json();
+        const config = await getGuildConfig(env, gid);
+        results.push({
+          guildId: gid, botPresent: true, name: guild.name, icon: guild.icon,
+          configured: Boolean(config), template: config?.template ?? null, delegated: true,
+        });
+      }
+
       return json(results, env);
     }
 
@@ -645,6 +692,35 @@ async function router(request, env) {
       const items = (await getReactionRoleGroups(env, guildId)).filter((g) => g.id !== parts[4]);
       await putReactionRoleGroups(env, guildId, items);
       return json({ ok: true }, env);
+    }
+
+    // --- Boutique economie ---
+    if (sub === 'shop' && parts.length === 4) {
+      await requireGuildAccess(env, request, guildId);
+      if (method === 'GET') return json(await getShopItems(env, guildId), env);
+      if (method === 'POST') {
+        const { name, price, roleId } = await readJson(request);
+        if (!name || !price) throw new HttpError(400, 'name et price requis.');
+        const items = await getShopItems(env, guildId);
+        const entry = {
+          id: `${Date.now().toString(36)}${Math.random().toString(36).slice(2, 6)}`, name, price: Number(price), roleId: roleId || null,
+        };
+        items.push(entry);
+        await putShopItems(env, guildId, items);
+        return json(entry, env);
+      }
+    }
+    if (sub === 'shop' && parts.length === 5 && method === 'DELETE') {
+      await requireGuildAccess(env, request, guildId);
+      const items = (await getShopItems(env, guildId)).filter((i) => i.id !== parts[4]);
+      await putShopItems(env, guildId, items);
+      return json({ ok: true }, env);
+    }
+
+    // --- Economie : lecture seule (classement) ---
+    if (sub === 'economy' && parts.length === 4 && method === 'GET') {
+      await requireGuildAccess(env, request, guildId);
+      return json(await getEconomyAccounts(env, guildId), env);
     }
 
     // --- Service (staff en service) ---
