@@ -63,6 +63,15 @@ async function syncGameChannels(guild) {
     if (!validChannelIds.has(channel.id)) await channel.delete().catch(() => {});
   }
 
+  // La categorie elle-meme n'est visible que pour ceux qui ont au moins un
+  // role de jeu (sinon elle apparaissait vide pour tout le monde). Le salon
+  // "Creer un vocal" n'a pas d'overwrite propre : il herite donc de ce meme
+  // filtrage.
+  await category.permissionOverwrites.set([
+    { id: guild.roles.everyone.id, deny: [P.ViewChannel] },
+    ...roles.map((role) => ({ id: role.roleId, allow: [P.ViewChannel] })),
+  ]).catch(() => {});
+
   if (changed) await gameRoleStore.replaceAll(guild.id, roles);
 }
 
