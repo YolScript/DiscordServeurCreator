@@ -99,6 +99,19 @@ function initials(name) {
   return (name || '?').trim().slice(0, 2).toUpperCase();
 }
 
+// Transition douce (crossfade natif) entre deux etats du panel principal du
+// Server Builder, via l'API View Transitions du navigateur. Se degrade en
+// appel direct si l'API est absente ou si l'utilisateur demande moins de
+// mouvement : la navigation reste fonctionnelle dans tous les cas.
+function withViewTransition(renderFn) {
+  const reduceMotion = window.matchMedia?.('(prefers-reduced-motion: reduce)').matches;
+  if (reduceMotion || !document.startViewTransition) {
+    renderFn();
+    return;
+  }
+  document.startViewTransition(() => renderFn());
+}
+
 /* ---------- Collapsible sections ---------- */
 
 function sectionHtml(title, bodyHtml, { hint = '', open = false } = {}) {
@@ -419,7 +432,9 @@ async function renderPreviewPage(id) {
       app.querySelectorAll('.dp-channel').forEach((el) => el.classList.remove('selected'));
       chEl.classList.add('selected');
       window.UISound?.select();
-      renderChannelPanel(id, chEl.dataset.channel, chEl.dataset.name, Number(chEl.dataset.type), config, channels);
+      withViewTransition(() => {
+        renderChannelPanel(id, chEl.dataset.channel, chEl.dataset.name, Number(chEl.dataset.type), config, channels);
+      });
     });
   });
 
@@ -428,7 +443,7 @@ async function renderPreviewPage(id) {
       app.querySelectorAll('.dp-channel').forEach((e) => e.classList.remove('selected'));
       el.classList.add('selected');
       window.UISound?.select();
-      renderSettingsPanel(id, el.dataset.settings);
+      withViewTransition(() => { renderSettingsPanel(id, el.dataset.settings); });
     });
   });
 
