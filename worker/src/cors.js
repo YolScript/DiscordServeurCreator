@@ -1,10 +1,23 @@
 export function corsHeaders(env) {
   return {
-    'Access-Control-Allow-Origin': env.FRONTEND_ORIGIN,
+    'Access-Control-Allow-Origin': env.RESOLVED_CORS_ORIGIN || env.FRONTEND_ORIGIN,
     'Access-Control-Allow-Credentials': 'true',
     'Access-Control-Allow-Methods': 'GET,POST,PATCH,DELETE,OPTIONS',
     'Access-Control-Allow-Headers': 'Content-Type',
+    Vary: 'Origin',
   };
+}
+
+// Autorise le domaine de prod (env.FRONTEND_ORIGIN) et, en plus, tout
+// localhost/127.0.0.1 quel que soit le port : pratique pour tester le
+// dashboard en local (docs/ servi statiquement) sans jamais elargir le CORS
+// a un domaine tiers arbitraire (Access-Control-Allow-Credentials est actif).
+export function resolveCorsOrigin(request, env) {
+  const origin = request.headers.get('Origin');
+  if (!origin) return env.FRONTEND_ORIGIN;
+  if (origin === env.FRONTEND_ORIGIN) return origin;
+  if (/^https?:\/\/(localhost|127\.0\.0\.1)(:\d+)?$/.test(origin)) return origin;
+  return env.FRONTEND_ORIGIN;
 }
 
 export function withCors(response, env) {

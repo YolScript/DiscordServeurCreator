@@ -1,4 +1,6 @@
-import { json, preflightResponse, withCors } from './cors.js';
+import {
+  json, preflightResponse, withCors, resolveCorsOrigin,
+} from './cors.js';
 import {
   handleLogin, handleCallback, refreshTokenIfNeeded, getUserAdminGuildIds, getUserAdminGuilds,
 } from './oauth.js';
@@ -842,7 +844,8 @@ async function snapshotAllGuilds(env) {
 }
 
 export default {
-  async fetch(request, env) {
+  async fetch(request, rawEnv) {
+    const env = { ...rawEnv, RESOLVED_CORS_ORIGIN: resolveCorsOrigin(request, rawEnv) };
     try {
       return await router(request, env);
     } catch (err) {
