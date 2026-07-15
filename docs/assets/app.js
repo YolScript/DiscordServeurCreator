@@ -103,6 +103,12 @@ function guildIconUrl(g) {
   return g.icon ? `https://cdn.discordapp.com/icons/${g.guildId}/${g.icon}.png?size=64` : null;
 }
 
+function memberAvatarUrl(m) {
+  return m.avatar
+    ? `https://cdn.discordapp.com/avatars/${m.userId}/${m.avatar}.png?size=32`
+    : `https://cdn.discordapp.com/embed/avatars/${Number((BigInt(m.userId) >> 22n) % 6n)}.png`;
+}
+
 function initials(name) {
   return (name || '?').trim().slice(0, 2).toUpperCase();
 }
@@ -319,9 +325,9 @@ function roleColorDot(role) {
 }
 
 function roleRowHtml(role, members) {
-  const memberNames = role.name === '@everyone'
-    ? members.map((m) => m.displayName)
-    : members.filter((m) => (m.roles || []).includes(role.id)).map((m) => m.displayName);
+  const roleMembers = role.name === '@everyone'
+    ? members
+    : members.filter((m) => (m.roles || []).includes(role.id));
   const perms = decodeRolePermissions(role.permissions);
   const isEveryone = role.name === '@everyone';
   const hex = role.color ? `#${role.color.toString(16).padStart(6, '0')}` : '#99aab5';
@@ -331,7 +337,7 @@ function roleRowHtml(role, members) {
         ${!isEveryone ? '<span class="dp-role-handle">⠿</span>' : ''}
         ${roleColorDot(role)}
         <span class="dp-role-name">${escapeHtml(role.name)}</span>
-        <span class="dp-role-count">${memberNames.length}</span>
+        <span class="dp-role-count">${roleMembers.length}</span>
         ${!isEveryone ? `<button type="button" class="dp-role-settings" data-role-settings="${role.id}" title="Configurer">⚙</button>` : ''}
       </div>
       <div class="dp-role-detail">
@@ -340,9 +346,19 @@ function roleRowHtml(role, members) {
           <input type="color" class="dp-role-color-input" value="${hex}" data-role="${role.id}" />
         ` : ''}
         <p class="dp-role-detail-title">Permissions</p>
-        <p class="muted">${perms.length ? escapeHtml(perms.join(', ')) : 'Aucune permission particuliere'}</p>
-        <p class="dp-role-detail-title">Membres (${memberNames.length})</p>
-        <p class="muted">${memberNames.length ? escapeHtml(memberNames.join(', ')) : 'Aucun membre'}</p>
+        ${perms.length
+    ? `<ul class="dp-perm-list">${perms.map((p) => `<li>${escapeHtml(p)}</li>`).join('')}</ul>`
+    : '<p class="muted">Aucune permission particuliere</p>'}
+        <p class="dp-role-detail-title">Membres (${roleMembers.length})</p>
+        ${roleMembers.length ? `
+          <div class="dp-member-list">
+            ${roleMembers.map((m) => `
+              <div class="dp-member-row">
+                <img class="dp-member-avatar" src="${memberAvatarUrl(m)}" alt="" />
+                <span>${escapeHtml(m.displayName)}</span>
+              </div>
+            `).join('')}
+          </div>` : '<p class="muted">Aucun membre</p>'}
       </div>
     </div>`;
 }
@@ -1447,12 +1463,20 @@ function roleActionDetailHtml(key, ctx) {
       </div>`;
   }
   if (key === 'permissions') {
-    const perms = decodeRolePermissions(role?.permissions);
+    const mask = BigInt(role?.permissions || '0');
     return `
       <div class="dp-block">
         <p class="dp-block-title">🔐 Permissions</p>
-        <p class="muted">${perms.length ? escapeHtml(perms.join(', ')) : 'Aucune permission particuliere'}</p>
-        <p class="muted" style="margin-top:12px;">Pour une edition fine, utilise la page Permissions.</p>
+        <p class="muted" style="margin:0 0 10px;">Coche ou decoche pour ajouter/retirer une permission a ce role.</p>
+        <div class="dp-perm-checklist">
+          ${Object.entries(PERMISSION_BITS).map(([permName, bit]) => `
+            <label class="dp-toggle-row" style="margin-top:6px;">
+              <span>${escapeHtml(PERMISSION_LABELS[permName] || permName)}</span>
+              <input type="checkbox" class="dp-role-perm-check" data-perm="${permName}" ${(mask & bit) ? 'checked' : ''} />
+            </label>
+          `).join('')}
+        </div>
+        <button class="btn" id="dp-role-save-perms" style="margin-top:12px;">Enregistrer les permissions</button>
       </div>`;
   }
   if (key === 'members') {
@@ -1509,6 +1533,21 @@ function renderRolePanel(guildId, roleId, name, config, roles, members) {
           showToast('Couleur mise a jour.');
           const dot = document.querySelector(`.dp-role-row[data-role="${roleId}"] .dp-role-dot`);
           if (dot) dot.style.background = e.target.value;
+        } catch (err) {
+          showToast(err.message, 'error');
+        }
+      });
+    }
+    if (key === 'permissions') {
+      scope.querySelector('#dp-role-save-perms').addEventListener('click', async () => {
+        let mask = 0n;
+        scope.querySelectorAll('.dp-role-perm-check').forEach((input) => {
+          if (input.checked) mask |= PERMISSION_BITS[input.dataset.perm];
+        });
+        try {
+          await Api.setRolePermissions(guildId, roleId, mask.toString());
+          showToast('Permissions mises a jour.');
+          await renderPreviewPage(guildId);
         } catch (err) {
           showToast(err.message, 'error');
         }
