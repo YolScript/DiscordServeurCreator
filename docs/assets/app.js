@@ -222,6 +222,8 @@ const SETTINGS_PANELS = [
   { key: 'auditlog', label: "Logs d'audit" },
   { key: 'embedbuilder', label: 'Generateur embed' },
   { key: 'botstatus', label: 'Statut du bot' },
+  { key: 'templates', label: 'Templates' },
+  { key: 'customcommands', label: 'Commandes personnalisees' },
 ];
 
 function customChannelFormHtml(catId) {
@@ -487,6 +489,8 @@ function renderSettingsPanel(guildId, key) {
     auditlog: () => renderAuditLogPage(guildId, body),
     embedbuilder: () => renderEmbedBuilderPage(guildId, body),
     botstatus: () => renderBotStatusPage(body),
+    templates: () => renderTemplatesPage(guildId, body),
+    customcommands: () => renderCustomCommandsPage(guildId, body),
   };
   renderers[key]?.();
 }
@@ -499,9 +503,14 @@ function contextualChannelSettingsHtml(channelId, config) {
         <label>Texte du reglement</label>
         <textarea id="dp-ctx-reglement">${escapeHtml(config?.reglementText)}</textarea>
         <div class="dp-toggle-row" style="margin-top:8px;">
-          <span>Verification anti-bot (captcha emoji) avant validation</span>
+          <span>Verification anti-bot avant validation</span>
           <input type="checkbox" id="dp-ctx-captcha" ${config?.captchaEnabled === false ? '' : 'checked'} />
         </div>
+        <label style="margin-top:10px;">Type de captcha</label>
+        <select id="dp-ctx-captcha-type">
+          <option value="emoji" ${config?.captchaType === 'image' ? '' : 'selected'}>Emoji (clique sur le bon symbole)</option>
+          <option value="image" ${config?.captchaType === 'image' ? 'selected' : ''}>Image (recopier un code)</option>
+        </select>
         <div class="row" style="margin-top:12px;">
           <button class="btn secondary" id="dp-ctx-save-reglement">Enregistrer le reglement</button>
           <button class="btn secondary" id="dp-ctx-repost-reglement">🔁 Reposter l'embed</button>
@@ -598,6 +607,7 @@ function renderChannelPanel(guildId, channelId, name, type, config, channels) {
         await Api.updateConfig(guildId, {
           reglementText: document.getElementById('dp-ctx-reglement').value,
           captchaEnabled: document.getElementById('dp-ctx-captcha').checked,
+          captchaType: document.getElementById('dp-ctx-captcha-type').value,
         });
         showToast('Reglement enregistre.');
       } catch (err) {
@@ -2341,6 +2351,125 @@ async function renderBotStatusPage(container = app) {
     </div>
   `;
   wireSections(container);
+}
+
+async function renderTemplatesPage(guildId, container = app) {
+  container.innerHTML = '<p class="muted">Chargement...</p>';
+  const templates = await Api.templates().catch(() => []);
+
+  const rows = templates.map((t) => `
+    <div class="row" data-id="${t.id}" style="justify-content:space-between; margin-bottom:6px;">
+      <span>${escapeHtml(t.name)} <span class="muted">(source : ${escapeHtml(t.sourceGuildId)})</span></span>
+      <button class="btn danger delete-template" data-id="${t.id}">Supprimer</button>
+    </div>
+  `).join('') || '<p class="muted">Aucun template enregistre.</p>';
+
+  container.innerHTML = `
+    <div class="inner">
+      ${sectionHtml('Templates reutilisables', `
+        <p class="muted">Un template est une copie vivante de la structure d'un serveur (roles, salons, permissions, textes) : elle reste a jour automatiquement et peut etre appliquee a n'importe quel nouveau serveur via la commande /setup (menu deroulant avec recherche).</p>
+        <div id="templates-list">${rows}</div>
+        <div class="row" style="margin-top:10px;">
+          <input type="text" id="new-template-name" placeholder="Nom du template" style="flex:1;" />
+          <button class="btn secondary" id="save-current-as-template">Enregistrer CE serveur comme template</button>
+        </div>
+      `, { open: true })}
+    </div>
+  `;
+  wireSections(container);
+
+  document.getElementById('save-current-as-template').addEventListener('click', async () => {
+    const name = document.getElementById('new-template-name').value.trim();
+    if (!name) { showToast('Nom requis.', 'error'); return; }
+    try {
+      await Api.saveTemplate(name, guildId);
+      showToast('Template enregistre.');
+      await renderTemplatesPage(guildId, container);
+    } catch (err) {
+      showToast(err.message, 'error');
+    }
+  });
+  container.querySelectorAll('.delete-template').forEach((btn) => {
+    btn.addEventListener('click', async () => {
+      if (!window.confirm('Supprimer ce template ?')) return;
+      try {
+        await Api.deleteTemplate(btn.dataset.id);
+        showToast('Template supprime.');
+        await renderTemplatesPage(guildId, container);
+      } catch (err) {
+        showToast(err.message, 'error');
+      }
+    });
+  });
+}
+
+async function renderCustomCommandsPage(guildId, container = app) {
+  container.innerHTML = '<p class="muted">Chargement...</p>';
+  const [commands, roles] = await Promise.all([
+    Api.customCommands(guildId).catch(() => []), Api.roles(guildId).catch(() => []),
+  ]);
+  const roleName = (rid) => roles.find((r) => r.id === rid)?.name || rid;
+  const roleOptions = roles.filter((r) => r.name !== '@everyone')
+    .map((r) => `<option value="${r.id}">${escapeHtml(r.name)}</option>`).join('');
+
+  const rows = commands.map((c) => `
+    <div class="row" data-id="${c.id}" style="justify-content:space-between; align-items:flex-start; margin-bottom:6px;">
+      <span>/${escapeHtml(c.name)} — <span class="muted">${escapeHtml(c.description)}</span>${c.requiredRoleId ? ` <span class="muted">(role requis : ${escapeHtml(roleName(c.requiredRoleId))})</span>` : ''}<br /><span class="muted">${escapeHtml(c.response).slice(0, 100)}</span></span>
+      <button class="btn danger delete-custom-command" data-id="${c.id}">Supprimer</button>
+    </div>
+  `).join('') || '<p class="muted">Aucune commande personnalisee.</p>';
+
+  container.innerHTML = `
+    <div class="inner">
+      ${sectionHtml('Commandes slash personnalisees (no-code)', `
+        <p class="muted">Cree une commande /nom qui repond avec un texte fixe. Variables disponibles dans la reponse : {user}, {username}, {server}, {membercount}. Disponible en quelques minutes apres creation (Discord met a jour son cache de commandes).</p>
+        <div id="custom-commands-list">${rows}</div>
+        <label style="margin-top:14px;">Nom (minuscules, sans espace)</label>
+        <input type="text" id="new-cmd-name" placeholder="regles" maxlength="32" />
+        <label>Description</label>
+        <input type="text" id="new-cmd-description" placeholder="Affiche les regles du serveur" maxlength="100" />
+        <label>Reponse</label>
+        <textarea id="new-cmd-response" placeholder="Bienvenue {user} ! Consulte les regles dans #reglement."></textarea>
+        <label>Role requis (optionnel)</label>
+        <select id="new-cmd-role">
+          <option value="">Aucun</option>
+          ${roleOptions}
+        </select>
+        <button class="btn" id="add-custom-command" style="margin-top:10px;">Creer la commande</button>
+      `, { open: true })}
+    </div>
+  `;
+  wireSections(container);
+
+  document.getElementById('add-custom-command').addEventListener('click', async () => {
+    const name = document.getElementById('new-cmd-name').value.trim().toLowerCase();
+    const description = document.getElementById('new-cmd-description').value.trim();
+    const response = document.getElementById('new-cmd-response').value.trim();
+    const requiredRoleId = document.getElementById('new-cmd-role').value || null;
+    if (!/^[a-z0-9_-]{1,32}$/.test(name)) { showToast('Nom invalide (minuscules, chiffres, - ou _ uniquement).', 'error'); return; }
+    if (!description || !response) { showToast('Description et reponse requises.', 'error'); return; }
+    try {
+      await Api.addCustomCommand(guildId, {
+        name, description, response, requiredRoleId,
+      });
+      showToast('Commande creee.');
+      await renderCustomCommandsPage(guildId, container);
+    } catch (err) {
+      showToast(err.message, 'error');
+    }
+  });
+  container.querySelectorAll('.delete-custom-command').forEach((btn) => {
+    btn.addEventListener('click', async () => {
+      if (!window.confirm('Supprimer cette commande ?')) return;
+      try {
+        await Api.deleteCustomCommand(guildId, btn.dataset.id);
+        showToast('Commande supprimee.');
+        await renderCustomCommandsPage(guildId, container);
+      } catch (err) {
+        showToast(err.message, 'error');
+      }
+    });
+  });
 }
 
 /* ---------- Boot ---------- */

@@ -3,10 +3,13 @@ const guildConfigStore = require('../../../kv/guildConfigStore');
 const gameRoleStore = require('../../../kv/gameRoleStore');
 const moderationConfigStore = require('../../../kv/moderationConfigStore');
 
-// Serveur de reference : "ServeurCreator" est administre a la main et sert de
-// modele vivant. Au lieu d'un snapshot fige, /setup relit sa structure REELLE
-// a chaque utilisation (roles, categories, salons, textes) -> le template
-// reste automatiquement a jour sans synchronisation a maintenir.
+// Serveur de reference par defaut : "ServeurCreator" est administre a la
+// main et sert de modele vivant. Au lieu d'un snapshot fige, /setup relit sa
+// structure REELLE a chaque utilisation (roles, categories, salons, textes)
+// -> le template reste automatiquement a jour sans synchronisation a
+// maintenir. N'importe quel serveur configure par le bot peut aussi servir
+// de source (cf templateRegistryStore) : buildLiveTemplate accepte alors son
+// guildId a la place de cette constante.
 const SOURCE_GUILD_ID = '1526242972989915307';
 
 // Roles "de base" du template, dans l'ordre du haut vers le bas (identique a
@@ -65,13 +68,14 @@ function translateOverwrites(sourceOverwrites, roleIdToKey, roleIds) {
   return result;
 }
 
-async function buildLiveTemplate(client) {
-  const sourceGuild = await client.guilds.fetch(SOURCE_GUILD_ID);
-  const sourceConfig = await guildConfigStore.find(SOURCE_GUILD_ID);
-  if (!sourceConfig) throw new Error('Serveur de reference introuvable ou non configure.');
+async function buildLiveTemplate(client, sourceGuildId = SOURCE_GUILD_ID, label) {
+  const sourceGuild = await client.guilds.fetch(sourceGuildId).catch(() => null);
+  if (!sourceGuild) throw new Error("Serveur source introuvable (le bot n'y est peut-etre plus).");
+  const sourceConfig = await guildConfigStore.find(sourceGuildId);
+  if (!sourceConfig) throw new Error('Serveur source introuvable ou non configure.');
 
   const allRoles = await sourceGuild.roles.fetch();
-  const roleIdToKey = { [SOURCE_GUILD_ID]: 'everyone' };
+  const roleIdToKey = { [sourceGuildId]: 'everyone' };
   const ROLE_BLUEPRINT = [];
   for (const [key, configField] of Object.entries(BASE_ROLE_CONFIG_KEYS)) {
     const role = allRoles.get(sourceConfig[configField]);
@@ -83,7 +87,7 @@ async function buildLiveTemplate(client) {
     });
   }
 
-  const gameRoles = (await gameRoleStore.list(SOURCE_GUILD_ID))
+  const gameRoles = (await gameRoleStore.list(sourceGuildId))
     .filter((r) => allRoles.get(r.roleId) && !allRoles.get(r.roleId).managed);
 
   const { categories: excludedCategoryIds, channels: excludedChannelIds } = excludedIds(sourceConfig);
@@ -124,7 +128,7 @@ async function buildLiveTemplate(client) {
 
   return {
     key: 'live',
-    label: `Copie de ${sourceGuild.name} (a jour)`,
+    label: label || `Copie de ${sourceGuild.name} (a jour)`,
     ROLE_BLUEPRINT,
     getChannelBlueprint,
     specialKeys: {
@@ -142,7 +146,7 @@ async function buildLiveTemplate(client) {
       captchaEnabled: sourceConfig.captchaEnabled,
       reglementTranslations: sourceConfig.reglementTranslations,
     },
-    modConfig: await moderationConfigStore.find(SOURCE_GUILD_ID),
+    modConfig: await moderationConfigStore.find(sourceGuildId),
   };
 }
 

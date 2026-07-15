@@ -100,6 +100,12 @@ window.Api = (function api() {
     addShopItem: (guildId, payload) => request(`/api/guilds/${guildId}/shop`, { method: 'POST', body: JSON.stringify(payload) }),
     deleteShopItem: (guildId, itemId) => request(`/api/guilds/${guildId}/shop/${itemId}`, { method: 'DELETE' }),
     economyAccounts: (guildId) => request(`/api/guilds/${guildId}/economy`),
+    templates: () => request('/api/templates'),
+    saveTemplate: (name, sourceGuildId) => request('/api/templates', { method: 'POST', body: JSON.stringify({ name, sourceGuildId }) }),
+    deleteTemplate: (templateId) => request(`/api/templates/${templateId}`, { method: 'DELETE' }),
+    customCommands: (guildId) => request(`/api/guilds/${guildId}/customcommands`),
+    addCustomCommand: (guildId, payload) => request(`/api/guilds/${guildId}/customcommands`, { method: 'POST', body: JSON.stringify(payload) }),
+    deleteCustomCommand: (guildId, cmdId) => request(`/api/guilds/${guildId}/customcommands/${cmdId}`, { method: 'DELETE' }),
   };
 }());
 

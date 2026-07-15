@@ -1,8 +1,13 @@
 const {
-  MessageFlags, ActionRowBuilder, ButtonBuilder, ButtonStyle,
+  MessageFlags, ActionRowBuilder, ButtonBuilder, ButtonStyle, AttachmentBuilder,
+  ModalBuilder, TextInputBuilder, TextInputStyle,
 } = require('discord.js');
 const guildConfigStore = require('../../../kv/guildConfigStore');
-const { CAPTCHA_OK, CAPTCHA_NO } = require('../customIds');
+const captchaStore = require('../../../kv/captchaStore');
+const { randomCode, generateCaptchaImage } = require('../../moderation/captchaImage');
+const {
+  CAPTCHA_OK, CAPTCHA_NO, CAPTCHA_IMAGE_VERIFY, CAPTCHA_IMAGE_MODAL,
+} = require('../customIds');
 
 const EMOJI_POOL = ['🔵', '🟢', '🟡', '🟣', '🔴', '⚪', '🟠', '🟤'];
 
@@ -23,6 +28,22 @@ async function handleReglementAccept(interaction) {
   if (config.captchaEnabled === false) {
     await interaction.member.roles.add(config.reglementValidatedRoleId).catch(() => {});
     await interaction.reply({ content: 'Reglement accepte, bienvenue !', flags: MessageFlags.Ephemeral });
+    return;
+  }
+
+  if (config.captchaType === 'image') {
+    const code = randomCode();
+    await captchaStore.set(interaction.guild.id, interaction.user.id, code);
+    const png = await generateCaptchaImage(code);
+    const row = new ActionRowBuilder().addComponents(
+      new ButtonBuilder().setCustomId(CAPTCHA_IMAGE_VERIFY).setLabel('Entrer le code').setStyle(ButtonStyle.Primary),
+    );
+    await interaction.reply({
+      content: 'Verification anti-bot : recopie le code affiche sur l\'image ci-dessous.',
+      files: [new AttachmentBuilder(png, { name: 'captcha.png' })],
+      components: [row],
+      flags: MessageFlags.Ephemeral,
+    });
     return;
   }
 
@@ -59,4 +80,37 @@ async function handleCaptchaResult(interaction, success) {
   await interaction.reply({ content: 'Verification reussie, reglement accepte, bienvenue !', flags: MessageFlags.Ephemeral });
 }
 
-module.exports = { handleReglementAccept, handleCaptchaResult };
+async function handleCaptchaImageVerifyButton(interaction) {
+  const modal = new ModalBuilder().setCustomId(CAPTCHA_IMAGE_MODAL).setTitle('Verification anti-bot');
+  const input = new TextInputBuilder()
+    .setCustomId('code')
+    .setLabel('Code affiche sur l\'image')
+    .setStyle(TextInputStyle.Short)
+    .setMinLength(4)
+    .setMaxLength(6)
+    .setRequired(true);
+  modal.addComponents(new ActionRowBuilder().addComponents(input));
+  await interaction.showModal(modal);
+}
+
+async function handleCaptchaImageModal(interaction) {
+  const code = interaction.fields.getTextInputValue('code');
+  const ok = await captchaStore.verify(interaction.guild.id, interaction.user.id, code);
+
+  if (!ok) {
+    await interaction.reply({ content: 'Code incorrect ou expire. Reclique sur "J\'accepte le reglement" pour reessayer.', flags: MessageFlags.Ephemeral });
+    return;
+  }
+
+  const config = await guildConfigStore.find(interaction.guild.id);
+  if (!config?.reglementValidatedRoleId) {
+    await interaction.reply({ content: 'Configuration introuvable pour ce serveur.', flags: MessageFlags.Ephemeral });
+    return;
+  }
+  await interaction.member.roles.add(config.reglementValidatedRoleId).catch(() => {});
+  await interaction.reply({ content: 'Verification reussie, reglement accepte, bienvenue !', flags: MessageFlags.Ephemeral });
+}
+
+module.exports = {
+  handleReglementAccept, handleCaptchaResult, handleCaptchaImageVerifyButton, handleCaptchaImageModal,
+};

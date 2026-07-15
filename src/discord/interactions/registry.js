@@ -4,6 +4,7 @@ const {
   GAME_SELECT_PREFIX, GAME_PSEUDO_MODAL_PREFIX, GAME_PSEUDO_BUTTON_PREFIX, POLL_VOTE_PREFIX, GIVEAWAY_ENTER_PREFIX,
   CAPTCHA_OK, CAPTCHA_NO, TICKET_OPEN, POLL_CREATE_OPEN, POLL_CREATE_MODAL, TICKET_RATE_PREFIX,
   SUGGESTION_VOTE_PREFIX, SUGGESTION_APPROVE_PREFIX, SUGGESTION_DENY_PREFIX, SHOP_BUY_PREFIX,
+  CAPTCHA_IMAGE_VERIFY, CAPTCHA_IMAGE_MODAL,
 } = require('./customIds');
 const pollManager = require('../engagement/pollManager');
 const giveawayManager = require('../engagement/giveawayManager');
@@ -13,7 +14,9 @@ const {
 } = require('../support/ticketManager');
 const handlePollCreateButton = require('./buttons/pollCreateButton');
 const handlePollCreateModal = require('./modals/pollCreateModal');
-const { handleReglementAccept, handleCaptchaResult } = require('./buttons/reglementAccept');
+const {
+  handleReglementAccept, handleCaptchaResult, handleCaptchaImageVerifyButton, handleCaptchaImageModal,
+} = require('./buttons/reglementAccept');
 const { handleReglementTranslate, handleReglementTranslateSelect } = require('./buttons/reglementTranslate');
 const handleAgeButton = require('./buttons/ageButtons');
 const handleGamePseudoButton = require('./buttons/gamePseudoButton');
@@ -22,6 +25,8 @@ const handleReactionRoleSelect = require('./selectMenus/reactionRoleSelect');
 const { SELECT_PREFIX: REACTION_ROLE_SELECT_PREFIX } = require('../roles/reactionRoleManager');
 const handleGamePseudoModal = require('./modals/gamePseudoModal');
 const handleSetupCommand = require('../commands/setup');
+const { listTemplateChoices } = require('../guildSetup/templates');
+const handleCustomCommand = require('../commands/customCommand');
 const handleReglementTranslationCommand = require('../commands/reglementTranslation');
 const handleWarnCommand = require('../commands/warn');
 const handleWarningsCommand = require('../commands/warnings');
@@ -107,9 +112,25 @@ const commandHandlers = {
 
 async function routeInteraction(interaction) {
   try {
+    if (interaction.isAutocomplete()) {
+      if (interaction.commandName === 'setup') {
+        const focused = interaction.options.getFocused().toLowerCase();
+        const choices = await listTemplateChoices();
+        const filtered = choices
+          .filter((c) => c.label.toLowerCase().includes(focused))
+          .slice(0, 25)
+          .map((c) => ({ name: c.label.slice(0, 100), value: c.key }));
+        await interaction.respond(filtered).catch(() => {});
+      }
+      return;
+    }
     if (interaction.isChatInputCommand()) {
       const handler = commandHandlers[interaction.commandName];
-      if (handler) await handler(interaction);
+      if (handler) {
+        await handler(interaction);
+      } else if (interaction.guild) {
+        await handleCustomCommand(interaction);
+      }
       return;
     }
     if (interaction.isButton()) {
@@ -165,6 +186,8 @@ async function routeInteraction(interaction) {
       } else if (interaction.customId.startsWith(SHOP_BUY_PREFIX)) {
         const itemId = interaction.customId.slice(SHOP_BUY_PREFIX.length);
         await handleShopBuyButton(interaction, itemId);
+      } else if (interaction.customId === CAPTCHA_IMAGE_VERIFY) {
+        await handleCaptchaImageVerifyButton(interaction);
       }
       return;
     }
@@ -186,6 +209,9 @@ async function routeInteraction(interaction) {
     }
     if (interaction.isModalSubmit() && interaction.customId === POLL_CREATE_MODAL) {
       await handlePollCreateModal(interaction);
+    }
+    if (interaction.isModalSubmit() && interaction.customId === CAPTCHA_IMAGE_MODAL) {
+      await handleCaptchaImageModal(interaction);
     }
   } catch (err) {
     logger.error('Erreur lors du traitement d\'une interaction', err);

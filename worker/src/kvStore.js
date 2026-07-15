@@ -13,6 +13,7 @@ const embedTemplatesKey = (guildId) => `guild:${guildId}:embedtemplates`;
 const reactionRolesKey = (guildId) => `guild:${guildId}:reactionroles`;
 const shopKey = (guildId) => `guild:${guildId}:shop`;
 const economyKey = (guildId) => `guild:${guildId}:economy`;
+const customCommandsKey = (guildId) => `guild:${guildId}:customcommands`;
 
 const MOD_CONFIG_DEFAULTS = {
   autoModEnabled: true,
@@ -94,9 +95,22 @@ export const getEmbedTemplates = (env, guildId) => getList(env, embedTemplatesKe
 export const getShopItems = (env, guildId) => getList(env, shopKey(guildId));
 export const putShopItems = (env, guildId, items) => putList(env, shopKey(guildId), items);
 
+export const getCustomCommands = (env, guildId) => getList(env, customCommandsKey(guildId));
+export const putCustomCommands = (env, guildId, items) => putList(env, customCommandsKey(guildId), items);
+
 export async function getEconomyAccounts(env, guildId) {
   const raw = await env.GUILD_KV.get(economyKey(guildId));
   return raw ? JSON.parse(raw) : {};
+}
+
+const TEMPLATE_REGISTRY_KEY = 'templates:registry';
+
+export async function getTemplateRegistry(env) {
+  const raw = await env.GUILD_KV.get(TEMPLATE_REGISTRY_KEY);
+  return raw ? JSON.parse(raw) : [];
+}
+export async function putTemplateRegistry(env, items) {
+  await env.GUILD_KV.put(TEMPLATE_REGISTRY_KEY, JSON.stringify(items));
 }
 
 export async function getBotStatus(env) {

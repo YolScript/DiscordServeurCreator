@@ -18,6 +18,8 @@ import {
   getReactionRoleGroups, putReactionRoleGroups,
   getBotStatus,
   getShopItems, putShopItems, getEconomyAccounts,
+  getTemplateRegistry, putTemplateRegistry,
+  getCustomCommands, putCustomCommands,
 } from './kvStore.js';
 import {
   bulkEditPermissions, exportChannelPermissions, importChannelPermissions, resetRoleToDefault, bitmaskFromNames,
@@ -119,6 +121,37 @@ async function router(request, env) {
   if (method === 'GET' && url.pathname === '/api/botstatus') {
     await requireSession(env, request);
     return json(await getBotStatus(env), env);
+  }
+
+  // --- Registre global de templates reutilisables (n'importe quel serveur
+  // configure par le bot peut servir de source pour /setup sur un autre) ---
+  if (parts[0] === 'api' && parts[1] === 'templates') {
+    if (parts.length === 2 && method === 'GET') {
+      await requireSession(env, request);
+      return json(await getTemplateRegistry(env), env);
+    }
+    if (parts.length === 2 && method === 'POST') {
+      const session = await requireSession(env, request);
+      const { name, sourceGuildId } = await readJson(request);
+      if (!name || !sourceGuildId) throw new HttpError(400, 'name et sourceGuildId requis.');
+      await requireGuildAccess(env, request, sourceGuildId);
+      const items = await getTemplateRegistry(env);
+      const entry = {
+        id: `${Date.now().toString(36)}${Math.random().toString(36).slice(2, 6)}`, name, sourceGuildId, createdAt: Date.now(),
+      };
+      items.push(entry);
+      await putTemplateRegistry(env, items);
+      await logAudit(env, sourceGuildId, { title: 'Template enregistre', description: `${session.username} a enregistre ce serveur comme template ("${name}").` });
+      return json(entry, env);
+    }
+    if (parts.length === 3 && method === 'DELETE') {
+      const items = await getTemplateRegistry(env);
+      const entry = items.find((t) => t.id === parts[2]);
+      if (!entry) throw new HttpError(404, 'Template introuvable.');
+      await requireGuildAccess(env, request, entry.sourceGuildId);
+      await putTemplateRegistry(env, items.filter((t) => t.id !== parts[2]));
+      return json({ ok: true }, env);
+    }
   }
 
   // --- /api/guilds ---
@@ -721,6 +754,53 @@ async function router(request, env) {
     if (sub === 'economy' && parts.length === 4 && method === 'GET') {
       await requireGuildAccess(env, request, guildId);
       return json(await getEconomyAccounts(env, guildId), env);
+    }
+
+    // --- Commandes slash personnalisees (no-code) : creees directement via
+    // l'API Discord (POST individuel = upsert par nom, ne touche pas aux
+    // autres commandes de la guilde), reponse geree par le bot via
+    // customCommandStore (cf handleCustomCommand cote bot). ---
+    if (sub === 'customcommands' && parts.length === 4) {
+      const session = await requireGuildAccess(env, request, guildId);
+      if (method === 'GET') return json(await getCustomCommands(env, guildId), env);
+      if (method === 'POST') {
+        const {
+          name, description, response, requiredRoleId,
+        } = await readJson(request);
+        if (!name || !description || !response) throw new HttpError(400, 'name, description et response requis.');
+
+        const items = await getCustomCommands(env, guildId);
+        if (items.some((c) => c.name === name)) throw new HttpError(409, 'Une commande avec ce nom existe deja.');
+
+        const res = await botFetch(env, `/applications/${env.DISCORD_CLIENT_ID}/guilds/${guildId}/commands`, {
+          method: 'POST',
+          body: JSON.stringify({ name, description, type: 1 }),
+        });
+        if (!res.ok) throw new HttpError(400, `Discord a refuse cette commande : ${await res.text()}`);
+        const discordCommand = await res.json();
+
+        const entry = {
+          id: `${Date.now().toString(36)}${Math.random().toString(36).slice(2, 6)}`,
+          discordCommandId: discordCommand.id,
+          name,
+          description,
+          response,
+          requiredRoleId: requiredRoleId || null,
+        };
+        items.push(entry);
+        await putCustomCommands(env, guildId, items);
+        await logAudit(env, guildId, { title: 'Commande personnalisee creee', description: `${session.username} a cree /${name}.` });
+        return json(entry, env);
+      }
+    }
+    if (sub === 'customcommands' && parts.length === 5 && method === 'DELETE') {
+      await requireGuildAccess(env, request, guildId);
+      const items = await getCustomCommands(env, guildId);
+      const entry = items.find((c) => c.id === parts[4]);
+      if (!entry) throw new HttpError(404, 'Commande introuvable.');
+      await botFetch(env, `/applications/${env.DISCORD_CLIENT_ID}/guilds/${guildId}/commands/${entry.discordCommandId}`, { method: 'DELETE' });
+      await putCustomCommands(env, guildId, items.filter((c) => c.id !== parts[4]));
+      return json({ ok: true }, env);
     }
 
     // --- Service (staff en service) ---

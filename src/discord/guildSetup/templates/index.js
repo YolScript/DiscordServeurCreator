@@ -1,14 +1,31 @@
-const { buildLiveTemplate } = require('./liveTemplate');
+const { buildLiveTemplate, SOURCE_GUILD_ID } = require('./liveTemplate');
+const templateRegistryStore = require('../../../kv/templateRegistryStore');
 
-// Un seul template desormais : une copie vivante du serveur de reference
-// "ServeurCreator", relue en direct a chaque /setup (cf liveTemplate.js).
-const TEMPLATE_CHOICES = [
-  { key: 'live', label: 'Copie de ServeurCreator (a jour)' },
-];
+const DEFAULT_TEMPLATE_CHOICE = { key: 'live', label: 'Copie de ServeurCreator (a jour)' };
 
-async function getTemplate(key, client) {
-  if (key !== 'live') throw new Error(`Template inconnu: ${key}`);
-  return buildLiveTemplate(client);
+// Liste dynamique : le choix par defaut (ServeurCreator) + tous les
+// templates enregistres via le dashboard (n'importe quel serveur configure
+// par le bot). Utilise pour l'autocompletion de /setup, pas des choix figes
+// a l'enregistrement des commandes, puisque cette liste peut grandir sans
+// redeployer les commandes.
+async function listTemplateChoices() {
+  const saved = await templateRegistryStore.list();
+  return [
+    DEFAULT_TEMPLATE_CHOICE,
+    ...saved.map((t) => ({ key: `live:${t.id}`, label: t.name })),
+  ];
 }
 
-module.exports = { TEMPLATE_CHOICES, getTemplate };
+async function getTemplate(key, client) {
+  if (key === 'live') return buildLiveTemplate(client, SOURCE_GUILD_ID);
+  if (key.startsWith('live:')) {
+    const id = key.slice('live:'.length);
+    const saved = await templateRegistryStore.list();
+    const entry = saved.find((t) => t.id === id);
+    if (!entry) throw new Error('Ce template a ete supprime, choisis-en un autre.');
+    return buildLiveTemplate(client, entry.sourceGuildId, entry.name);
+  }
+  throw new Error(`Template inconnu: ${key}`);
+}
+
+module.exports = { listTemplateChoices, getTemplate, DEFAULT_TEMPLATE_CHOICE };

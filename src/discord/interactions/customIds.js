@@ -18,6 +18,8 @@ const SUGGESTION_VOTE_PREFIX = 'suggestion_vote:';
 const SUGGESTION_APPROVE_PREFIX = 'suggestion_approve:';
 const SUGGESTION_DENY_PREFIX = 'suggestion_deny:';
 const SHOP_BUY_PREFIX = 'shop_buy:';
+const CAPTCHA_IMAGE_VERIFY = 'captcha_image_verify';
+const CAPTCHA_IMAGE_MODAL = 'captcha_image_modal';
 
 const buildGameSelectId = (pageIndex) => `${GAME_SELECT_PREFIX}${pageIndex}`;
 const buildGamePseudoModalId = (gameRoleId) => `${GAME_PSEUDO_MODAL_PREFIX}${gameRoleId}`;
@@ -50,6 +52,8 @@ module.exports = {
   SUGGESTION_APPROVE_PREFIX,
   SUGGESTION_DENY_PREFIX,
   SHOP_BUY_PREFIX,
+  CAPTCHA_IMAGE_VERIFY,
+  CAPTCHA_IMAGE_MODAL,
   buildGameSelectId,
   buildGamePseudoModalId,
   buildGamePseudoButtonId,
