@@ -144,21 +144,7 @@ function renderRail() {
 
 /* ---------- Sidebar ---------- */
 
-function renderSidebarForList() {
-  sidebarEl.style.display = '';
-  sidebarEl.innerHTML = `
-    <div class="sidebar-header">
-      <img src="assets/logo-512.png" alt="" />
-      <div class="sidebar-header-text">
-        <div class="name">Tes serveurs</div>
-        <div class="sub">${allGuilds.length} serveur(s)</div>
-      </div>
-    </div>
-    <nav class="nav"></nav>
-  `;
-}
-
-function renderSidebarForGuild() {
+function hideSidebar() {
   sidebarEl.style.display = 'none';
   sidebarEl.innerHTML = '';
 }
@@ -1502,7 +1488,7 @@ async function renderGuildDetail(id) {
     return;
   }
   searchBox.style.display = 'none';
-  renderSidebarForGuild(guild);
+  hideSidebar();
   await renderPreviewPage(id);
 }
 
@@ -1530,7 +1516,7 @@ async function init() {
   if (guildId) {
     await renderGuildDetail(guildId);
   } else {
-    renderSidebarForList();
+    hideSidebar();
     await renderGuildList();
   }
 }
