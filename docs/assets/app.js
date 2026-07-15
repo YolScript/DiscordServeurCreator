@@ -689,9 +689,12 @@ function channelPanelsBlockHtml(type) {
     <div class="dp-block">
       <p class="dp-block-title">📋 Panneaux</p>
       <p class="muted" style="margin:0 0 10px;">Poste un panneau interactif dans ce salon.</p>
-      <div class="row">
+      <div class="row" style="flex-wrap:wrap;">
         <button class="btn secondary" id="dp-post-ticket-panel">🎫 Panneau tickets</button>
         <button class="btn secondary" id="dp-post-poll-panel">🗳️ Panneau sondage</button>
+        <button class="btn secondary" id="dp-post-embed-panel">💬 Panneau embed</button>
+        <button class="btn secondary" id="dp-post-reglement-panel">📜 Panneau reglement</button>
+        <button class="btn secondary" id="dp-post-roles-panel">🎭 Panneau roles</button>
       </div>
     </div>`;
 }
@@ -714,7 +717,11 @@ function specialChannelToggleHtml(channelId, type, config) {
     </div>`;
 }
 
-const CHANNEL_EMOJI_PICKS = ['📢', '💬', '🎮', '🎫', '📜', '👋', '🔊', '⭐', '🔥', '🎉', '📁', '🛡️'];
+const CHANNEL_EMOJI_PICKS = [
+  '📢', '💬', '🎮', '🎫', '📜', '👋', '🔊', '⭐', '🔥', '🎉', '📁', '🛡️',
+  '🎨', '🎵', '🎬', '📸', '🏆', '💡', '🤖', '🌐', '📌', '❓', '✅', '⚠️',
+  '💰', '🎁', '📊', '🗓️', '🔒', '🎭', '🧩', '🚀', '💎', '🌟', '📝', '🔧',
+];
 
 function channelActionsFor(channelId, type, config) {
   const isTextChannel = type === 0;
@@ -1259,6 +1266,38 @@ function renderChannelPanel(guildId, channelId, name, type, config, channels) {
         try {
           await Api.postPanel(guildId, 'poll', channelId);
           showToast('Panneau sondage demande, actif sous quelques secondes.');
+        } catch (err) {
+          showToast(err.message, 'error');
+        }
+      });
+    }
+
+    const postEmbedPanelBtn = scope.querySelector('#dp-post-embed-panel');
+    if (postEmbedPanelBtn) {
+      postEmbedPanelBtn.addEventListener('click', () => {
+        prefillChannelId = channelId;
+        withViewTransition(() => renderSettingsPanel(guildId, 'embedbuilder'));
+      });
+    }
+
+    const postReglementPanelBtn = scope.querySelector('#dp-post-reglement-panel');
+    if (postReglementPanelBtn) {
+      postReglementPanelBtn.addEventListener('click', async () => {
+        try {
+          await Api.postPanel(guildId, 'reglement');
+          showToast('Panneau reglement reposte, actif sous quelques secondes.');
+        } catch (err) {
+          showToast(err.message, 'error');
+        }
+      });
+    }
+
+    const postRolesPanelBtn = scope.querySelector('#dp-post-roles-panel');
+    if (postRolesPanelBtn) {
+      postRolesPanelBtn.addEventListener('click', async () => {
+        try {
+          await Api.postPanel(guildId, 'roles');
+          showToast('Panneau roles reposte, actif sous quelques secondes.');
         } catch (err) {
           showToast(err.message, 'error');
         }

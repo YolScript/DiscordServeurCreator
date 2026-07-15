@@ -20,6 +20,8 @@ const SUGGESTION_DENY_PREFIX = 'suggestion_deny:';
 const SHOP_BUY_PREFIX = 'shop_buy:';
 const CAPTCHA_IMAGE_VERIFY = 'captcha_image_verify';
 const CAPTCHA_IMAGE_MODAL = 'captcha_image_modal';
+const AGE_VERIFY_BUTTON = 'age_verify_button';
+const AGE_VERIFY_MODAL = 'age_verify_modal';
 
 const buildGameSelectId = (pageIndex) => `${GAME_SELECT_PREFIX}${pageIndex}`;
 const buildGamePseudoModalId = (gameRoleId) => `${GAME_PSEUDO_MODAL_PREFIX}${gameRoleId}`;

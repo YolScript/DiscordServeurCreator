@@ -4,9 +4,11 @@ const {
 } = require('discord.js');
 const guildConfigStore = require('../../../kv/guildConfigStore');
 const captchaStore = require('../../../kv/captchaStore');
+const memberAgeStore = require('../../../kv/memberAgeStore');
 const { randomCode, generateCaptchaImage } = require('../../moderation/captchaImage');
+const { parseBirthdate, computeAge } = require('../../moderation/ageVerification');
 const {
-  CAPTCHA_OK, CAPTCHA_NO, CAPTCHA_IMAGE_VERIFY, CAPTCHA_IMAGE_MODAL,
+  CAPTCHA_OK, CAPTCHA_NO, CAPTCHA_IMAGE_VERIFY, CAPTCHA_IMAGE_MODAL, AGE_VERIFY_BUTTON, AGE_VERIFY_MODAL,
 } = require('../customIds');
 
 const EMOJI_POOL = ['🔵', '🟢', '🟡', '🟣', '🔴', '⚪', '🟠', '🟤'];
@@ -76,8 +78,11 @@ async function handleCaptchaResult(interaction, success) {
     await interaction.reply({ content: 'Configuration introuvable pour ce serveur.', flags: MessageFlags.Ephemeral });
     return;
   }
-  await interaction.member.roles.add(config.reglementValidatedRoleId).catch(() => {});
-  await interaction.reply({ content: 'Verification reussie, reglement accepte, bienvenue !', flags: MessageFlags.Ephemeral });
+  await interaction.reply({
+    content: 'Verification anti-bot reussie ! Derniere etape : confirme ton age pour finaliser.',
+    components: [ageVerifyButtonRow()],
+    flags: MessageFlags.Ephemeral,
+  });
 }
 
 async function handleCaptchaImageVerifyButton(interaction) {
@@ -107,10 +112,73 @@ async function handleCaptchaImageModal(interaction) {
     await interaction.reply({ content: 'Configuration introuvable pour ce serveur.', flags: MessageFlags.Ephemeral });
     return;
   }
+  await interaction.reply({
+    content: 'Verification anti-bot reussie ! Derniere etape : confirme ton age pour finaliser.',
+    components: [ageVerifyButtonRow()],
+    flags: MessageFlags.Ephemeral,
+  });
+}
+
+function ageVerifyButtonRow() {
+  return new ActionRowBuilder().addComponents(
+    new ButtonBuilder().setCustomId(AGE_VERIFY_BUTTON).setLabel('🎂 Confirmer mon age').setStyle(ButtonStyle.Primary),
+  );
+}
+
+async function handleAgeVerifyButton(interaction) {
+  const modal = new ModalBuilder().setCustomId(AGE_VERIFY_MODAL).setTitle("Verification d'age");
+  const input = new TextInputBuilder()
+    .setCustomId('birthdate')
+    .setLabel('Date de naissance (JJ/MM/AAAA)')
+    .setPlaceholder('Ex: 14/07/2004')
+    .setStyle(TextInputStyle.Short)
+    .setMinLength(8)
+    .setMaxLength(10)
+    .setRequired(true);
+  modal.addComponents(new ActionRowBuilder().addComponents(input));
+  await interaction.showModal(modal);
+}
+
+// La date de naissance n'est utilisee que le temps de ce calcul, jamais
+// sauvegardee : seul le resultat (majeur/mineur en prive, +16/-16 en role)
+// survit a cette fonction.
+async function handleAgeVerifyModal(interaction) {
+  const birthDate = parseBirthdate(interaction.fields.getTextInputValue('birthdate'));
+  if (!birthDate) {
+    await interaction.reply({
+      content: 'Date invalide. Reclique sur "🎂 Confirmer mon age" pour reessayer (format JJ/MM/AAAA).',
+      flags: MessageFlags.Ephemeral,
+    });
+    return;
+  }
+  const age = computeAge(birthDate);
+
+  const config = await guildConfigStore.find(interaction.guild.id);
+  if (!config?.reglementValidatedRoleId) {
+    await interaction.reply({ content: 'Configuration introuvable pour ce serveur.', flags: MessageFlags.Ephemeral });
+    return;
+  }
   await interaction.member.roles.add(config.reglementValidatedRoleId).catch(() => {});
+
+  if (config.plus16RoleId && config.minus16RoleId) {
+    const addRoleId = age >= 16 ? config.plus16RoleId : config.minus16RoleId;
+    const removeRoleId = age >= 16 ? config.minus16RoleId : config.plus16RoleId;
+    if (interaction.member.roles.cache.has(removeRoleId)) {
+      await interaction.member.roles.remove(removeRoleId).catch(() => {});
+    }
+    await interaction.member.roles.add(addRoleId).catch(() => {});
+  }
+
+  await memberAgeStore.setAdultStatus(interaction.guild.id, interaction.user.id, age >= 18);
+
   await interaction.reply({ content: 'Verification reussie, reglement accepte, bienvenue !', flags: MessageFlags.Ephemeral });
 }
 
 module.exports = {
-  handleReglementAccept, handleCaptchaResult, handleCaptchaImageVerifyButton, handleCaptchaImageModal,
+  handleReglementAccept,
+  handleCaptchaResult,
+  handleCaptchaImageVerifyButton,
+  handleCaptchaImageModal,
+  handleAgeVerifyButton,
+  handleAgeVerifyModal,
 };

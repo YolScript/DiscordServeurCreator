@@ -4,7 +4,7 @@ const {
   GAME_SELECT_PREFIX, GAME_PSEUDO_MODAL_PREFIX, GAME_PSEUDO_BUTTON_PREFIX, POLL_VOTE_PREFIX, GIVEAWAY_ENTER_PREFIX,
   CAPTCHA_OK, CAPTCHA_NO, TICKET_OPEN, POLL_CREATE_OPEN, POLL_CREATE_MODAL, TICKET_RATE_PREFIX,
   SUGGESTION_VOTE_PREFIX, SUGGESTION_APPROVE_PREFIX, SUGGESTION_DENY_PREFIX, SHOP_BUY_PREFIX,
-  CAPTCHA_IMAGE_VERIFY, CAPTCHA_IMAGE_MODAL,
+  CAPTCHA_IMAGE_VERIFY, CAPTCHA_IMAGE_MODAL, AGE_VERIFY_BUTTON, AGE_VERIFY_MODAL,
 } = require('./customIds');
 const pollManager = require('../engagement/pollManager');
 const giveawayManager = require('../engagement/giveawayManager');
@@ -16,6 +16,7 @@ const handlePollCreateButton = require('./buttons/pollCreateButton');
 const handlePollCreateModal = require('./modals/pollCreateModal');
 const {
   handleReglementAccept, handleCaptchaResult, handleCaptchaImageVerifyButton, handleCaptchaImageModal,
+  handleAgeVerifyButton, handleAgeVerifyModal,
 } = require('./buttons/reglementAccept');
 const { handleReglementTranslate, handleReglementTranslateSelect } = require('./buttons/reglementTranslate');
 const handleAgeButton = require('./buttons/ageButtons');
@@ -188,6 +189,8 @@ async function routeInteraction(interaction) {
         await handleShopBuyButton(interaction, itemId);
       } else if (interaction.customId === CAPTCHA_IMAGE_VERIFY) {
         await handleCaptchaImageVerifyButton(interaction);
+      } else if (interaction.customId === AGE_VERIFY_BUTTON) {
+        await handleAgeVerifyButton(interaction);
       }
       return;
     }
@@ -212,6 +215,9 @@ async function routeInteraction(interaction) {
     }
     if (interaction.isModalSubmit() && interaction.customId === CAPTCHA_IMAGE_MODAL) {
       await handleCaptchaImageModal(interaction);
+    }
+    if (interaction.isModalSubmit() && interaction.customId === AGE_VERIFY_MODAL) {
+      await handleAgeVerifyModal(interaction);
     }
   } catch (err) {
     logger.error('Erreur lors du traitement d\'une interaction', err);
