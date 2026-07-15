@@ -1,6 +1,5 @@
 const app = document.getElementById('app');
 const railEl = document.getElementById('topbar-guilds');
-const sidebarEl = document.getElementById('sidebar');
 const searchBox = document.getElementById('search-box');
 const searchInput = document.getElementById('search-input');
 
@@ -168,13 +167,6 @@ function renderRail() {
   railEl.querySelectorAll('.rail-guild').forEach((btn) => {
     btn.addEventListener('click', () => { location.href = `app.html?guild=${btn.dataset.guild}`; });
   });
-}
-
-/* ---------- Sidebar ---------- */
-
-function hideSidebar() {
-  sidebarEl.style.display = 'none';
-  sidebarEl.innerHTML = '';
 }
 
 /* ---------- Pages: guild list ---------- */
@@ -2666,7 +2658,6 @@ async function renderGuildDetail(id) {
     return;
   }
   searchBox.style.display = 'none';
-  hideSidebar();
   await renderPreviewPage(id);
 }
 
@@ -2712,7 +2703,6 @@ async function init() {
   if (guildId) {
     await renderGuildDetail(guildId);
   } else {
-    hideSidebar();
     await renderGuildList();
   }
 }
