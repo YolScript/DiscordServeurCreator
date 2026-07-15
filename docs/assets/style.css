@@ -490,7 +490,6 @@ input::placeholder, textarea::placeholder { color: var(--text-faint); }
   scrollbar-width: none; -ms-overflow-style: none;
 }
 .dp-channel-list::-webkit-scrollbar { display: none; }
-.dp-settings-group { padding-bottom: 8px; margin-bottom: 8px; border-bottom: 1px solid rgba(255,255,255,0.06); }
 .dp-category {
   display: flex; align-items: center; gap: 4px; padding: 16px 4px 4px;
   color: #96989d; font-size: 0.72rem; font-weight: 700; text-transform: uppercase;

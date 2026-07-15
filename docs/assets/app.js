@@ -245,16 +245,16 @@ function isViewAllowed(channel, roleId) {
 }
 
 const SETTINGS_PANELS = [
-  { key: 'permissions', label: 'Permissions' },
-  { key: 'jeux', label: 'Roles de jeu' },
-  { key: 'automatisations', label: 'Automatisations' },
-  { key: 'securite', label: 'Securite' },
-  { key: 'stats', label: 'Statistiques' },
-  { key: 'auditlog', label: "Logs d'audit" },
-  { key: 'embedbuilder', label: 'Generateur embed' },
-  { key: 'botstatus', label: 'Statut du bot' },
-  { key: 'templates', label: 'Templates' },
-  { key: 'customcommands', label: 'Commandes personnalisees' },
+  { key: 'permissions', label: 'Permissions', icon: '🔐' },
+  { key: 'jeux', label: 'Roles de jeu', icon: '🎮' },
+  { key: 'automatisations', label: 'Automatisations', icon: '⚙️' },
+  { key: 'securite', label: 'Securite', icon: '🛡️' },
+  { key: 'stats', label: 'Statistiques', icon: '📊' },
+  { key: 'auditlog', label: "Logs d'audit", icon: '📋' },
+  { key: 'embedbuilder', label: 'Generateur embed', icon: '💬' },
+  { key: 'botstatus', label: 'Statut du bot', icon: '🤖' },
+  { key: 'templates', label: 'Templates', icon: '📁' },
+  { key: 'customcommands', label: 'Commandes personnalisees', icon: '🧩' },
 ];
 
 function customChannelFormHtml(catId) {
@@ -349,12 +349,6 @@ async function renderPreviewPage(id) {
             <span class="caret">▾</span>
           </div>
           <div class="dp-channel-list">
-            <div class="dp-settings-group">
-              <div class="dp-category collapsed" data-cat="__settings"><span class="chevron">▾</span> Parametres</div>
-              <div class="dp-channels">
-                ${SETTINGS_PANELS.map((p) => `<div class="dp-channel" data-settings="${p.key}"><span class="hash">⚙</span> ${escapeHtml(p.label)}</div>`).join('')}
-              </div>
-            </div>
             <button type="button" class="dp-add-category" id="dp-add-cat-btn">+ Nouvelle categorie</button>
             <div class="dp-custom-form" data-form-for="__category" style="display:none;">
               <input type="text" class="dp-custom-name" id="dp-new-cat-name" placeholder="Nom de la categorie" maxlength="80" />
@@ -372,7 +366,15 @@ async function renderPreviewPage(id) {
               <div class="dp-chat-avatar">🤖</div>
               <div class="dp-chat-bubble">
                 <div class="dp-chat-author">ServeurCreator Bot</div>
-                <div class="dp-chat-text">Salut, je suis le bot de configuration de ${escapeHtml(guild?.name || 'ton serveur')} ! Glisse un salon, une categorie ou un role ici pour le configurer, ou clique dessus dans la barre laterale.</div>
+                <div class="dp-chat-text">Salut, je suis le bot de configuration de ${escapeHtml(guild?.name || 'ton serveur')} ! Glisse un salon, une categorie ou un role ici pour le configurer, ou choisis un outil ci-dessous.</div>
+                <div class="dp-action-grid">
+                  ${SETTINGS_PANELS.map((p) => `
+                    <button type="button" class="dp-action-card" data-goto-settings="${p.key}">
+                      <span class="icon">${p.icon}</span>
+                      <span class="label">${escapeHtml(p.label)}</span>
+                    </button>
+                  `).join('')}
+                </div>
               </div>
             </div>
           </div>
@@ -552,12 +554,10 @@ async function renderPreviewPage(id) {
     });
   });
 
-  app.querySelectorAll('.dp-channel[data-settings]').forEach((el) => {
-    el.addEventListener('click', () => {
-      app.querySelectorAll('.dp-channel').forEach((e) => e.classList.remove('selected'));
-      el.classList.add('selected');
+  app.querySelectorAll('[data-goto-settings]').forEach((btn) => {
+    btn.addEventListener('click', () => {
       window.UISound?.select();
-      withViewTransition(() => { renderSettingsPanel(id, el.dataset.settings); });
+      withViewTransition(() => { renderSettingsPanel(id, btn.dataset.gotoSettings); });
     });
   });
 
@@ -625,11 +625,16 @@ function renderSettingsPanel(guildId, key) {
         <div class="dp-chat-bubble">
           <div class="dp-chat-author">ServeurCreator Bot</div>
           <div class="dp-chat-text">${escapeHtml(intro)}</div>
+          <button type="button" class="btn secondary" id="dp-settings-back" style="align-self:flex-start;">← Retour aux outils</button>
         </div>
       </div>
       <div class="dp-settings-body-wrap" id="dp-settings-body"></div>
     </div>
   `;
+  document.getElementById('dp-settings-back').addEventListener('click', () => {
+    window.UISound?.select();
+    withViewTransition(() => renderPreviewPage(guildId));
+  });
   const body = document.getElementById('dp-settings-body');
   const renderers = {
     permissions: () => renderPermissionsPage(guildId, body),
