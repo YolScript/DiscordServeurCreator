@@ -10,6 +10,7 @@ const ticketsKey = (guildId) => `guild:${guildId}:tickets`;
 const pendingPanelActionsKey = (guildId) => `guild:${guildId}:pendingpanelactions`;
 const statsKey = (guildId) => `guild:${guildId}:stats`;
 const embedTemplatesKey = (guildId) => `guild:${guildId}:embedtemplates`;
+const reactionRolesKey = (guildId) => `guild:${guildId}:reactionroles`;
 
 const MOD_CONFIG_DEFAULTS = {
   autoModEnabled: true,
@@ -22,6 +23,7 @@ const MOD_CONFIG_DEFAULTS = {
   antiRaidEnabled: true,
   antiRaidJoinThreshold: 8,
   antiRaidIntervalMs: 10000,
+  linkWhitelist: [],
 };
 
 async function getList(env, key) {
@@ -87,3 +89,6 @@ export const getStats = (env, guildId) => getList(env, statsKey(guildId));
 
 export const getEmbedTemplates = (env, guildId) => getList(env, embedTemplatesKey(guildId));
 export const putEmbedTemplates = (env, guildId, items) => putList(env, embedTemplatesKey(guildId), items);
+
+export const getReactionRoleGroups = (env, guildId) => getList(env, reactionRolesKey(guildId));
+export const putReactionRoleGroups = (env, guildId, items) => putList(env, reactionRolesKey(guildId), items);

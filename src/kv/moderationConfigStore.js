@@ -13,6 +13,7 @@ const DEFAULTS = {
   antiRaidEnabled: true,
   antiRaidJoinThreshold: 8,
   antiRaidIntervalMs: 10000,
+  linkWhitelist: [],
 };
 
 async function find(guildId) {

@@ -5,7 +5,7 @@ const { postModLog } = require('./modLog');
 const logger = require('../../shared/logger');
 
 const INVITE_REGEX = /(discord\.gg|discord(?:app)?\.com\/invite)\/[a-z0-9-]+/i;
-const LINK_REGEX = /https?:\/\/\S+/i;
+const URL_REGEX = /https?:\/\/[^\s]+/gi;
 
 // Fenetres de spam en memoire (par process) : pas besoin de persistance KV
 // pour une detection de rafale sur quelques secondes.
@@ -13,6 +13,23 @@ const messageWindows = new Map();
 
 function isStaff(member, config) {
   return member.roles.cache.has(config.moderateurRoleId) || member.roles.cache.has(config.adminRoleId);
+}
+
+// Un mot prefixe par "re:" est traite comme une regex (ex: "re:\bfree\s*nitro\b").
+function matchesBannedWord(content, word) {
+  if (word.startsWith('re:')) {
+    try { return new RegExp(word.slice(3), 'i').test(content); } catch { return false; }
+  }
+  return content.toLowerCase().includes(word.toLowerCase());
+}
+
+// Liens externes bloques SAUF ceux dont le domaine figure dans la whitelist
+// (ex: "youtube.com", "twitch.tv") : permet d'autoriser certains sites tout
+// en bloquant le reste, plutot que tout ou rien.
+function disallowedHostnames(content, whitelist) {
+  const urls = content.match(URL_REGEX) || [];
+  const hosts = urls.map((u) => { try { return new URL(u).hostname.replace(/^www\./, ''); } catch { return null; } }).filter(Boolean);
+  return hosts.filter((h) => !whitelist.some((allowed) => h === allowed || h.endsWith(`.${allowed}`)));
 }
 
 function checkSpam(guildId, userId, modConfig) {
@@ -66,11 +83,14 @@ async function handleMessageCreate(message) {
       await takeAction(message, guildConfig, 'lien d\'invitation Discord non autorise');
       return;
     }
-    if (modConfig.blockLinks && LINK_REGEX.test(content)) {
-      await takeAction(message, guildConfig, 'lien externe non autorise');
-      return;
+    if (modConfig.blockLinks) {
+      const disallowed = disallowedHostnames(content, modConfig.linkWhitelist || []);
+      if (disallowed.length) {
+        await takeAction(message, guildConfig, `lien externe non autorise (${disallowed[0]})`);
+        return;
+      }
     }
-    const bannedHit = modConfig.bannedWords.find((w) => content.toLowerCase().includes(w.toLowerCase()));
+    const bannedHit = modConfig.bannedWords.find((w) => matchesBannedWord(content, w));
     if (bannedHit) {
       await takeAction(message, guildConfig, `mot interdit ("${bannedHit}")`);
       return;

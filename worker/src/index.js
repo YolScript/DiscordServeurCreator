@@ -15,6 +15,7 @@ import {
   pushPendingPanelAction,
   getStats,
   getEmbedTemplates, putEmbedTemplates,
+  getReactionRoleGroups, putReactionRoleGroups,
 } from './kvStore.js';
 import {
   bulkEditPermissions, exportChannelPermissions, importChannelPermissions, resetRoleToDefault,
@@ -529,6 +530,44 @@ async function router(request, env) {
       await requireGuildAccess(env, request, guildId);
       const items = (await getEmbedTemplates(env, guildId)).filter((t) => t.id !== parts[4]);
       await putEmbedTemplates(env, guildId, items);
+      return json({ ok: true }, env);
+    }
+
+    // --- Roles-reaction generiques (select menu, pas de restriction aux jeux) ---
+    if (sub === 'reactionroles' && parts.length === 4) {
+      const session = await requireGuildAccess(env, request, guildId);
+      if (method === 'GET') return json(await getReactionRoleGroups(env, guildId), env);
+      if (method === 'POST') {
+        const { title, channelId, roles } = await readJson(request);
+        if (!channelId || !Array.isArray(roles) || !roles.length) throw new HttpError(400, 'channelId et roles requis.');
+        const items = await getReactionRoleGroups(env, guildId);
+        const entry = {
+          id: `${Date.now().toString(36)}${Math.random().toString(36).slice(2, 6)}`, title: title || 'Roles', channelId, roles, messageId: null,
+        };
+        items.push(entry);
+        await putReactionRoleGroups(env, guildId, items);
+        await pushPendingPanelAction(env, guildId, { type: 'reactionroles', groupId: entry.id });
+        await logAudit(env, guildId, { title: 'Groupe de roles-reaction cree', description: `${session.username} a cree "${entry.title}" dans <#${channelId}>.` });
+        return json(entry, env);
+      }
+    }
+    if (sub === 'reactionroles' && parts.length === 5 && method === 'PATCH') {
+      await requireGuildAccess(env, request, guildId);
+      const { title, channelId, roles } = await readJson(request);
+      const items = await getReactionRoleGroups(env, guildId);
+      const group = items.find((g) => g.id === parts[4]);
+      if (!group) throw new HttpError(404, 'Groupe introuvable.');
+      if (title) group.title = title;
+      if (channelId) group.channelId = channelId;
+      if (roles) group.roles = roles;
+      await putReactionRoleGroups(env, guildId, items);
+      await pushPendingPanelAction(env, guildId, { type: 'reactionroles', groupId: group.id });
+      return json(group, env);
+    }
+    if (sub === 'reactionroles' && parts.length === 5 && method === 'DELETE') {
+      await requireGuildAccess(env, request, guildId);
+      const items = (await getReactionRoleGroups(env, guildId)).filter((g) => g.id !== parts[4]);
+      await putReactionRoleGroups(env, guildId, items);
       return json({ ok: true }, env);
     }
 

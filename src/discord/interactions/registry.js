@@ -16,6 +16,8 @@ const { handleReglementTranslate, handleReglementTranslateSelect } = require('./
 const handleAgeButton = require('./buttons/ageButtons');
 const handleGamePseudoButton = require('./buttons/gamePseudoButton');
 const handleGameRoleSelect = require('./selectMenus/gameRoleSelect');
+const handleReactionRoleSelect = require('./selectMenus/reactionRoleSelect');
+const { SELECT_PREFIX: REACTION_ROLE_SELECT_PREFIX } = require('../roles/reactionRoleManager');
 const handleGamePseudoModal = require('./modals/gamePseudoModal');
 const handleSetupCommand = require('../commands/setup');
 const handleReglementTranslationCommand = require('../commands/reglementTranslation');
@@ -23,6 +25,7 @@ const handleWarnCommand = require('../commands/warn');
 const handleWarningsCommand = require('../commands/warnings');
 const handleClearwarnsCommand = require('../commands/clearwarns');
 const handleTimeoutCommand = require('../commands/timeout');
+const handleTempbanCommand = require('../commands/tempban');
 const handleUnlockCommand = require('../commands/unlock');
 const handleAutomodCommand = require('../commands/automod');
 const handleScheduleAnnouncementCommand = require('../commands/scheduleAnnouncement');
@@ -54,6 +57,7 @@ const commandHandlers = {
   warnings: handleWarningsCommand,
   clearwarns: handleClearwarnsCommand,
   timeout: handleTimeoutCommand,
+  tempban: handleTempbanCommand,
   unlock: handleUnlockCommand,
   automod: handleAutomodCommand,
   'schedule-announcement': handleScheduleAnnouncementCommand,
@@ -137,6 +141,10 @@ async function routeInteraction(interaction) {
     }
     if (interaction.isStringSelectMenu() && interaction.customId === 'reglement_translate_select') {
       await handleReglementTranslateSelect(interaction);
+      return;
+    }
+    if (interaction.isStringSelectMenu() && interaction.customId.startsWith(REACTION_ROLE_SELECT_PREFIX)) {
+      await handleReactionRoleSelect(interaction);
       return;
     }
     if (interaction.isModalSubmit() && interaction.customId.startsWith(GAME_PSEUDO_MODAL_PREFIX)) {

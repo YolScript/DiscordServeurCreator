@@ -4,6 +4,8 @@ const { postReglementPanel } = require('../roles/reglementPanel');
 const rolesMessageManager = require('../roles/rolesMessageManager');
 const { postPollPanel } = require('../engagement/pollManager');
 const { postTicketPanel } = require('../support/ticketManager');
+const { postOrRefresh: postReactionRoleGroup } = require('../roles/reactionRoleManager');
+const reactionRoleStore = require('../../kv/reactionRoleStore');
 const logger = require('../../shared/logger');
 
 const TICK_MS = 8_000;
@@ -28,6 +30,12 @@ async function executeAction(guild, action) {
     if (!channel) return;
     if (action.type === 'poll') await postPollPanel(channel);
     else await postTicketPanel(channel);
+    return;
+  }
+  if (action.type === 'reactionroles') {
+    if (!action.groupId) return;
+    const group = (await reactionRoleStore.list(guild.id)).find((g) => g.id === action.groupId);
+    if (group) await postReactionRoleGroup(guild, group);
     return;
   }
   if (action.type === 'embed') {

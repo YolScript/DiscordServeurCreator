@@ -648,6 +648,14 @@ textarea { min-height: 90px; resize: vertical; font-family: ui-monospace, "SF Mo
 .embed-field-remove { grid-column: 2; grid-row: 1 / span 2; align-self: start; padding: 6px 10px; }
 .embed-field-inline { grid-column: 1; display: flex; align-items: center; gap: 6px; font-size: 0.8rem; color: var(--text-muted); cursor: pointer; }
 
+.reaction-role-row {
+  display: flex; gap: 8px; align-items: center; margin-bottom: 6px;
+}
+.reaction-role-row .rr-role-id { flex: 2; }
+.reaction-role-row .rr-label { flex: 3; }
+.reaction-role-row .rr-emoji { flex: 1; min-width: 60px; }
+.reaction-role-row .rr-remove { flex: none; padding: 8px 12px; }
+
 .embed-preview {
   border-left: 4px solid #5865f2; border-radius: 4px; background: #2b2d31;
   max-width: 100%; transition: border-color 0.15s ease;

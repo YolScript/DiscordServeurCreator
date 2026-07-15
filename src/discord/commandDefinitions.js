@@ -49,6 +49,15 @@ const timeoutCommand = new SlashCommandBuilder()
   .addStringOption((o) => o.setName('raison').setDescription('Raison').setRequired(false))
   .toJSON();
 
+const tempbanCommand = new SlashCommandBuilder()
+  .setName('tempban')
+  .setDescription('Bannit temporairement un membre (deban automatique).')
+  .setDefaultMemberPermissions(PermissionFlagsBits.BanMembers)
+  .addUserOption((o) => o.setName('membre').setDescription('Membre a bannir').setRequired(true))
+  .addIntegerOption((o) => o.setName('duree_heures').setDescription('Duree du ban en heures').setRequired(true).setMinValue(1))
+  .addStringOption((o) => o.setName('raison').setDescription('Raison').setRequired(false))
+  .toJSON();
+
 const unlockCommand = new SlashCommandBuilder()
   .setName('unlock')
   .setDescription('Leve le verrouillage anti-raid.')
@@ -247,7 +256,7 @@ const rolesPanelCommand = new SlashCommandBuilder()
   .toJSON();
 
 module.exports = [
-  setupCommand, warnCommand, warningsCommand, clearwarnsCommand, timeoutCommand, unlockCommand, automodCommand,
+  setupCommand, warnCommand, warningsCommand, clearwarnsCommand, timeoutCommand, tempbanCommand, unlockCommand, automodCommand,
   scheduleAnnouncementCommand, scheduleEventCommand, scheduledListCommand, scheduledCancelCommand,
   rankCommand, leaderboardCommand, levelroleCommand, pollCommand, pollPanelCommand, giveawayCommand,
   giveawayRerollCommand,

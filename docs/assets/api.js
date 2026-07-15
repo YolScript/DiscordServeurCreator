@@ -88,6 +88,9 @@ window.Api = (function api() {
     embedTemplates: (guildId) => request(`/api/guilds/${guildId}/embedtemplates`),
     saveEmbedTemplate: (guildId, name, embed) => request(`/api/guilds/${guildId}/embedtemplates`, { method: 'POST', body: JSON.stringify({ name, embed }) }),
     deleteEmbedTemplate: (guildId, templateId) => request(`/api/guilds/${guildId}/embedtemplates/${templateId}`, { method: 'DELETE' }),
+    reactionRoleGroups: (guildId) => request(`/api/guilds/${guildId}/reactionroles`),
+    createReactionRoleGroup: (guildId, payload) => request(`/api/guilds/${guildId}/reactionroles`, { method: 'POST', body: JSON.stringify(payload) }),
+    deleteReactionRoleGroup: (guildId, groupId) => request(`/api/guilds/${guildId}/reactionroles/${groupId}`, { method: 'DELETE' }),
     postEmbed: (guildId, channelId, embed, content) => request(`/api/guilds/${guildId}/panels/embed`, { method: 'POST', body: JSON.stringify({ channelId, embed, content }) }),
   };
 }());

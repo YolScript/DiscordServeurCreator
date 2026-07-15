@@ -15,6 +15,7 @@ const gameRolesSync = require('../roles/gameRolesSync');
 const panelActionsSync = require('../automation/panelActionsSync');
 const statsTracker = require('../automation/statsTracker');
 const statusRotator = require('../automation/statusRotator');
+const tempBanExpiry = require('../automation/tempBanExpiry');
 const logger = require('../../shared/logger');
 
 client.once(Events.ClientReady, async (readyClient) => {
@@ -42,4 +43,5 @@ client.once(Events.ClientReady, async (readyClient) => {
   panelActionsSync.start();
   statsTracker.start();
   statusRotator.start();
+  tempBanExpiry.start();
 });

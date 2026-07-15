@@ -834,9 +834,37 @@ async function renderPermissionsPage(id, container = app) {
 
 /* ---------- Pages: roles de jeu ---------- */
 
+function wireReactionRoleRows(root) {
+  root.querySelectorAll('.rr-remove').forEach((btn) => {
+    btn.onclick = () => btn.closest('.reaction-role-row').remove();
+  });
+}
+
+function reactionRoleRowHtml(row = {}) {
+  return `
+    <div class="reaction-role-row">
+      <input type="text" class="rr-role-id" placeholder="ID du role" maxlength="32" value="${escapeHtml(row.roleId || '')}" />
+      <input type="text" class="rr-label" placeholder="Libelle affiche" maxlength="100" value="${escapeHtml(row.label || '')}" />
+      <input type="text" class="rr-emoji" placeholder="Emoji" maxlength="8" value="${escapeHtml(row.emoji || '')}" />
+      <button type="button" class="btn danger rr-remove" title="Supprimer">✕</button>
+    </div>`;
+}
+
 async function renderGameRolesPage(id, container = app) {
   container.innerHTML = '<p class="muted">Chargement...</p>';
-  const [roles, catalog] = await Promise.all([Api.gameRoles(id), Api.gameRoleCatalog()]);
+  const [roles, catalog, allRoles, channels, reactionGroups] = await Promise.all([
+    Api.gameRoles(id), Api.gameRoleCatalog(), Api.roles(id).catch(() => []),
+    Api.channels(id).catch(() => []), Api.reactionRoleGroups(id).catch(() => []),
+  ]);
+  const roleName = (rid) => allRoles.find((r) => r.id === rid)?.name || rid;
+  const textChannelOptions = channels.filter((c) => c.type === 0)
+    .map((c) => `<option value="${c.id}">#${escapeHtml(c.name)}</option>`).join('');
+  const reactionGroupRows = reactionGroups.map((g) => `
+    <div class="row" data-id="${g.id}" style="justify-content:space-between; margin-bottom:6px; align-items:flex-start;">
+      <span>${escapeHtml(g.title)} — ${g.roles.map((r) => escapeHtml(roleName(r.roleId))).join(', ')}</span>
+      <button class="btn danger delete-reaction-group" data-id="${g.id}">Supprimer</button>
+    </div>
+  `).join('') || '<p class="muted">Aucun groupe de roles-reaction pour le moment.</p>';
 
   const rows = roles.map((r) => `
     <div class="game-role-row" data-role-id="${r.roleId}">
@@ -872,9 +900,60 @@ async function renderGameRolesPage(id, container = app) {
         ${rows || '<p class="muted">Aucun role de jeu pour le moment.</p>'}
         <button class="btn secondary" id="force-roles-refresh" style="margin-top:12px;">🔁 Forcer la mise a jour du salon #roles</button>
       `, { open: true })}
+
+      ${sectionHtml('Roles-reaction personnalises', `
+        <p class="muted">Groupes de roles au choix (pas limites aux jeux), poses en salon via un menu de selection. Clic droit sur un role dans Discord (mode developpeur) &gt; Copier l'ID.</p>
+        <div id="reaction-groups-list">${reactionGroupRows}</div>
+        <label style="margin-top:14px;">Titre du groupe</label>
+        <input type="text" id="rr-title" placeholder="Ex: Notifications" maxlength="100" />
+        <label>Salon de destination</label>
+        <select id="rr-channel">${textChannelOptions}</select>
+        <label>Roles proposes</label>
+        <div id="reaction-role-rows"></div>
+        <button type="button" class="btn secondary" id="rr-add-role" style="margin-top:8px;">+ Ajouter un role</button>
+        <button type="button" class="btn" id="rr-create" style="margin-top:12px;">Creer et poster</button>
+      `)}
     </div>
   `;
   wireSections(container);
+
+  document.getElementById('rr-add-role').addEventListener('click', () => {
+    document.getElementById('reaction-role-rows').insertAdjacentHTML('beforeend', reactionRoleRowHtml());
+    wireReactionRoleRows(container);
+  });
+  document.getElementById('reaction-role-rows').insertAdjacentHTML('beforeend', reactionRoleRowHtml());
+  wireReactionRoleRows(container);
+
+  document.getElementById('rr-create').addEventListener('click', async () => {
+    const title = document.getElementById('rr-title').value.trim();
+    const channelId = document.getElementById('rr-channel').value;
+    const rows = [...document.querySelectorAll('.reaction-role-row')].map((row) => ({
+      roleId: row.querySelector('.rr-role-id').value.trim(),
+      label: row.querySelector('.rr-label').value.trim(),
+      emoji: row.querySelector('.rr-emoji').value.trim(),
+    })).filter((r) => r.roleId && r.label);
+    if (!channelId || !rows.length) { showToast('Salon et au moins un role (ID + libelle) requis.', 'error'); return; }
+    try {
+      await Api.createReactionRoleGroup(id, { title, channelId, roles: rows });
+      showToast('Groupe cree, poste sous quelques secondes.');
+      await renderGameRolesPage(id, container);
+    } catch (err) {
+      showToast(err.message, 'error');
+    }
+  });
+
+  container.querySelectorAll('.delete-reaction-group').forEach((btn) => {
+    btn.addEventListener('click', async () => {
+      if (!window.confirm('Supprimer ce groupe ? Le message existant restera mais ne sera plus gere.')) return;
+      try {
+        await Api.deleteReactionRoleGroup(id, btn.dataset.id);
+        showToast('Groupe supprime.');
+        await renderGameRolesPage(id, container);
+      } catch (err) {
+        showToast(err.message, 'error');
+      }
+    });
+  });
 
   document.getElementById('force-roles-refresh').addEventListener('click', async () => {
     try {
@@ -1019,8 +1098,10 @@ async function renderAutomationsPage(id, container = app) {
         <div class="dp-toggle-row" style="margin-top:6px;"><span>Bloquer tous les liens</span><input type="checkbox" id="am-links" ${modConfig.blockLinks ? 'checked' : ''} /></div>
         <label>Seuil anti-spam (messages)</label>
         <input type="number" id="am-spam-threshold" value="${modConfig.spamMessageThreshold}" min="1" />
-        <label>Mots bannis (separes par des virgules)</label>
+        <label>Mots bannis (separes par des virgules, prefixe "re:" pour une regex)</label>
         <textarea id="am-banned-words">${escapeHtml((modConfig.bannedWords || []).join(', '))}</textarea>
+        <label>Domaines autorises meme si "Bloquer tous les liens" est actif (separes par des virgules)</label>
+        <textarea id="am-link-whitelist" placeholder="youtube.com, twitch.tv">${escapeHtml((modConfig.linkWhitelist || []).join(', '))}</textarea>
         <div class="dp-toggle-row" style="margin-top:6px;"><span>Anti-raid actif</span><input type="checkbox" id="am-antiraid" ${modConfig.antiRaidEnabled ? 'checked' : ''} /></div>
         <label>Seuil anti-raid (arrivees rapprochees)</label>
         <input type="number" id="am-antiraid-threshold" value="${modConfig.antiRaidJoinThreshold}" min="1" />
@@ -1185,6 +1266,7 @@ async function renderAutomationsPage(id, container = app) {
         blockLinks: document.getElementById('am-links').checked,
         spamMessageThreshold: Number(document.getElementById('am-spam-threshold').value) || 5,
         bannedWords: document.getElementById('am-banned-words').value.split(',').map((w) => w.trim()).filter(Boolean),
+        linkWhitelist: document.getElementById('am-link-whitelist').value.split(',').map((w) => w.trim()).filter(Boolean),
         antiRaidEnabled: document.getElementById('am-antiraid').checked,
         antiRaidJoinThreshold: Number(document.getElementById('am-antiraid-threshold').value) || 8,
       });
