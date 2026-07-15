@@ -9,6 +9,7 @@ const scheduledKey = (guildId) => `guild:${guildId}:scheduled`;
 const ticketsKey = (guildId) => `guild:${guildId}:tickets`;
 const pendingPanelActionsKey = (guildId) => `guild:${guildId}:pendingpanelactions`;
 const statsKey = (guildId) => `guild:${guildId}:stats`;
+const embedTemplatesKey = (guildId) => `guild:${guildId}:embedtemplates`;
 
 const MOD_CONFIG_DEFAULTS = {
   autoModEnabled: true,
@@ -83,3 +84,6 @@ export async function pushPendingPanelAction(env, guildId, action) {
 }
 
 export const getStats = (env, guildId) => getList(env, statsKey(guildId));
+
+export const getEmbedTemplates = (env, guildId) => getList(env, embedTemplatesKey(guildId));
+export const putEmbedTemplates = (env, guildId, items) => putList(env, embedTemplatesKey(guildId), items);

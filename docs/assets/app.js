@@ -220,6 +220,7 @@ const SETTINGS_PANELS = [
   { key: 'securite', label: 'Securite' },
   { key: 'stats', label: 'Statistiques' },
   { key: 'auditlog', label: "Logs d'audit" },
+  { key: 'embedbuilder', label: 'Generateur embed' },
 ];
 
 function customChannelFormHtml(catId) {
@@ -483,6 +484,7 @@ function renderSettingsPanel(guildId, key) {
     securite: () => renderSecurityPage(guildId, body),
     stats: () => renderStatsPage(guildId, body),
     auditlog: () => renderAuditLogPage(guildId, body),
+    embedbuilder: () => renderEmbedBuilderPage(guildId, body),
   };
   renderers[key]?.();
 }
@@ -1477,6 +1479,320 @@ async function renderStatsPage(id, container = app) {
     </div>
   `;
   wireSections(container);
+}
+
+/* ---------- Pages: generateur d'embed ---------- */
+
+function hexToInt(hex) {
+  return parseInt((hex || '#5865f2').replace('#', ''), 16) || 0;
+}
+function intToHex(color) {
+  return `#${(color || 0x5865f2).toString(16).padStart(6, '0')}`;
+}
+
+function embedFieldRowHtml(field = {}) {
+  return `
+    <div class="embed-field-row">
+      <input type="text" class="embed-field-name" placeholder="Nom du champ" maxlength="256" value="${escapeHtml(field.name || '')}" />
+      <textarea class="embed-field-value" placeholder="Valeur du champ" maxlength="1024">${escapeHtml(field.value || '')}</textarea>
+      <label class="embed-field-inline"><input type="checkbox" class="embed-field-inline-input" ${field.inline ? 'checked' : ''} /> Cote a cote</label>
+      <button type="button" class="btn danger embed-field-remove" title="Supprimer ce champ">✕</button>
+    </div>`;
+}
+
+function buildEmbedFromForm(root) {
+  const val = (sel) => root.querySelector(sel)?.value?.trim() || '';
+  const embed = {};
+  const title = val('#embed-title');
+  const description = val('#embed-description');
+  const url = val('#embed-url');
+  const authorName = val('#embed-author-name');
+  const authorUrl = val('#embed-author-url');
+  const authorIcon = val('#embed-author-icon');
+  const footerText = val('#embed-footer-text');
+  const footerIcon = val('#embed-footer-icon');
+  const thumbnail = val('#embed-thumbnail');
+  const image = val('#embed-image');
+  const colorHex = root.querySelector('#embed-color')?.value;
+
+  if (title) embed.title = title;
+  if (description) embed.description = description;
+  if (url) embed.url = url;
+  embed.color = hexToInt(colorHex);
+  if (authorName) embed.author = { name: authorName, url: authorUrl || undefined, icon_url: authorIcon || undefined };
+  if (footerText) embed.footer = { text: footerText, icon_url: footerIcon || undefined };
+  if (thumbnail) embed.thumbnail = { url: thumbnail };
+  if (image) embed.image = { url: image };
+  if (root.querySelector('#embed-timestamp')?.checked) embed.timestamp = true;
+
+  const fields = [...root.querySelectorAll('.embed-field-row')].map((row) => ({
+    name: row.querySelector('.embed-field-name').value.trim(),
+    value: row.querySelector('.embed-field-value').value.trim(),
+    inline: row.querySelector('.embed-field-inline-input').checked,
+  })).filter((f) => f.name && f.value);
+  if (fields.length) embed.fields = fields;
+
+  return { embed, content: val('#embed-content') };
+}
+
+function embedPreviewHtml(embed) {
+  const hex = intToHex(embed.color);
+  const authorHtml = embed.author?.name ? `
+    <div class="embed-preview-author">
+      ${embed.author.icon_url ? `<img src="${escapeHtml(embed.author.icon_url)}" alt="" />` : ''}
+      <span>${escapeHtml(embed.author.name)}</span>
+    </div>` : '';
+  const titleHtml = embed.title ? `<div class="embed-preview-title">${escapeHtml(embed.title)}</div>` : '';
+  const descHtml = embed.description ? `<div class="embed-preview-desc">${escapeHtml(embed.description)}</div>` : '';
+  const fieldsHtml = (embed.fields || []).length ? `
+    <div class="embed-preview-fields">
+      ${embed.fields.map((f) => `
+        <div class="embed-preview-field${f.inline ? ' inline' : ''}">
+          <div class="embed-preview-field-name">${escapeHtml(f.name)}</div>
+          <div class="embed-preview-field-value">${escapeHtml(f.value)}</div>
+        </div>`).join('')}
+    </div>` : '';
+  const imageHtml = embed.image?.url ? `<div class="embed-preview-image"><img src="${escapeHtml(embed.image.url)}" alt="" /></div>` : '';
+  const thumbHtml = embed.thumbnail?.url ? `<div class="embed-preview-thumb"><img src="${escapeHtml(embed.thumbnail.url)}" alt="" /></div>` : '';
+  const footerBits = [];
+  if (embed.footer?.text) footerBits.push(escapeHtml(embed.footer.text));
+  if (embed.timestamp) footerBits.push(new Date().toLocaleString('fr-FR'));
+  const footerHtml = footerBits.length ? `
+    <div class="embed-preview-footer">
+      ${embed.footer?.icon_url ? `<img src="${escapeHtml(embed.footer.icon_url)}" alt="" />` : ''}
+      <span>${footerBits.join(' • ')}</span>
+    </div>` : '';
+
+  const isEmpty = !authorHtml && !titleHtml && !descHtml && !fieldsHtml && !imageHtml && !thumbHtml && !footerHtml;
+
+  return `
+    <div class="embed-preview" style="border-left-color:${hex};">
+      <div class="embed-preview-inner">
+        ${thumbHtml}
+        ${authorHtml}
+        ${titleHtml}
+        ${descHtml}
+        ${fieldsHtml}
+        ${imageHtml}
+        ${footerHtml}
+        ${isEmpty ? '<p class="muted" style="margin:0;">Remplis le formulaire pour voir l\'apercu.</p>' : ''}
+      </div>
+    </div>`;
+}
+
+function populateEmbedForm(root, embed = {}, content = '') {
+  root.querySelector('#embed-content').value = content || '';
+  root.querySelector('#embed-title').value = embed.title || '';
+  root.querySelector('#embed-url').value = embed.url || '';
+  root.querySelector('#embed-description').value = embed.description || '';
+  root.querySelector('#embed-color').value = intToHex(embed.color);
+  root.querySelector('#embed-author-name').value = embed.author?.name || '';
+  root.querySelector('#embed-author-url').value = embed.author?.url || '';
+  root.querySelector('#embed-author-icon').value = embed.author?.icon_url || '';
+  root.querySelector('#embed-footer-text').value = embed.footer?.text || '';
+  root.querySelector('#embed-footer-icon').value = embed.footer?.icon_url || '';
+  root.querySelector('#embed-thumbnail').value = embed.thumbnail?.url || '';
+  root.querySelector('#embed-image').value = embed.image?.url || '';
+  root.querySelector('#embed-timestamp').checked = Boolean(embed.timestamp);
+  root.querySelector('#embed-fields-list').innerHTML = (embed.fields || []).map(embedFieldRowHtml).join('');
+  wireEmbedFieldRows(root);
+  updateEmbedPreview(root);
+}
+
+function updateEmbedPreview(root) {
+  const { embed } = buildEmbedFromForm(root);
+  root.querySelector('#embed-preview-slot').innerHTML = embedPreviewHtml(embed);
+}
+
+function wireEmbedFieldRows(root) {
+  root.querySelectorAll('.embed-field-remove').forEach((btn) => {
+    btn.onclick = () => { btn.closest('.embed-field-row').remove(); updateEmbedPreview(root); };
+  });
+}
+
+async function renderEmbedBuilderPage(id, container = app) {
+  container.innerHTML = '<p class="muted">Chargement...</p>';
+  const [channels, templates] = await Promise.all([Api.channels(id), Api.embedTemplates(id).catch(() => [])]);
+  const textChannels = channels.filter((c) => c.type === 0);
+  const channelOptions = textChannels.map((c) => `<option value="${c.id}">#${escapeHtml(c.name)}</option>`).join('');
+
+  const templateRows = () => templates.map((t) => `
+    <div class="row" data-id="${t.id}" style="justify-content:space-between; margin-bottom:6px;">
+      <span>${escapeHtml(t.name)}</span>
+      <span class="row">
+        <button class="btn secondary embed-load-template" data-id="${t.id}">Charger</button>
+        <button class="btn danger embed-delete-template" data-id="${t.id}">Supprimer</button>
+      </span>
+    </div>
+  `).join('') || '<p class="muted">Aucun modele enregistre.</p>';
+
+  container.innerHTML = `
+    <div class="inner" style="max-width:none;">
+      <div class="embed-builder-layout">
+        <div class="embed-builder-form">
+          <div class="dp-block">
+            <p class="dp-block-title">📨 Message</p>
+            <label>Texte au-dessus de l'embed (optionnel)</label>
+            <textarea id="embed-content" placeholder="Texte simple, en plus de l'embed"></textarea>
+          </div>
+
+          <div class="dp-block">
+            <p class="dp-block-title">📝 Contenu principal</p>
+            <label>Titre</label>
+            <input type="text" id="embed-title" maxlength="256" placeholder="Titre de l'embed" />
+            <label>Lien du titre</label>
+            <input type="text" id="embed-url" placeholder="https://..." />
+            <label>Description</label>
+            <textarea id="embed-description" maxlength="4096" placeholder="Texte principal (markdown Discord supporte)"></textarea>
+            <label>Couleur</label>
+            <input type="color" id="embed-color" value="#5865f2" />
+          </div>
+
+          <div class="dp-block">
+            <p class="dp-block-title">👤 Auteur</p>
+            <label>Nom</label>
+            <input type="text" id="embed-author-name" maxlength="256" placeholder="Nom affiche en haut" />
+            <label>Lien</label>
+            <input type="text" id="embed-author-url" placeholder="https://..." />
+            <label>Icone (URL)</label>
+            <input type="text" id="embed-author-icon" placeholder="https://..." />
+          </div>
+
+          <div class="dp-block">
+            <p class="dp-block-title">🖼️ Images</p>
+            <label>Miniature (petite image, en haut a droite)</label>
+            <input type="text" id="embed-thumbnail" placeholder="https://..." />
+            <label>Image (grande image, en bas)</label>
+            <input type="text" id="embed-image" placeholder="https://..." />
+          </div>
+
+          <div class="dp-block">
+            <p class="dp-block-title">📋 Champs</p>
+            <div id="embed-fields-list"></div>
+            <button type="button" class="btn secondary" id="embed-add-field" style="margin-top:8px;">+ Ajouter un champ</button>
+          </div>
+
+          <div class="dp-block">
+            <p class="dp-block-title">🔻 Pied de page</p>
+            <label>Texte</label>
+            <input type="text" id="embed-footer-text" maxlength="2048" placeholder="Texte du pied de page" />
+            <label>Icone (URL)</label>
+            <input type="text" id="embed-footer-icon" placeholder="https://..." />
+            <div class="dp-toggle-row" style="margin-top:10px;">
+              <span>Inclure la date/heure actuelles</span>
+              <input type="checkbox" id="embed-timestamp" />
+            </div>
+          </div>
+
+          ${sectionHtml('Modeles enregistres', `
+            <div id="embed-templates-list">${templateRows()}</div>
+          `)}
+
+          ${sectionHtml('JSON avance (import/export)', `
+            <p class="muted">Colle un JSON d'embed pour le charger, ou copie celui genere par le formulaire.</p>
+            <textarea id="embed-json" style="min-height:160px;" placeholder='{"title": "...", "description": "...", "color": 5793266}'></textarea>
+            <div class="row" style="margin-top:8px;">
+              <button type="button" class="btn secondary" id="embed-json-apply">Appliquer ce JSON</button>
+              <button type="button" class="btn secondary" id="embed-json-copy">Copier le JSON actuel</button>
+            </div>
+          `)}
+        </div>
+
+        <div class="embed-builder-preview-wrap">
+          <p class="muted" style="margin-top:0;">Apercu en direct</p>
+          <div id="embed-preview-slot"></div>
+          <label style="margin-top:14px;">Salon de destination</label>
+          <select id="embed-target-channel">${channelOptions}</select>
+          <button class="btn" id="embed-post-btn" style="margin-top:10px; width:100%;">🚀 Poster dans Discord</button>
+          <button class="btn secondary" id="embed-save-template-btn" style="margin-top:8px; width:100%;">💾 Enregistrer comme modele</button>
+        </div>
+      </div>
+    </div>
+  `;
+  wireSections(container);
+
+  container.querySelectorAll('input, textarea').forEach((el) => {
+    el.addEventListener('input', () => updateEmbedPreview(container));
+  });
+
+  container.querySelector('#embed-add-field').addEventListener('click', () => {
+    if (container.querySelectorAll('.embed-field-row').length >= 25) {
+      showToast('Maximum 25 champs (limite Discord).', 'error');
+      return;
+    }
+    container.querySelector('#embed-fields-list').insertAdjacentHTML('beforeend', embedFieldRowHtml());
+    wireEmbedFieldRows(container);
+    updateEmbedPreview(container);
+  });
+
+  container.querySelector('#embed-post-btn').addEventListener('click', async () => {
+    const channelId = container.querySelector('#embed-target-channel').value;
+    const { embed, content } = buildEmbedFromForm(container);
+    if (!channelId) { showToast('Choisis un salon.', 'error'); return; }
+    if (!embed.title && !embed.description && !(embed.fields || []).length) {
+      showToast('Ajoute au moins un titre, une description ou un champ.', 'error');
+      return;
+    }
+    try {
+      await Api.postEmbed(id, channelId, embed, content);
+      showToast('Embed en cours d\'envoi, actif sous quelques secondes.');
+    } catch (err) {
+      showToast(err.message, 'error');
+    }
+  });
+
+  container.querySelector('#embed-save-template-btn').addEventListener('click', async () => {
+    const name = window.prompt('Nom du modele ?');
+    if (!name) return;
+    const { embed } = buildEmbedFromForm(container);
+    try {
+      await Api.saveEmbedTemplate(id, name, embed);
+      showToast('Modele enregistre.');
+      await renderEmbedBuilderPage(id, container);
+    } catch (err) {
+      showToast(err.message, 'error');
+    }
+  });
+
+  container.querySelectorAll('.embed-load-template').forEach((btn) => {
+    btn.addEventListener('click', () => {
+      const template = templates.find((t) => t.id === btn.dataset.id);
+      if (template) {
+        populateEmbedForm(container, template.embed, '');
+        showToast('Modele charge.');
+      }
+    });
+  });
+  container.querySelectorAll('.embed-delete-template').forEach((btn) => {
+    btn.addEventListener('click', async () => {
+      if (!window.confirm('Supprimer ce modele ?')) return;
+      try {
+        await Api.deleteEmbedTemplate(id, btn.dataset.id);
+        showToast('Modele supprime.');
+        await renderEmbedBuilderPage(id, container);
+      } catch (err) {
+        showToast(err.message, 'error');
+      }
+    });
+  });
+
+  container.querySelector('#embed-json-apply').addEventListener('click', () => {
+    try {
+      const parsed = JSON.parse(container.querySelector('#embed-json').value);
+      populateEmbedForm(container, parsed, '');
+      showToast('JSON applique.');
+    } catch {
+      showToast('JSON invalide.', 'error');
+    }
+  });
+  container.querySelector('#embed-json-copy').addEventListener('click', () => {
+    const { embed } = buildEmbedFromForm(container);
+    container.querySelector('#embed-json').value = JSON.stringify(embed, null, 2);
+    showToast('JSON mis a jour ci-dessous.');
+  });
+
+  wireEmbedFieldRows(container);
+  updateEmbedPreview(container);
 }
 
 /* ---------- Boot ---------- */

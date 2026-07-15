@@ -85,6 +85,10 @@ window.Api = (function api() {
     setRolePositions: (guildId, positions) => request(`/api/guilds/${guildId}/roles/positions`, { method: 'PATCH', body: JSON.stringify({ positions }) }),
     setRoleColor: (guildId, roleId, color) => request(`/api/guilds/${guildId}/roles/${roleId}`, { method: 'PATCH', body: JSON.stringify({ color }) }),
     postPanel: (guildId, key, channelId) => request(`/api/guilds/${guildId}/panels/${key}`, { method: 'POST', body: JSON.stringify({ channelId }) }),
+    embedTemplates: (guildId) => request(`/api/guilds/${guildId}/embedtemplates`),
+    saveEmbedTemplate: (guildId, name, embed) => request(`/api/guilds/${guildId}/embedtemplates`, { method: 'POST', body: JSON.stringify({ name, embed }) }),
+    deleteEmbedTemplate: (guildId, templateId) => request(`/api/guilds/${guildId}/embedtemplates/${templateId}`, { method: 'DELETE' }),
+    postEmbed: (guildId, channelId, embed, content) => request(`/api/guilds/${guildId}/panels/embed`, { method: 'POST', body: JSON.stringify({ channelId, embed, content }) }),
   };
 }());
 

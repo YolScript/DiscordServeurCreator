@@ -28,6 +28,16 @@ async function executeAction(guild, action) {
     if (!channel) return;
     if (action.type === 'poll') await postPollPanel(channel);
     else await postTicketPanel(channel);
+    return;
+  }
+  if (action.type === 'embed') {
+    if (!action.channelId || !action.embed) return;
+    const channel = await guild.channels.fetch(action.channelId).catch(() => null);
+    if (!channel) return;
+    const embed = { ...action.embed };
+    if (embed.timestamp) embed.timestamp = new Date().toISOString();
+    else delete embed.timestamp;
+    await channel.send({ content: action.content || undefined, embeds: [embed] });
   }
 }
 

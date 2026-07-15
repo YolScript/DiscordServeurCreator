@@ -14,6 +14,7 @@ import {
   getTickets, putTickets,
   pushPendingPanelAction,
   getStats,
+  getEmbedTemplates, putEmbedTemplates,
 } from './kvStore.js';
 import {
   bulkEditPermissions, exportChannelPermissions, importChannelPermissions, resetRoleToDefault,
@@ -492,14 +493,42 @@ async function router(request, env) {
       return json(await getStats(env, guildId), env);
     }
 
-    // --- Panneaux (reglement/roles/poll/ticket) : depose une action que le
-    // bot (process separe) sonde et execute (cf panelActionsSync cote bot).
+    // --- Panneaux (reglement/roles/poll/ticket/embed) : depose une action
+    // que le bot (process separe) sonde et execute (cf panelActionsSync
+    // cote bot).
     if (sub === 'panels' && parts.length === 5 && method === 'POST') {
-      await requireGuildAccess(env, request, guildId);
+      const session = await requireGuildAccess(env, request, guildId);
       const key = parts[4];
-      if (!['reglement', 'roles', 'poll', 'ticket'].includes(key)) throw new HttpError(400, 'Panneau inconnu.');
+      if (!['reglement', 'roles', 'poll', 'ticket', 'embed'].includes(key)) throw new HttpError(400, 'Panneau inconnu.');
       const body = await readJson(request).catch(() => ({}));
+      if (key === 'embed') {
+        if (!body.channelId || !body.embed) throw new HttpError(400, 'channelId et embed requis.');
+        await pushPendingPanelAction(env, guildId, { type: 'embed', channelId: body.channelId, embed: body.embed, content: body.content });
+        await logAudit(env, guildId, { title: 'Embed poste', description: `${session.username} a poste un embed dans <#${body.channelId}>.` });
+        return json({ ok: true }, env);
+      }
       await pushPendingPanelAction(env, guildId, { type: key, channelId: body.channelId });
+      return json({ ok: true }, env);
+    }
+
+    // --- Modeles d'embed sauvegardes ---
+    if (sub === 'embedtemplates' && parts.length === 4) {
+      await requireGuildAccess(env, request, guildId);
+      if (method === 'GET') return json(await getEmbedTemplates(env, guildId), env);
+      if (method === 'POST') {
+        const { name, embed } = await readJson(request);
+        if (!name || !embed) throw new HttpError(400, 'name et embed requis.');
+        const items = await getEmbedTemplates(env, guildId);
+        const entry = { id: `${Date.now().toString(36)}${Math.random().toString(36).slice(2, 6)}`, name, embed };
+        items.push(entry);
+        await putEmbedTemplates(env, guildId, items);
+        return json(entry, env);
+      }
+    }
+    if (sub === 'embedtemplates' && parts.length === 5 && method === 'DELETE') {
+      await requireGuildAccess(env, request, guildId);
+      const items = (await getEmbedTemplates(env, guildId)).filter((t) => t.id !== parts[4]);
+      await putEmbedTemplates(env, guildId, items);
       return json({ ok: true }, env);
     }
 
