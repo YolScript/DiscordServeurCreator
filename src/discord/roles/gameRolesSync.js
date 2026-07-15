@@ -2,6 +2,7 @@ const client = require('../client');
 const gameRoleStore = require('../../kv/gameRoleStore');
 const guildConfigStore = require('../../kv/guildConfigStore');
 const rolesMessageManager = require('./rolesMessageManager');
+const { syncGameChannels } = require('./gameChannels');
 const logger = require('../../shared/logger');
 
 const TICK_MS = 20_000;
@@ -30,6 +31,7 @@ async function tick() {
       lastSeen.set(guild.id, fp);
 
       await rolesMessageManager.refresh(guild);
+      await syncGameChannels(guild);
     } catch (err) {
       logger.error('gameRolesSync.tick', err);
     }

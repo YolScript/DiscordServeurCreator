@@ -32,6 +32,7 @@ window.Api = (function api() {
     channels: (guildId) => request(`/api/guilds/${guildId}/channels`),
     roles: (guildId) => request(`/api/guilds/${guildId}/roles`),
     members: (guildId) => request(`/api/guilds/${guildId}/members`),
+    createRole: (guildId, name, color) => request(`/api/guilds/${guildId}/roles`, { method: 'POST', body: JSON.stringify({ name, color }) }),
     config: (guildId) => request(`/api/guilds/${guildId}/config`),
     updateConfig: (guildId, patch) => request(`/api/guilds/${guildId}/config`, { method: 'PATCH', body: JSON.stringify(patch) }),
     gameRoles: (guildId) => request(`/api/guilds/${guildId}/gameroles`),
@@ -79,6 +80,7 @@ window.Api = (function api() {
     unlock: (guildId) => request(`/api/guilds/${guildId}/security/unlock`, { method: 'POST' }),
 
     applyServiceVisibility: (guildId) => request(`/api/guilds/${guildId}/service/apply`, { method: 'POST' }),
+    postPanel: (guildId, key, channelId) => request(`/api/guilds/${guildId}/panels/${key}`, { method: 'POST', body: JSON.stringify({ channelId }) }),
   };
 }());
 

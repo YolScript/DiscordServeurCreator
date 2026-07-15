@@ -226,10 +226,23 @@ const pollPanelCommand = new SlashCommandBuilder()
   .addChannelOption((o) => o.setName('salon').setDescription('Salon ou poster le panneau (defaut : ce salon)').addChannelTypes(ChannelType.GuildText).setRequired(false))
   .toJSON();
 
+const reglementPanelCommand = new SlashCommandBuilder()
+  .setName('reglement-panel')
+  .setDescription('Reposte/rafraichit l\'embed du reglement avec le texte actuel.')
+  .setDefaultMemberPermissions(PermissionFlagsBits.Administrator)
+  .toJSON();
+
+const rolesPanelCommand = new SlashCommandBuilder()
+  .setName('roles-panel')
+  .setDescription('Force la mise a jour du message a select menus du salon #roles.')
+  .setDefaultMemberPermissions(PermissionFlagsBits.Administrator)
+  .toJSON();
+
 module.exports = [
   setupCommand, warnCommand, warningsCommand, clearwarnsCommand, timeoutCommand, unlockCommand, automodCommand,
   scheduleAnnouncementCommand, scheduleEventCommand, scheduledListCommand, scheduledCancelCommand,
   rankCommand, leaderboardCommand, levelroleCommand, pollCommand, pollPanelCommand, giveawayCommand,
   invitesCommand, referralroleCommand, badgesCommand, ticketCommand, ticketPanelCommand,
   reglementTranslationCommand, streamerLinkCommand, streamerUnlinkCommand, streamerListCommand,
+  reglementPanelCommand, rolesPanelCommand,
 ];

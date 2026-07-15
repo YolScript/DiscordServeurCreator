@@ -3,6 +3,7 @@ const {
 } = require('discord.js');
 const guildConfigStore = require('../../kv/guildConfigStore');
 const { getTemplate } = require('./templates');
+const { DEFAULT_REGLEMENT_TEXT } = require('./defaultReglement');
 const { REGLEMENT_ACCEPT, REGLEMENT_TRANSLATE, AGE_PLUS16, AGE_MINUS16 } = require('../interactions/customIds');
 const logger = require('../../shared/logger');
 
@@ -87,15 +88,16 @@ async function setupGuild({ guild, templateKey, requestedByUserId, reglementText
   }
 
   // Contenu initial : embed reglement + bouton, puis boutons +16/-16.
+  const finalReglementText = reglementText || DEFAULT_REGLEMENT_TEXT;
   const reglementEmbed = new EmbedBuilder()
     .setTitle('Reglement du serveur')
-    .setDescription(reglementText || 'Reglement a definir depuis le dashboard.')
+    .setDescription(finalReglementText)
     .setColor(0xe63946);
   const reglementRow = new ActionRowBuilder().addComponents(
     new ButtonBuilder().setCustomId(REGLEMENT_ACCEPT).setLabel("J'accepte le reglement").setStyle(ButtonStyle.Success),
     new ButtonBuilder().setCustomId(REGLEMENT_TRANSLATE).setLabel('Autres langues').setEmoji('🌐').setStyle(ButtonStyle.Secondary),
   );
-  await channelObjects.reglement.send({ embeds: [reglementEmbed], components: [reglementRow] });
+  const reglementMessage = await channelObjects.reglement.send({ embeds: [reglementEmbed], components: [reglementRow] });
 
   const ageEmbed = new EmbedBuilder()
     .setTitle('Verification age (obligatoire)')
@@ -110,11 +112,12 @@ async function setupGuild({ guild, templateKey, requestedByUserId, reglementText
   const config = await guildConfigStore.upsert(guild.id, {
     requestedByUserId,
     template: templateKey,
-    reglementText: reglementText || '',
+    reglementText: finalReglementText,
     welcomeMessageTemplate: 'Bienvenue {user} sur {server} !',
     leaveMessageTemplate: '{username} a quitte le serveur.',
     arrivalDepartureChannelId: channelObjects['arrivee-depart'].id,
     rulesChannelId: channelObjects.reglement.id,
+    reglementMessageId: reglementMessage.id,
     rolesChannelId: channelObjects.roles.id,
     vocauxCategoryId: channelObjects.vocaux.id,
     publicVoiceBaseChannelIds: [channelObjects['vocal-public-1'].id, channelObjects['vocal-public-2'].id],

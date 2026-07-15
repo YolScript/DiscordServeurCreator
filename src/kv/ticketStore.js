@@ -36,6 +36,17 @@ async function close(guildId, channelId) {
   return ticket;
 }
 
+async function assign(guildId, channelId, staffId, staffTag) {
+  const items = await list(guildId);
+  const ticket = items.find((t) => t.channelId === channelId);
+  if (ticket) {
+    ticket.assignedTo = staffId;
+    ticket.assignedToTag = staffTag;
+  }
+  await replaceAll(guildId, items);
+  return ticket;
+}
+
 module.exports = {
-  list, replaceAll, add, findByChannel, findOpenByUser, close,
+  list, replaceAll, add, findByChannel, findOpenByUser, close, assign,
 };

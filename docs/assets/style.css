@@ -310,7 +310,8 @@ html, body { height: 100%; }
 label { display: block; font-size: 0.82rem; color: var(--text-muted); margin: 14px 0 6px; }
 label:first-child { margin-top: 0; }
 
-input[type=text], textarea, select {
+input[type=text], input[type=number], input[type=date], input[type=time], input[type=datetime-local],
+input[type=email], input[type=search], input[type=password], input[type=url], textarea, select {
   width: 100%;
   background: var(--bg-input);
   border: 1px solid var(--border-strong);
@@ -320,12 +321,17 @@ input[type=text], textarea, select {
   font-size: 0.88rem;
   font-family: inherit;
   transition: border-color 0.12s ease, box-shadow 0.12s ease;
+  color-scheme: dark;
 }
-input[type=text]:focus, textarea:focus, select:focus {
+input[type=text]:focus, input[type=number]:focus, input[type=date]:focus, input[type=time]:focus,
+input[type=datetime-local]:focus, input[type=email]:focus, input[type=search]:focus,
+input[type=password]:focus, input[type=url]:focus, textarea:focus, select:focus {
   outline: none;
   border-color: var(--accent);
   box-shadow: 0 0 0 3px var(--accent-soft);
 }
+input[type=text]:hover, input[type=number]:hover, input[type=date]:hover, input[type=time]:hover,
+input[type=datetime-local]:hover, textarea:hover, select:hover { border-color: var(--border); }
 textarea { min-height: 90px; resize: vertical; font-family: ui-monospace, "SF Mono", Consolas, monospace; font-size: 0.82rem; line-height: 1.5; }
 
 .channel-picker {

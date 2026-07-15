@@ -14,49 +14,66 @@ function enqueue(guildId, task) {
 }
 
 function publicVoicePermissionOverwrites(guild, config) {
+  if (!config.reglementValidatedRoleId) return [];
   return [
     { id: guild.roles.everyone.id, deny: [P.ViewChannel, P.Connect] },
     { id: config.reglementValidatedRoleId, allow: [P.ViewChannel, P.Connect, P.Speak] },
   ];
 }
 
+// Salon declencheur "Creer un vocal" dans la categorie Vocaux : rejoindre ce
+// salon genere un vocal personnel dedie (meme principe que le createur staff,
+// cf staffVoiceCreator.js), plutot que des salons "Vocal Public" partages a
+// capacite fixe.
+async function ensurePublicVoiceCreator(guild) {
+  const config = await guildConfigStore.find(guild.id);
+  if (!config?.vocauxCategoryId) return null;
+
+  const existing = config.publicVoiceCreatorChannelId
+    ? await guild.channels.fetch(config.publicVoiceCreatorChannelId).catch(() => null)
+    : null;
+  if (existing) return existing;
+
+  const channel = await guild.channels.create({
+    name: '➕ Creer un vocal',
+    type: ChannelType.GuildVoice,
+    parent: config.vocauxCategoryId,
+    permissionOverwrites: publicVoicePermissionOverwrites(guild, config),
+  });
+  await guildConfigStore.upsert(guild.id, { publicVoiceCreatorChannelId: channel.id });
+  return channel;
+}
+
 async function handleVoiceStateUpdate(oldState, newState) {
   const guild = newState.guild ?? oldState.guild;
   const config = await guildConfigStore.find(guild.id);
-  if (!config?.publicVoiceBaseChannelIds?.length || !config.vocauxCategoryId) return;
+  if (!config?.publicVoiceCreatorChannelId) return;
 
   await enqueue(guild.id, async () => {
     const state = await publicVoiceStore.get(guild.id);
-    const allPublicIds = [...config.publicVoiceBaseChannelIds, ...state.spawnedChannelIds];
 
-    // Nettoyage : un salon public genere dynamiquement qui vient de se vider.
     if (oldState.channelId && state.spawnedChannelIds.includes(oldState.channelId)) {
       const channel = await guild.channels.fetch(oldState.channelId).catch(() => null);
       if (channel && channel.members.size === 0) {
         await channel.delete().catch(() => {});
         state.spawnedChannelIds = state.spawnedChannelIds.filter((id) => id !== oldState.channelId);
         await publicVoiceStore.set(guild.id, state);
-        return;
       }
     }
 
-    // Debordement : tous les salons publics sont occupes -> on en cree un de plus.
-    if (newState.channelId && allPublicIds.includes(newState.channelId)) {
-      const channels = await Promise.all(allPublicIds.map((id) => guild.channels.fetch(id).catch(() => null)));
-      const allFull = channels.every((c) => c && c.members.size > 0);
-      if (allFull) {
-        const room = await guild.channels.create({
-          name: `Vocal Public ${allPublicIds.length + 1}`,
-          type: ChannelType.GuildVoice,
-          parent: config.vocauxCategoryId,
-          permissionOverwrites: publicVoicePermissionOverwrites(guild, config),
-        });
-        state.spawnedChannelIds.push(room.id);
-        await publicVoiceStore.set(guild.id, state);
-        logger.info(`Vocal public supplementaire cree sur ${guild.id}`);
-      }
+    if (newState.channelId === config.publicVoiceCreatorChannelId && newState.member) {
+      const room = await guild.channels.create({
+        name: `Vocal de ${newState.member.displayName}`.slice(0, 100),
+        type: ChannelType.GuildVoice,
+        parent: config.vocauxCategoryId,
+        permissionOverwrites: publicVoicePermissionOverwrites(guild, config),
+      });
+      await newState.member.voice.setChannel(room.id).catch(() => {});
+      state.spawnedChannelIds.push(room.id);
+      await publicVoiceStore.set(guild.id, state);
+      logger.info(`Vocal public personnel cree sur ${guild.id}`);
     }
   });
 }
 
-module.exports = { handleVoiceStateUpdate };
+module.exports = { ensurePublicVoiceCreator, handleVoiceStateUpdate };

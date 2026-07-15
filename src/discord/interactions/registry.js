@@ -6,7 +6,9 @@ const {
 } = require('./customIds');
 const pollManager = require('../engagement/pollManager');
 const giveawayManager = require('../engagement/giveawayManager');
-const { createTicket, closeTicket, TICKET_CLOSE_ID } = require('../support/ticketManager');
+const {
+  createTicket, closeTicket, claimTicket, TICKET_CLOSE_ID, TICKET_CLAIM_ID,
+} = require('../support/ticketManager');
 const handlePollCreateButton = require('./buttons/pollCreateButton');
 const handlePollCreateModal = require('./modals/pollCreateModal');
 const { handleReglementAccept, handleCaptchaResult } = require('./buttons/reglementAccept');
@@ -41,6 +43,8 @@ const handleBadgesCommand = require('../commands/badges');
 const handleTicketCommand = require('../commands/ticket');
 const handleTicketPanelCommand = require('../commands/ticketPanel');
 const handlePollPanelCommand = require('../commands/pollPanel');
+const handleReglementPanelCommand = require('../commands/reglementPanel');
+const handleRolesPanelCommand = require('../commands/rolesPanel');
 const logger = require('../../shared/logger');
 
 const commandHandlers = {
@@ -70,6 +74,8 @@ const commandHandlers = {
   ticket: handleTicketCommand,
   'ticket-panel': handleTicketPanelCommand,
   'poll-panel': handlePollPanelCommand,
+  'reglement-panel': handleReglementPanelCommand,
+  'roles-panel': handleRolesPanelCommand,
 };
 
 async function routeInteraction(interaction) {
@@ -98,6 +104,8 @@ async function routeInteraction(interaction) {
         await interaction.reply({ content: 'Participation enregistree, bonne chance !', flags: MessageFlags.Ephemeral });
       } else if (interaction.customId === TICKET_CLOSE_ID) {
         await closeTicket(interaction);
+      } else if (interaction.customId === TICKET_CLAIM_ID) {
+        await claimTicket(interaction);
       } else if (interaction.customId === TICKET_OPEN) {
         await interaction.deferReply({ flags: MessageFlags.Ephemeral });
         const { channel, alreadyOpen } = await createTicket(interaction.guild, interaction.member);

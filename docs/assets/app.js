@@ -446,7 +446,10 @@ function contextualChannelSettingsHtml(channelId, config) {
           <span>Verification anti-bot (captcha emoji) avant validation</span>
           <input type="checkbox" id="dp-ctx-captcha" ${config?.captchaEnabled === false ? '' : 'checked'} />
         </div>
-        <button class="btn secondary" id="dp-ctx-save-reglement" style="margin-top:12px;">Enregistrer le reglement</button>
+        <div class="row" style="margin-top:12px;">
+          <button class="btn secondary" id="dp-ctx-save-reglement">Enregistrer le reglement</button>
+          <button class="btn secondary" id="dp-ctx-repost-reglement">🔁 Reposter l'embed</button>
+        </div>
       </div>`;
   }
   if (config?.arrivalDepartureChannelId && config.arrivalDepartureChannelId === channelId) {
@@ -462,6 +465,19 @@ function contextualChannelSettingsHtml(channelId, config) {
       </div>`;
   }
   return '';
+}
+
+function channelPanelsBlockHtml(type) {
+  if (type !== 0) return '';
+  return `
+    <div class="dp-block">
+      <p class="dp-block-title">📋 Panneaux</p>
+      <p class="muted" style="margin:0 0 10px;">Poste un panneau interactif dans ce salon.</p>
+      <div class="row">
+        <button class="btn secondary" id="dp-post-ticket-panel">🎫 Panneau tickets</button>
+        <button class="btn secondary" id="dp-post-poll-panel">🗳️ Panneau sondage</button>
+      </div>
+    </div>`;
 }
 
 function specialChannelToggleHtml(channelId, type, config) {
@@ -509,6 +525,7 @@ function renderChannelPanel(guildId, channelId, name, type, config, channels) {
 
       ${specialChannelToggleHtml(channelId, type, config)}
       ${contextualChannelSettingsHtml(channelId, config)}
+      ${channelPanelsBlockHtml(type)}
 
       <div class="dp-block danger">
         <p class="dp-block-title">Zone de danger</p>
@@ -527,6 +544,42 @@ function renderChannelPanel(guildId, channelId, name, type, config, channels) {
           captchaEnabled: document.getElementById('dp-ctx-captcha').checked,
         });
         showToast('Reglement enregistre.');
+      } catch (err) {
+        showToast(err.message, 'error');
+      }
+    });
+  }
+
+  const repostReglementBtn = document.getElementById('dp-ctx-repost-reglement');
+  if (repostReglementBtn) {
+    repostReglementBtn.addEventListener('click', async () => {
+      try {
+        await Api.postPanel(guildId, 'reglement');
+        showToast('Reposte demande, actif sous quelques secondes.');
+      } catch (err) {
+        showToast(err.message, 'error');
+      }
+    });
+  }
+
+  const postTicketPanelBtn = document.getElementById('dp-post-ticket-panel');
+  if (postTicketPanelBtn) {
+    postTicketPanelBtn.addEventListener('click', async () => {
+      try {
+        await Api.postPanel(guildId, 'ticket', channelId);
+        showToast('Panneau tickets demande, actif sous quelques secondes.');
+      } catch (err) {
+        showToast(err.message, 'error');
+      }
+    });
+  }
+
+  const postPollPanelBtn = document.getElementById('dp-post-poll-panel');
+  if (postPollPanelBtn) {
+    postPollPanelBtn.addEventListener('click', async () => {
+      try {
+        await Api.postPanel(guildId, 'poll', channelId);
+        showToast('Panneau sondage demande, actif sous quelques secondes.');
       } catch (err) {
         showToast(err.message, 'error');
       }
@@ -763,10 +816,20 @@ async function renderGameRolesPage(id, container = app) {
       ${sectionHtml('Roles de jeu actifs', `
         <p class="muted">Generes automatiquement quand un membre est vu en train de jouer, ou ajoutes depuis le catalogue.</p>
         ${rows || '<p class="muted">Aucun role de jeu pour le moment.</p>'}
+        <button class="btn secondary" id="force-roles-refresh" style="margin-top:12px;">🔁 Forcer la mise a jour du salon #roles</button>
       `, { open: true })}
     </div>
   `;
   wireSections(container);
+
+  document.getElementById('force-roles-refresh').addEventListener('click', async () => {
+    try {
+      await Api.postPanel(id, 'roles');
+      showToast('Mise a jour demandee, actif sous quelques secondes.');
+    } catch (err) {
+      showToast(err.message, 'error');
+    }
+  });
 
   container.querySelectorAll('.game-preset-chip').forEach((chip) => {
     chip.addEventListener('click', async () => {
@@ -860,20 +923,28 @@ async function renderAutomationsPage(id, container = app) {
 
   const scheduledRows = scheduled.map((t) => `
     <div class="row" data-id="${t.id}" style="justify-content:space-between; align-items:flex-start; margin-bottom:6px;">
-      <span>${channelName(t.channelId)} — ${new Date(t.runAt).toLocaleString('fr-FR')}${t.repeatIntervalMs ? ' (recurrent)' : ''}<br /><span class="muted">${escapeHtml(t.message).slice(0, 80)}</span></span>
+      <span>${channelName(t.channelId)} — ${new Date(t.runAt).toLocaleString('fr-FR')}${t.repeatIntervalMs === 86400000 ? ' (tous les jours)' : t.repeatIntervalMs ? ' (recurrent)' : ''}<br /><span class="muted">${escapeHtml(t.message).slice(0, 80)}</span></span>
       <button class="btn danger delete-scheduled" data-id="${t.id}">Supprimer</button>
     </div>
   `).join('') || '<p class="muted">Aucune annonce programmee.</p>';
 
   const ticketRows = tickets.map((t) => `
     <div class="row" data-id="${t.id}" style="justify-content:space-between; margin-bottom:6px;">
-      <span>${channelName(t.channelId)} <span class="muted">(${escapeHtml(t.userId)})</span> — <span class="badge ${t.status === 'open' ? 'configured' : 'not-configured'}">${t.status === 'open' ? 'Ouvert' : 'Ferme'}</span></span>
+      <span>${channelName(t.channelId)} <span class="muted">(${escapeHtml(t.userId)})</span> — <span class="badge ${t.status === 'open' ? 'configured' : 'not-configured'}">${t.status === 'open' ? 'Ouvert' : 'Ferme'}</span>${t.assignedToTag ? ` <span class="muted">— pris en charge par ${escapeHtml(t.assignedToTag)}</span>` : ''}</span>
       ${t.status === 'open' ? `<button class="btn danger close-ticket" data-id="${t.id}">Fermer</button>` : ''}
     </div>
   `).join('') || '<p class="muted">Aucun ticket pour le moment.</p>';
 
   container.innerHTML = `
     <div class="inner">
+      ${sectionHtml('Bots complementaires', `
+        <p class="muted">Ajoute des modules complementaires a ce serveur en invitant ces bots.</p>
+        <div class="row">
+          <a class="btn secondary" href="https://discord.com/oauth2/authorize?client_id=1526016642411135107&permissions=286262288&scope=bot" target="_blank" rel="noopener">➕ Ajouter un bot complementaire</a>
+          <a class="btn secondary" href="https://discord.com/oauth2/authorize?client_id=1449858112054886442&scope=bot%20applications.commands&permissions=268520448&guild_id=1526242972989915307" target="_blank" rel="noopener">➕ Ajouter le bot complementaire (ServeurCreator)</a>
+        </div>
+      `)}
+
       ${sectionHtml('Auto-moderation', `
         <div class="dp-toggle-row"><span>Auto-moderation active</span><input type="checkbox" id="am-enabled" ${modConfig.autoModEnabled ? 'checked' : ''} /></div>
         <div class="dp-toggle-row" style="margin-top:6px;"><span>Bloquer les liens d'invitation Discord</span><input type="checkbox" id="am-invites" ${modConfig.blockInvites ? 'checked' : ''} /></div>
@@ -904,6 +975,7 @@ async function renderAutomationsPage(id, container = app) {
           <select id="new-referral-role">${roleOptions()}</select>
           <button class="btn secondary" id="add-referral-role">Ajouter</button>
         </div>
+        <button class="btn secondary" id="generate-referral-role" style="margin-top:8px;">🎗️ Generer un role Parrain automatiquement</button>
         <h2 style="margin-top:18px; font-size:0.85rem;">Classement</h2>
         <div id="referral-leaderboard">${leaderboardRows}</div>
       `)}
@@ -930,6 +1002,10 @@ async function renderAutomationsPage(id, container = app) {
           <textarea id="new-scheduled-message"></textarea>
           <label>Date et heure</label>
           <input type="datetime-local" id="new-scheduled-date" />
+          <div class="dp-toggle-row" style="margin-top:10px;">
+            <span>Repeter tous les jours a cette heure</span>
+            <input type="checkbox" id="new-scheduled-daily" />
+          </div>
           <button class="btn secondary" id="add-scheduled" style="margin-top:8px;">Programmer</button>
         </div>
       `)}
@@ -967,6 +1043,15 @@ async function renderAutomationsPage(id, container = app) {
       `)}
 
       ${sectionHtml('Tickets', `
+        <label>Roles autorises a voir/repondre aux tickets (si non limite au service)</label>
+        <div class="channel-picker" style="max-height:160px">
+          ${roles.filter((r) => r.name !== '@everyone').map((r) => `
+            <label><input type="checkbox" class="ticket-role" value="${r.id}" ${(config?.ticketAllowedRoleIds || [config?.moderateurRoleId, config?.adminRoleId].filter(Boolean)).includes(r.id) ? 'checked' : ''} /> ${escapeHtml(r.name)}</label>
+          `).join('') || '<p class="muted">Aucun role.</p>'}
+        </div>
+        <button class="btn secondary" id="save-ticket-roles" style="margin-top:8px;">Enregistrer les roles autorises</button>
+
+        <h2 style="margin-top:18px; font-size:0.85rem;">Tickets</h2>
         <div id="tickets-list">${ticketRows}</div>
       `)}
     </div>
@@ -992,6 +1077,16 @@ async function renderAutomationsPage(id, container = app) {
       showToast(err.message, 'error');
     } finally {
       btn.disabled = false;
+    }
+  });
+
+  document.getElementById('save-ticket-roles').addEventListener('click', async () => {
+    try {
+      const ticketAllowedRoleIds = [...container.querySelectorAll('.ticket-role:checked')].map((el) => el.value);
+      await Api.updateConfig(id, { ticketAllowedRoleIds });
+      showToast('Roles autorises pour les tickets enregistres.');
+    } catch (err) {
+      showToast(err.message, 'error');
     }
   });
 
@@ -1048,6 +1143,16 @@ async function renderAutomationsPage(id, container = app) {
       showToast(err.message, 'error');
     }
   });
+  document.getElementById('generate-referral-role').addEventListener('click', async () => {
+    try {
+      const role = await Api.createRole(id, '🎗️ Parrain', 0x2ec4b6);
+      await Api.setReferralRole(id, 3, role.id);
+      showToast('Role Parrain genere et assigne a 3 invitations.');
+      await renderAutomationsPage(id, container);
+    } catch (err) {
+      showToast(err.message, 'error');
+    }
+  });
   container.querySelectorAll('.delete-referral-role').forEach((btn) => {
     btn.addEventListener('click', async () => {
       try {
@@ -1089,9 +1194,12 @@ async function renderAutomationsPage(id, container = app) {
     const channelId = document.getElementById('new-scheduled-channel').value;
     const message = document.getElementById('new-scheduled-message').value.trim();
     const dateVal = document.getElementById('new-scheduled-date').value;
+    const daily = document.getElementById('new-scheduled-daily').checked;
     if (!channelId || !message || !dateVal) { showToast('Salon, message et date requis.', 'error'); return; }
     try {
-      await Api.addScheduled(id, { channelId, message, runAt: new Date(dateVal).getTime() });
+      await Api.addScheduled(id, {
+        channelId, message, runAt: new Date(dateVal).getTime(), repeatIntervalMs: daily ? 86400000 : undefined,
+      });
       showToast('Annonce programmee.');
       await renderAutomationsPage(id, container);
     } catch (err) {
@@ -1140,12 +1248,11 @@ async function renderSecurityPage(id, container = app) {
   container.innerHTML = `
     <div class="inner">
       ${sectionHtml('Export / Restauration manuelle', `
-        <p class="muted">Exporte la structure (noms/couleurs des roles, categories, salons) en JSON. La restauration est additive : elle recree uniquement ce qui manque, sans jamais toucher a l'existant.</p>
-        <button class="btn secondary" id="export-structure">Exporter la structure actuelle</button>
-        <textarea id="structure-output" placeholder="Le JSON exporte apparait ici, copie-le pour le sauvegarder."></textarea>
-        <label>Coller un JSON exporte pour restaurer</label>
-        <textarea id="structure-input" placeholder="Colle ici un JSON exporte precedemment"></textarea>
-        <button class="btn secondary" id="restore-structure" style="margin-top:8px;">Restaurer depuis ce JSON</button>
+        <p class="muted">Exporte la structure (noms/couleurs des roles, categories, salons) en fichier JSON. La restauration est additive : elle recree uniquement ce qui manque, sans jamais toucher a l'existant.</p>
+        <button class="btn secondary" id="export-structure">⬇️ Telecharger la structure (.json)</button>
+        <label>Restaurer depuis un fichier</label>
+        <input type="file" id="structure-file-input" accept="application/json" />
+        <button class="btn secondary" id="restore-structure" style="margin-top:8px;">Restaurer depuis ce fichier</button>
       `)}
 
       ${sectionHtml('Snapshots automatiques', `
@@ -1168,20 +1275,30 @@ async function renderSecurityPage(id, container = app) {
   document.getElementById('export-structure').addEventListener('click', async () => {
     try {
       const snapshot = await Api.securityExport(id);
-      document.getElementById('structure-output').value = JSON.stringify(snapshot, null, 2);
-      showToast('Export pret, copie le contenu.');
+      const blob = new Blob([JSON.stringify(snapshot, null, 2)], { type: 'application/json' });
+      const url = URL.createObjectURL(blob);
+      const a = document.createElement('a');
+      a.href = url;
+      a.download = `structure-${id}-${Date.now()}.json`;
+      document.body.appendChild(a);
+      a.click();
+      a.remove();
+      URL.revokeObjectURL(url);
+      showToast('Fichier telecharge.');
     } catch (err) {
       showToast(err.message, 'error');
     }
   });
 
   document.getElementById('restore-structure').addEventListener('click', async () => {
+    const file = document.getElementById('structure-file-input').files[0];
+    if (!file) { showToast('Choisis un fichier.', 'error'); return; }
     try {
-      const snapshot = JSON.parse(document.getElementById('structure-input').value);
+      const snapshot = JSON.parse(await file.text());
       const result = await Api.securityRestore(id, snapshot);
       showToast(`Restaure : ${result.roles} role(s), ${result.categories} categorie(s), ${result.channels} salon(s) crees.`);
     } catch (err) {
-      showToast(err.message || 'JSON invalide.', 'error');
+      showToast(err.message || 'Fichier JSON invalide.', 'error');
     }
   });
 

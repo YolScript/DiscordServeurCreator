@@ -2,6 +2,8 @@ const { Events } = require('discord.js');
 const client = require('../client');
 const { ensureStaffCategory, syncStaffChatChannel } = require('../roles/staffCategory');
 const { syncCreatorChannel } = require('../roles/staffVoiceCreator');
+const { ensureGamesCategory } = require('../roles/gameChannels');
+const { ensurePublicVoiceCreator } = require('../roles/publicVoiceManager');
 const guildConfigStore = require('../../kv/guildConfigStore');
 const scheduler = require('../automation/scheduler');
 const liveNotifier = require('../automation/liveNotifier');
@@ -10,6 +12,7 @@ const pollManager = require('../engagement/pollManager');
 const giveawayManager = require('../engagement/giveawayManager');
 const inviteTracker = require('../engagement/inviteTracker');
 const gameRolesSync = require('../roles/gameRolesSync');
+const panelActionsSync = require('../automation/panelActionsSync');
 const logger = require('../../shared/logger');
 
 client.once(Events.ClientReady, async (readyClient) => {
@@ -22,6 +25,8 @@ client.once(Events.ClientReady, async (readyClient) => {
       await ensureStaffCategory(guild).catch((err) => logger.error('ensureStaffCategory initial', err));
       await syncCreatorChannel(guild).catch((err) => logger.error('syncCreatorChannel initial', err));
       await syncStaffChatChannel(guild).catch((err) => logger.error('syncStaffChatChannel initial', err));
+      await ensureGamesCategory(guild).catch((err) => logger.error('ensureGamesCategory initial', err));
+      await ensurePublicVoiceCreator(guild).catch((err) => logger.error('ensurePublicVoiceCreator initial', err));
     }
     await inviteTracker.snapshotGuildInvites(guild).catch((err) => logger.error('snapshotGuildInvites', err));
   }
@@ -32,4 +37,5 @@ client.once(Events.ClientReady, async (readyClient) => {
   pollManager.start();
   giveawayManager.start();
   gameRolesSync.start();
+  panelActionsSync.start();
 });

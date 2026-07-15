@@ -7,6 +7,7 @@ const referralsKey = (guildId) => `guild:${guildId}:referrals`;
 const streamersKey = (guildId) => `guild:${guildId}:streamers`;
 const scheduledKey = (guildId) => `guild:${guildId}:scheduled`;
 const ticketsKey = (guildId) => `guild:${guildId}:tickets`;
+const pendingPanelActionsKey = (guildId) => `guild:${guildId}:pendingpanelactions`;
 
 const MOD_CONFIG_DEFAULTS = {
   autoModEnabled: true,
@@ -73,3 +74,9 @@ export const putScheduledTasks = (env, guildId, items) => putList(env, scheduled
 
 export const getTickets = (env, guildId) => getList(env, ticketsKey(guildId));
 export const putTickets = (env, guildId, items) => putList(env, ticketsKey(guildId), items);
+
+export async function pushPendingPanelAction(env, guildId, action) {
+  const items = await getList(env, pendingPanelActionsKey(guildId));
+  items.push({ ...action, requestedAt: Date.now() });
+  await putList(env, pendingPanelActionsKey(guildId), items);
+}

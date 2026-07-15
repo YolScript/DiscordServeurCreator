@@ -26,6 +26,10 @@ async function add(guildId, { gameKey, displayName, roleId, colorHex, colorIndex
   await kvPut(key(guildId), roles);
 }
 
+async function replaceAll(guildId, roles) {
+  await kvPut(key(guildId), roles);
+}
+
 async function removeByRoleId(guildId, roleId) {
   const roles = await list(guildId);
   await kvPut(key(guildId), roles.filter((r) => r.roleId !== roleId));
@@ -38,4 +42,6 @@ async function rename(guildId, roleId, displayName) {
   await kvPut(key(guildId), roles);
 }
 
-module.exports = { normalizeGameKey, list, findByKey, findByRoleId, add, removeByRoleId, rename };
+module.exports = {
+  normalizeGameKey, list, findByKey, findByRoleId, add, removeByRoleId, rename, replaceAll,
+};

@@ -9,6 +9,7 @@ const { ensureStaffCategory, toggleOnlyOverwrites } = require('../roles/staffCat
 const logger = require('../../shared/logger');
 
 const TICKET_CLOSE_ID = 'ticket_close';
+const TICKET_CLAIM_ID = 'ticket_claim';
 
 async function postTicketPanel(channel) {
   const embed = new EmbedBuilder()
@@ -28,10 +29,10 @@ async function postTicketPanel(channel) {
 // comportement (toujours visible par Moderateur/Administrateur).
 async function staffVisibilityOverwrites(guild, config) {
   if (config?.ticketsStaffOnDutyOnly === false) {
-    const overwrites = [];
-    if (config?.moderateurRoleId) overwrites.push({ id: config.moderateurRoleId, allow: [P.ViewChannel, P.ReadMessageHistory, P.SendMessages] });
-    if (config?.adminRoleId) overwrites.push({ id: config.adminRoleId, allow: [P.ViewChannel, P.ReadMessageHistory, P.SendMessages] });
-    return overwrites;
+    const roleIds = config?.ticketAllowedRoleIds?.length
+      ? config.ticketAllowedRoleIds
+      : [config?.moderateurRoleId, config?.adminRoleId].filter(Boolean);
+    return roleIds.map((roleId) => ({ id: roleId, allow: [P.ViewChannel, P.ReadMessageHistory, P.SendMessages] }));
   }
   const { staffActifRoleId } = await ensureStaffCategory(guild);
   return toggleOnlyOverwrites(guild, staffActifRoleId, [P.SendMessages]).slice(1);
@@ -87,6 +88,7 @@ async function createTicket(guild, member) {
     .setDescription(`Bonjour <@${member.id}>, un membre du staff va te repondre bientot. Decris ta demande ici.`)
     .setColor(0x5b8def);
   const row = new ActionRowBuilder().addComponents(
+    new ButtonBuilder().setCustomId(TICKET_CLAIM_ID).setLabel('Prendre en charge').setEmoji('🙋').setStyle(ButtonStyle.Secondary),
     new ButtonBuilder().setCustomId(TICKET_CLOSE_ID).setLabel('Fermer le ticket').setStyle(ButtonStyle.Danger),
   );
   await channel.send({ content: `<@${member.id}>`, embeds: [embed], components: [row] });
@@ -113,6 +115,16 @@ async function removeCategoryIfEmpty(guild) {
   }
 }
 
+async function claimTicket(interaction) {
+  const ticket = await ticketStore.findByChannel(interaction.guild.id, interaction.channel.id);
+  if (!ticket) {
+    await interaction.reply({ content: 'Ce salon n\'est pas un ticket suivi.', flags: MessageFlags.Ephemeral });
+    return;
+  }
+  await ticketStore.assign(interaction.guild.id, interaction.channel.id, interaction.member.id, interaction.member.user.tag);
+  await interaction.reply(`🙋 <@${interaction.member.id}> a pris en charge ce ticket.`);
+}
+
 async function closeTicket(interaction) {
   const ticket = await ticketStore.findByChannel(interaction.guild.id, interaction.channel.id);
   if (!ticket) {
@@ -130,5 +142,5 @@ async function closeTicket(interaction) {
 }
 
 module.exports = {
-  createTicket, closeTicket, postTicketPanel, TICKET_CLOSE_ID,
+  createTicket, closeTicket, claimTicket, postTicketPanel, TICKET_CLOSE_ID, TICKET_CLAIM_ID,
 };

@@ -12,6 +12,7 @@ import {
   getStreamerLinks, putStreamerLinks,
   getScheduledTasks, putScheduledTasks,
   getTickets, putTickets,
+  pushPendingPanelAction,
 } from './kvStore.js';
 import {
   bulkEditPermissions, exportChannelPermissions, importChannelPermissions, resetRoleToDefault,
@@ -123,6 +124,19 @@ async function router(request, env) {
       await requireGuildAccess(env, request, guildId);
       const roles = await botFetchJson(env, `/guilds/${guildId}/roles`);
       return json(roles, env);
+    }
+
+    if (sub === 'roles' && parts.length === 4 && method === 'POST') {
+      await requireGuildAccess(env, request, guildId);
+      const { name, color, hoist } = await readJson(request);
+      if (!name) throw new HttpError(400, 'name requis.');
+      const role = await botFetchJson(env, `/guilds/${guildId}/roles`, {
+        method: 'POST',
+        body: JSON.stringify({
+          name: name.slice(0, 100), color: color || 0, hoist: Boolean(hoist), mentionable: false,
+        }),
+      });
+      return json(role, env);
     }
 
     if (sub === 'members' && parts.length === 4 && method === 'GET') {
@@ -423,6 +437,17 @@ async function router(request, env) {
       await requireGuildAccess(env, request, guildId);
       const config = (await getGuildConfig(env, guildId)) || {};
       await unlockGuild(env, guildId, config.lockdownPreviousLevel);
+      return json({ ok: true }, env);
+    }
+
+    // --- Panneaux (reglement/roles/poll/ticket) : depose une action que le
+    // bot (process separe) sonde et execute (cf panelActionsSync cote bot).
+    if (sub === 'panels' && parts.length === 5 && method === 'POST') {
+      await requireGuildAccess(env, request, guildId);
+      const key = parts[4];
+      if (!['reglement', 'roles', 'poll', 'ticket'].includes(key)) throw new HttpError(400, 'Panneau inconnu.');
+      const body = await readJson(request).catch(() => ({}));
+      await pushPendingPanelAction(env, guildId, { type: key, channelId: body.channelId });
       return json({ ok: true }, env);
     }
 
