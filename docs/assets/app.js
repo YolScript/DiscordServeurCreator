@@ -912,18 +912,16 @@ async function renderSettingsPanel(guildId, key, preselectSectionId) {
   const intro = SETTINGS_PANEL_INTROS[key] || `Voici ${panel?.label || key}.`;
   main.innerHTML = `
     <div class="dp-panel-topbar">
-      <button type="button" class="dp-panel-back-btn" id="dp-settings-back">← Retour</button>
-    </div>
-    <div class="dp-chat">
-      <div class="dp-chat-msg bot">
-        <div class="dp-chat-avatar">🤖</div>
-        <div class="dp-chat-bubble">
-          <div class="dp-chat-author">ServeurCreator Bot</div>
-          <div class="dp-chat-text">${escapeHtml(intro)}</div>
+      <div class="dp-panel-heading">
+        <span class="dp-panel-heading-icon">${panel?.icon || '⚙️'}</span>
+        <div>
+          <div class="dp-panel-heading-title">${escapeHtml(panel?.label || key)}</div>
+          <div class="dp-panel-heading-sub">${escapeHtml(intro)}</div>
         </div>
       </div>
-      <div class="dp-settings-body-wrap" id="dp-settings-body"></div>
+      <button type="button" class="dp-panel-back-btn" id="dp-settings-back">← Retour</button>
     </div>
+    <div class="dp-settings-body-wrap" id="dp-settings-body"></div>
   `;
   document.getElementById('dp-settings-back').addEventListener('click', () => {
     window.UISound?.select();
@@ -1186,9 +1184,21 @@ function channelActionDetailHtml(key, ctx) {
 // action remplace la reponse precedente du bot (une seule reponse visible a
 // la fois, toujours en bas) — pas d'echo du choix de l'utilisateur, pas
 // d'empilement d'historique.
-function renderActionChat(main, { greeting, actions, getDetailHtml, wireDetail }) {
+function renderActionChat(main, {
+  guildId, greeting, actions, getDetailHtml, wireDetail,
+}) {
   const chatId = `dp-chat-${Date.now().toString(36)}`;
-  main.innerHTML = `<div class="dp-chat" id="${chatId}"></div>`;
+  main.innerHTML = `
+    <div class="dp-panel-topbar">
+      <div></div>
+      <button type="button" class="dp-panel-back-btn" id="dp-actionchat-back">← Retour</button>
+    </div>
+    <div class="dp-chat" id="${chatId}"></div>
+  `;
+  document.getElementById('dp-actionchat-back').addEventListener('click', () => {
+    window.UISound?.select();
+    withViewTransition(() => renderPreviewPage(guildId));
+  });
   const chat = document.getElementById(chatId);
 
   function scrollToBottom() {
@@ -1435,6 +1445,7 @@ function renderCategoryPanel(guildId, categoryId, name, config, channels) {
   }
 
   renderActionChat(main, {
+    guildId,
     greeting: `Tu as glisse la categorie "${name}" ici. Que veux-tu faire ?`,
     actions,
     getDetailHtml: (key) => categoryActionDetailHtml(key, ctx),
@@ -1568,6 +1579,7 @@ function renderRolePanel(guildId, roleId, name, config, roles, members) {
   }
 
   renderActionChat(main, {
+    guildId,
     greeting: `Tu as glisse le role "${name}" ici. Que veux-tu faire ?`,
     actions,
     getDetailHtml: (key) => roleActionDetailHtml(key, ctx),
@@ -1821,6 +1833,7 @@ function renderChannelPanel(guildId, channelId, name, type, config, channels) {
   }
 
   renderActionChat(main, {
+    guildId,
     greeting: `Tu as glisse ${icon === '#' ? '#' : icon}${name} ici. Que veux-tu faire ?`,
     actions,
     getDetailHtml: (key) => channelActionDetailHtml(key, ctx),
