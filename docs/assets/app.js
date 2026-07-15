@@ -141,42 +141,14 @@ function withViewTransition(renderFn) {
   document.startViewTransition(() => renderFn());
 }
 
-/* ---------- Modules (grille de cartes + un seul module affiche a la fois) ---------- */
+/* ---------- Modules (un seul actif a la fois, choisi depuis la grille d'accueil) ---------- */
 
 // title n'est plus affiche (plus de barre d'en-tete a chevron) : conserve en
 // parametre pour que chaque appel documente clairement de quel module il
-// s'agit, et parce que sectionGridHtml() a besoin du meme libelle cote carte.
+// s'agit. La navigation entre modules se fait depuis la grille d'accueil du
+// bot (HOME_MODULES), pas depuis une grille interne a la page.
 function sectionHtml(title, bodyHtml, { id = '', alwaysOpen = false } = {}) {
   return `<div class="section-panel${alwaysOpen ? ' active' : ''}"${id ? ` id="section-${id}"` : ''}>${bodyHtml}</div>`;
-}
-
-// Grille d'entree : un module a la fois est affiche (pas d'accordion). Rien
-// n'est visible tant qu'aucune carte n'a ete cliquee.
-function sectionGridHtml(items) {
-  return `
-    <div class="dp-action-grid" style="margin-bottom:20px;">
-      ${items.map((it) => `
-        <button type="button" class="dp-action-card" data-goto-section="${it.id}">
-          <span class="icon">${it.icon}</span>
-          <span class="label">${escapeHtml(it.label)}</span>
-        </button>
-      `).join('')}
-    </div>`;
-}
-
-function wireSectionGrid(container) {
-  const cards = container.querySelectorAll('[data-goto-section]');
-  cards.forEach((btn) => {
-    btn.addEventListener('click', () => {
-      window.UISound?.select();
-      cards.forEach((c) => c.classList.remove('active'));
-      btn.classList.add('active');
-      container.querySelectorAll('.section-panel').forEach((p) => {
-        p.classList.toggle('active', p.id === `section-${btn.dataset.gotoSection}`);
-      });
-      container.querySelector('.section-panel.active')?.scrollIntoView({ behavior: 'smooth', block: 'start' });
-    });
-  });
 }
 
 /* ---------- Rail (guild switcher) ---------- */
@@ -284,40 +256,49 @@ const SETTINGS_PANELS = [
   { key: 'assistant-ia', label: 'Assistant IA', icon: '✨' },
 ];
 
-// Grille d'accueil totalement a plat : chaque module (meme ceux qui vivaient
-// avant dans une sous-grille type Automatisations/Securite/Permissions) est
-// directement accessible en un clic depuis l'accueil du bot, sans page hub
-// intermediaire a traverser.
+// Accueil en 2 temps : une grille de categories thematiques, puis (au clic)
+// la grille des modules de cette categorie uniquement. Chaque module reste
+// directement accessible en un clic depuis sa categorie, sans page hub a lui
+// tout seul a traverser (le clic sur un module ouvre directement le bon
+// panneau, deja preselectionne).
+const HOME_CATEGORIES = [
+  { id: 'administration', icon: '🛠️', label: 'Administration' },
+  { id: 'moderation', icon: '🛡️', label: 'Moderation' },
+  { id: 'creation', icon: '🎨', label: 'Creation' },
+  { id: 'fun', icon: '🎉', label: 'Fun' },
+  { id: 'statistiques', icon: '📊', label: 'Statistiques' },
+];
+
 const HOME_MODULES = [
-  { parent: 'permissions', section: 'perm-bulk', icon: '⚡', label: 'Edition en masse' },
-  { parent: 'permissions', section: 'perm-io', icon: '📋', label: 'Export / Import' },
-  { parent: 'permissions', section: 'perm-default', icon: '♻️', label: 'Permissions par defaut' },
-  { parent: 'permissions', section: 'perm-dashboard', icon: '🔑', label: 'Acces au dashboard' },
-  { parent: 'jeux', section: 'game-catalog', icon: '📚', label: 'Catalogue de jeux' },
-  { parent: 'jeux', section: 'game-active', icon: '🎮', label: 'Roles de jeu actifs' },
-  { parent: 'jeux', section: 'game-reaction', icon: '🎭', label: 'Roles-reaction' },
-  { parent: 'automatisations', section: 'bots', icon: '🧩', label: 'Bots complementaires' },
-  { parent: 'automatisations', section: 'arrivee', icon: '👋', label: 'Arrivee & statut du bot' },
-  { parent: 'automatisations', section: 'webhooks', icon: '🔗', label: 'Webhooks sortants' },
-  { parent: 'automatisations', section: 'economie', icon: '🪙', label: 'Economie / boutique' },
-  { parent: 'automatisations', section: 'automod', icon: '🛡️', label: 'Auto-moderation' },
-  { parent: 'automatisations', section: 'niveaux', icon: '⭐', label: 'Roles de niveau (XP)' },
-  { parent: 'automatisations', section: 'parrainage', icon: '🎗️', label: 'Parrainage' },
-  { parent: 'automatisations', section: 'streamers', icon: '📺', label: 'Streamers lies' },
-  { parent: 'automatisations', section: 'annonces', icon: '📅', label: 'Annonces programmees' },
-  { parent: 'automatisations', section: 'service', icon: '🚨', label: 'Service (staff)' },
-  { parent: 'automatisations', section: 'tickets', icon: '🎫', label: 'Tickets' },
-  { parent: 'securite', section: 'sec-export', icon: '💾', label: 'Export / Restauration' },
-  { parent: 'securite', section: 'sec-snapshots', icon: '📸', label: 'Snapshots automatiques' },
-  { parent: 'securite', section: 'sec-lockdown', icon: '🔒', label: 'Lockdown' },
-  { parent: 'stats', section: 'stats-members', icon: '👥', label: 'Membres' },
-  { parent: 'stats', section: 'stats-activity', icon: '💬', label: 'Activite' },
-  { parent: 'auditlog', icon: '📋', label: "Logs d'audit" },
-  { parent: 'embedbuilder', icon: '💬', label: 'Generateur embed' },
-  { parent: 'botstatus', icon: '🤖', label: 'Statut du bot' },
-  { parent: 'templates', icon: '📁', label: 'Templates' },
-  { parent: 'customcommands', icon: '🧩', label: 'Commandes personnalisees' },
-  { parent: 'assistant-ia', icon: '✨', label: 'Assistant IA' },
+  { parent: 'permissions', section: 'perm-bulk', icon: '⚡', label: 'Edition en masse', category: 'administration' },
+  { parent: 'permissions', section: 'perm-io', icon: '📋', label: 'Export / Import', category: 'administration' },
+  { parent: 'permissions', section: 'perm-default', icon: '♻️', label: 'Permissions par defaut', category: 'administration' },
+  { parent: 'permissions', section: 'perm-dashboard', icon: '🔑', label: 'Acces au dashboard', category: 'administration' },
+  { parent: 'jeux', section: 'game-catalog', icon: '📚', label: 'Catalogue de jeux', category: 'creation' },
+  { parent: 'jeux', section: 'game-active', icon: '🎮', label: 'Roles de jeu actifs', category: 'fun' },
+  { parent: 'jeux', section: 'game-reaction', icon: '🎭', label: 'Roles-reaction', category: 'creation' },
+  { parent: 'automatisations', section: 'bots', icon: '🧩', label: 'Bots complementaires', category: 'moderation' },
+  { parent: 'automatisations', section: 'arrivee', icon: '👋', label: 'Arrivee & statut du bot', category: 'moderation' },
+  { parent: 'automatisations', section: 'webhooks', icon: '🔗', label: 'Webhooks sortants', category: 'administration' },
+  { parent: 'automatisations', section: 'economie', icon: '🪙', label: 'Economie / boutique', category: 'fun' },
+  { parent: 'automatisations', section: 'automod', icon: '🛡️', label: 'Auto-moderation', category: 'moderation' },
+  { parent: 'automatisations', section: 'niveaux', icon: '⭐', label: 'Roles de niveau (XP)', category: 'fun' },
+  { parent: 'automatisations', section: 'parrainage', icon: '🎗️', label: 'Parrainage', category: 'fun' },
+  { parent: 'automatisations', section: 'streamers', icon: '📺', label: 'Streamers lies', category: 'fun' },
+  { parent: 'automatisations', section: 'annonces', icon: '📅', label: 'Annonces programmees', category: 'creation' },
+  { parent: 'automatisations', section: 'service', icon: '🚨', label: 'Service (staff)', category: 'moderation' },
+  { parent: 'automatisations', section: 'tickets', icon: '🎫', label: 'Tickets', category: 'moderation' },
+  { parent: 'securite', section: 'sec-export', icon: '💾', label: 'Export / Restauration', category: 'administration' },
+  { parent: 'securite', section: 'sec-snapshots', icon: '📸', label: 'Snapshots automatiques', category: 'administration' },
+  { parent: 'securite', section: 'sec-lockdown', icon: '🔒', label: 'Lockdown', category: 'moderation' },
+  { parent: 'stats', section: 'stats-members', icon: '👥', label: 'Membres', category: 'statistiques' },
+  { parent: 'stats', section: 'stats-activity', icon: '💬', label: 'Activite', category: 'statistiques' },
+  { parent: 'auditlog', icon: '📋', label: "Logs d'audit", category: 'administration' },
+  { parent: 'embedbuilder', icon: '💬', label: 'Generateur embed', category: 'creation' },
+  { parent: 'botstatus', icon: '🤖', label: 'Statut du bot', category: 'statistiques' },
+  { parent: 'templates', icon: '📁', label: 'Templates', category: 'administration' },
+  { parent: 'customcommands', icon: '🧩', label: 'Commandes personnalisees', category: 'creation' },
+  { parent: 'assistant-ia', icon: '✨', label: 'Assistant IA', category: 'administration' },
 ];
 
 function customChannelFormHtml(catId) {
@@ -431,6 +412,14 @@ function aiConversationHtml() {
   return html;
 }
 
+function homeModuleCardHtml(m) {
+  return `
+    <button type="button" class="dp-action-card" data-goto-settings="${m.parent}"${m.section ? ` data-goto-settings-section="${m.section}"` : ''}>
+      <span class="icon">${m.icon}</span>
+      <span class="label">${escapeHtml(m.label)}</span>
+    </button>`;
+}
+
 function aiHomeHtml(guild) {
   return `
     <div class="dp-chat" id="dp-ai-chat">
@@ -438,19 +427,17 @@ function aiHomeHtml(guild) {
         <div class="dp-chat-avatar">🤖</div>
         <div class="dp-chat-bubble">
           <div class="dp-chat-author">ServeurCreator Bot</div>
-          <div class="dp-chat-text">Salut, je suis le bot de configuration de ${escapeHtml(guild?.name || 'ton serveur')} ! Glisse un salon, une categorie ou un role ici pour le configurer, choisis un outil ci-dessous, ou ecris-moi directement.</div>
+          <div class="dp-chat-text">Salut, je suis le bot de configuration de ${escapeHtml(guild?.name || 'ton serveur')} ! Glisse un salon, une categorie ou un role ici pour le configurer, ou choisis une categorie d'outils ci-dessous.</div>
           <div class="dp-action-grid">
-            <button type="button" class="dp-action-card" id="dp-goto-add-category">
-              <span class="icon">➕</span>
-              <span class="label">Ajouter une categorie</span>
-            </button>
-            ${HOME_MODULES.map((m) => `
-              <button type="button" class="dp-action-card" data-goto-settings="${m.parent}"${m.section ? ` data-goto-settings-section="${m.section}"` : ''}>
-                <span class="icon">${m.icon}</span>
-                <span class="label">${escapeHtml(m.label)}</span>
+            ${HOME_CATEGORIES.map((c) => `
+              <button type="button" class="dp-action-card" data-home-category="${c.id}">
+                <span class="icon">${c.icon}</span>
+                <span class="label">${escapeHtml(c.label)}</span>
               </button>
             `).join('')}
           </div>
+          <div class="dp-action-grid" id="dp-home-modules" style="display:none;"></div>
+          <div id="dp-home-create-area"></div>
         </div>
       </div>
       <div id="dp-ai-tail">${aiConversationHtml()}</div>
@@ -578,14 +565,7 @@ async function renderPreviewPage(id) {
             <span class="caret">▾</span>
           </div>
           <div class="dp-channel-list">
-            <button type="button" class="dp-add-category" id="dp-add-cat-btn">+ Nouvelle categorie</button>
-            <div class="dp-custom-form" data-form-for="__category" style="display:none;">
-              <input type="text" class="dp-custom-name" id="dp-new-cat-name" placeholder="Nom de la categorie" maxlength="80" />
-              <button type="button" class="btn secondary" id="dp-create-cat-btn">Creer</button>
-            </div>
             ${uncategorized.map(channelRow).join('')}
-            <button type="button" class="dp-add-channel" data-add-cat="">+ Ajouter un salon</button>
-            ${customChannelFormHtml('')}
             ${categories.map(categoryBlock).join('')}
           </div>
         </div>
@@ -769,33 +749,107 @@ async function renderPreviewPage(id) {
     });
   });
 
-  app.querySelectorAll('[data-goto-settings]').forEach((btn) => {
+  function wireHomeModuleCards(scope) {
+    scope.querySelectorAll('[data-goto-settings]').forEach((btn) => {
+      btn.addEventListener('click', () => {
+        window.UISound?.select();
+        withViewTransition(() => { renderSettingsPanel(id, btn.dataset.gotoSettings, btn.dataset.gotoSettingsSection); });
+      });
+    });
+    scope.querySelectorAll('[data-home-create]').forEach((btn) => {
+      btn.addEventListener('click', () => {
+        window.UISound?.select();
+        const area = document.getElementById('dp-home-create-area');
+        if (btn.dataset.homeCreate === 'category') {
+          area.innerHTML = `
+            <div class="dp-block">
+              <p class="dp-block-title">➕ Nouvelle categorie</p>
+              <input type="text" id="dp-home-new-cat-name" placeholder="Nom de la categorie" maxlength="80" />
+              <button class="btn" id="dp-home-create-cat-btn" style="margin-top:10px;">Creer</button>
+            </div>`;
+          area.querySelector('#dp-home-create-cat-btn').addEventListener('click', async () => {
+            const name = area.querySelector('#dp-home-new-cat-name').value.trim();
+            if (!name) { showToast('Nom requis.', 'error'); return; }
+            try {
+              await Api.createCategory(id, name);
+              showToast('Categorie creee.');
+              await renderPreviewPage(id);
+            } catch (err) {
+              showToast(err.message, 'error');
+            }
+          });
+        } else if (btn.dataset.homeCreate === 'channel') {
+          const otherChannels = channels.filter((c) => c.type !== 4);
+          area.innerHTML = `
+            <div class="dp-block dp-form-grid">
+              <p class="dp-block-title">➕ Nouveau salon (hors categorie)</p>
+              <div>
+                <label>Nom du salon</label>
+                <input type="text" id="dp-home-new-channel-name" placeholder="Nom du salon" maxlength="80" />
+              </div>
+              <div>
+                <label>Type</label>
+                <select id="dp-home-new-channel-type">
+                  <option value="text">💬 Texte</option>
+                  <option value="voice">🔊 Vocal</option>
+                  <option value="voice-temp">🔊 Vocal temporaire (cree un salon perso par membre)</option>
+                  <option value="forum">🗂️ Forum</option>
+                </select>
+              </div>
+              <div>
+                <label>Visibilite</label>
+                <select id="dp-home-new-channel-visibility">
+                  <option value="private">🔒 Prive (reserve aux membres ayant valide le reglement)</option>
+                  <option value="public">🌐 Public</option>
+                </select>
+              </div>
+              <div>
+                <label>Importer les permissions d'un salon existant (optionnel)</label>
+                <select id="dp-home-new-channel-import">
+                  <option value="">Aucune (permissions par defaut)</option>
+                  ${otherChannels.map((c) => `<option value="${c.id}">${c.type === 2 ? '🔊' : '#'}${escapeHtml(c.name)}</option>`).join('')}
+                </select>
+              </div>
+              <button class="btn dp-form-full" id="dp-home-create-channel-btn" style="margin-top:12px;">Creer le salon</button>
+            </div>`;
+          area.querySelector('#dp-home-create-channel-btn').addEventListener('click', async () => {
+            const chName = area.querySelector('#dp-home-new-channel-name').value.trim();
+            if (!chName) { showToast('Nom du salon requis.', 'error'); return; }
+            const type = area.querySelector('#dp-home-new-channel-type').value;
+            const isPrivate = area.querySelector('#dp-home-new-channel-visibility').value === 'private';
+            const importFromChannelId = area.querySelector('#dp-home-new-channel-import').value || undefined;
+            try {
+              await Api.createChannel(id, chName, type, '', isPrivate, importFromChannelId);
+              showToast('Salon cree.');
+              await renderPreviewPage(id);
+            } catch (err) {
+              showToast(err.message, 'error');
+            }
+          });
+        }
+        area.scrollIntoView({ behavior: 'smooth', block: 'nearest' });
+      });
+    });
+  }
+
+  app.querySelectorAll('[data-home-category]').forEach((btn) => {
     btn.addEventListener('click', () => {
       window.UISound?.select();
-      withViewTransition(() => { renderSettingsPanel(id, btn.dataset.gotoSettings, btn.dataset.gotoSettingsSection); });
+      app.querySelectorAll('[data-home-category]').forEach((b) => b.classList.remove('active'));
+      btn.classList.add('active');
+      document.getElementById('dp-home-create-area').innerHTML = '';
+      const catId = btn.dataset.homeCategory;
+      const modulesGrid = document.getElementById('dp-home-modules');
+      const items = HOME_MODULES.filter((m) => m.category === catId);
+      const extraCards = catId === 'creation'
+        ? '<button type="button" class="dp-action-card" data-home-create="category"><span class="icon">➕</span><span class="label">Nouvelle categorie</span></button>'
+          + '<button type="button" class="dp-action-card" data-home-create="channel"><span class="icon">➕</span><span class="label">Nouveau salon</span></button>'
+        : '';
+      modulesGrid.innerHTML = extraCards + items.map(homeModuleCardHtml).join('');
+      modulesGrid.style.display = 'grid';
+      wireHomeModuleCards(modulesGrid);
+      modulesGrid.scrollIntoView({ behavior: 'smooth', block: 'nearest' });
     });
-  });
-
-  document.getElementById('dp-add-cat-btn').addEventListener('click', () => {
-    const form = app.querySelector('.dp-custom-form[data-form-for="__category"]');
-    form.style.display = form.style.display === 'none' ? 'flex' : 'none';
-  });
-  document.getElementById('dp-goto-add-category')?.addEventListener('click', () => {
-    window.UISound?.select();
-    document.getElementById('dp-add-cat-btn').click();
-    document.getElementById('dp-add-cat-btn').scrollIntoView({ behavior: 'smooth', block: 'center' });
-    document.getElementById('dp-new-cat-name')?.focus();
-  });
-  document.getElementById('dp-create-cat-btn').addEventListener('click', async () => {
-    const name = document.getElementById('dp-new-cat-name').value.trim();
-    if (!name) { showToast('Nom requis.', 'error'); return; }
-    try {
-      await Api.createCategory(id, name);
-      showToast('Categorie creee.');
-      await renderPreviewPage(id);
-    } catch (err) {
-      showToast(err.message, 'error');
-    }
   });
 
   app.querySelectorAll('.dp-add-channel').forEach((btn) => {
@@ -874,9 +928,14 @@ async function renderSettingsPanel(guildId, key, preselectSectionId) {
     'assistant-ia': () => renderAiConfigPage(guildId, body),
   };
   await renderers[key]?.();
-  if (preselectSectionId) {
-    body.querySelector(`[data-goto-section="${preselectSectionId}"]`)?.click();
-  }
+  // Les pages a plusieurs modules (sectionHtml avec id) n'ont plus de grille
+  // de navigation interne : le module vise (choisi depuis la grille
+  // d'accueil) est active directement, ou a defaut le premier module de la
+  // page pour ne jamais laisser un panneau vide.
+  const target = preselectSectionId
+    ? body.querySelector(`#section-${preselectSectionId}`)
+    : body.querySelector('.section-panel');
+  target?.classList.add('active');
 }
 
 function contextualChannelSettingsHtml(channelId, config) {
@@ -1755,12 +1814,6 @@ async function renderPermissionsPage(id, container = app) {
 
   container.innerHTML = `
     <div class="inner">
-      ${sectionGridHtml([
-        { id: 'perm-bulk', icon: '⚡', label: 'Edition en masse' },
-        { id: 'perm-io', icon: '📋', label: 'Export / Import' },
-        { id: 'perm-default', icon: '♻️', label: 'Permissions par defaut' },
-        { id: 'perm-dashboard', icon: '🔑', label: 'Acces au dashboard' },
-      ])}
       ${sectionHtml('Edition en masse', `
         <p class="muted">Choisis les salons, le role, et une action rapide a appliquer partout en un clic.</p>
         <label>Salons</label>
@@ -1803,7 +1856,6 @@ async function renderPermissionsPage(id, container = app) {
       `, { id: 'perm-dashboard' })}
     </div>
   `;
-  wireSectionGrid(container);
 
   document.getElementById('apply-bulk').addEventListener('click', async () => {
     const channelIds = [...container.querySelectorAll('.perm-channel:checked')].map((el) => el.value);
@@ -1968,11 +2020,6 @@ async function renderGameRolesPage(id, container = app) {
 
   container.innerHTML = `
     <div class="inner">
-      ${sectionGridHtml([
-        { id: 'game-catalog', icon: '📚', label: 'Catalogue de jeux' },
-        { id: 'game-active', icon: '🎮', label: 'Roles de jeu actifs' },
-        { id: 'game-reaction', icon: '🎭', label: 'Roles-reaction' },
-      ])}
       ${sectionHtml('Catalogue de jeux pregeneres', `
         <p class="muted">Ajoute un role de jeu sans attendre qu'un membre soit detecte en train d'y jouer.</p>
         ${catalogHtml}
@@ -1997,7 +2044,6 @@ async function renderGameRolesPage(id, container = app) {
       `, { id: 'game-reaction' })}
     </div>
   `;
-  wireSectionGrid(container);
 
   document.getElementById('rr-add-role').addEventListener('click', () => {
     document.getElementById('reaction-role-rows').insertAdjacentHTML('beforeend', reactionRoleRowHtml());
@@ -2169,19 +2215,6 @@ async function renderAutomationsPage(id, container = app) {
 
   container.innerHTML = `
     <div class="inner">
-      ${sectionGridHtml([
-        { id: 'bots', icon: '🧩', label: 'Bots complementaires' },
-        { id: 'arrivee', icon: '👋', label: 'Arrivee & statut du bot' },
-        { id: 'webhooks', icon: '🔗', label: 'Webhooks sortants' },
-        { id: 'economie', icon: '🪙', label: 'Economie / boutique' },
-        { id: 'automod', icon: '🛡️', label: 'Auto-moderation' },
-        { id: 'niveaux', icon: '⭐', label: 'Roles de niveau (XP)' },
-        { id: 'parrainage', icon: '🎗️', label: 'Parrainage' },
-        { id: 'streamers', icon: '📺', label: 'Streamers lies' },
-        { id: 'annonces', icon: '📅', label: 'Annonces programmees' },
-        { id: 'service', icon: '🚨', label: 'Service (staff)' },
-        { id: 'tickets', icon: '🎫', label: 'Tickets' },
-      ])}
       ${sectionHtml('Bots complementaires', `
         <p class="muted">Ajoute des modules complementaires a ce serveur en invitant ces bots.</p>
         <div class="row">
@@ -2368,7 +2401,6 @@ async function renderAutomationsPage(id, container = app) {
       `, { id: 'tickets' })}
     </div>
   `;
-  wireSectionGrid(container);
 
   document.getElementById('save-service-config').addEventListener('click', async () => {
     const btn = document.getElementById('save-service-config');
@@ -2668,11 +2700,6 @@ async function renderSecurityPage(id, container = app) {
 
   container.innerHTML = `
     <div class="inner">
-      ${sectionGridHtml([
-        { id: 'sec-export', icon: '💾', label: 'Export / Restauration' },
-        { id: 'sec-snapshots', icon: '📸', label: 'Snapshots automatiques' },
-        { id: 'sec-lockdown', icon: '🚨', label: 'Lockdown' },
-      ])}
       ${sectionHtml('Export / Restauration manuelle', `
         <p class="muted">Exporte la structure (noms/couleurs des roles, categories, salons) en fichier JSON. La restauration est additive : elle recree uniquement ce qui manque, sans jamais toucher a l'existant.</p>
         <button class="btn secondary" id="export-structure">⬇️ Telecharger la structure (.json)</button>
@@ -2696,7 +2723,6 @@ async function renderSecurityPage(id, container = app) {
       `, { id: 'sec-lockdown' })}
     </div>
   `;
-  wireSectionGrid(container);
 
   document.getElementById('export-structure').addEventListener('click', async () => {
     try {
@@ -2847,10 +2873,6 @@ async function renderStatsPage(id, container = app) {
 
   container.innerHTML = `
     <div class="inner">
-      ${sectionGridHtml([
-        { id: 'stats-members', icon: '👥', label: 'Membres' },
-        { id: 'stats-activity', icon: '💬', label: 'Activite' },
-      ])}
       ${sectionHtml('Membres', `
         <p class="muted">Evolution du nombre de membres (${stats.length} jour(s) enregistre(s)${firstDate ? `, depuis le ${firstDate}` : ''}).</p>
         ${lineChartSvg(memberPoints, { color: '#5865f2' })}
@@ -2862,7 +2884,6 @@ async function renderStatsPage(id, container = app) {
       `, { id: 'stats-activity' })}
     </div>
   `;
-  wireSectionGrid(container);
 }
 
 /* ---------- Pages: generateur d'embed ---------- */

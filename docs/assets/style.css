@@ -573,20 +573,22 @@ input::placeholder, textarea::placeholder { color: var(--text-faint); }
 /* ---------- Grille d'actions (panel salon/categorie/role) ---------- */
 
 .dp-action-grid {
-  display: grid; grid-template-columns: repeat(auto-fill, minmax(84px, 1fr));
+  display: grid; grid-template-columns: repeat(auto-fill, minmax(118px, 1fr));
   gap: 8px; margin-bottom: 16px;
 }
 .dp-action-card {
   display: flex; flex-direction: column; align-items: center; justify-content: center;
-  gap: 6px; padding: 12px 6px; background: #232428; border: 1px solid #35373c;
-  border-radius: 10px; cursor: pointer; font-family: inherit; color: #dcddde;
+  gap: 6px; padding: 12px 8px; min-height: 76px; background: #232428; border: 1px solid #35373c;
+  border-radius: 10px; cursor: pointer; font-family: inherit; color: #dcddde; overflow: hidden;
   transition: border-color 0.15s ease, background 0.15s ease, transform 0.15s cubic-bezier(.16,1,.3,1);
 }
 .dp-action-card:hover { border-color: #4752c4; transform: translateY(-1px); }
 .dp-action-card.active { border-color: #5865f2; background: rgba(88,101,242,0.14); }
 .dp-action-card.danger:hover { border-color: rgba(237,66,69,0.6); background: rgba(237,66,69,0.08); }
-.dp-action-card .icon { font-size: 1.3rem; line-height: 1; }
-.dp-action-card .label { font-size: 0.72rem; text-align: center; line-height: 1.25; }
+.dp-action-card .icon { font-size: 1.3rem; line-height: 1; flex: none; }
+.dp-action-card .label {
+  font-size: 0.72rem; text-align: center; line-height: 1.25; width: 100%; overflow-wrap: break-word;
+}
 .dp-action-card .state-dot {
   width: 6px; height: 6px; border-radius: 50%; background: #3ba55c;
   position: relative; top: -18px; left: 22px; margin-bottom: -6px;

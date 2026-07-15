@@ -360,10 +360,11 @@ async function router(request, env) {
     if (sub === 'roles' && parts.length === 5 && method === 'PATCH') {
       const session = await requireGuildAccess(env, request, guildId);
       const roleId = parts[4];
-      const { color, name } = await readJson(request);
+      const { color, name, permissions } = await readJson(request);
       const body = {};
       if (color !== undefined) body.color = color;
       if (name !== undefined) body.name = name;
+      if (permissions !== undefined) body.permissions = permissions;
       const role = await botFetchJson(env, `/guilds/${guildId}/roles/${roleId}`, {
         method: 'PATCH',
         body: JSON.stringify(body),

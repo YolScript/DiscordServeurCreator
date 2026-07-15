@@ -88,6 +88,7 @@ window.Api = (function api() {
     setChannelPositions: (guildId, positions) => request(`/api/guilds/${guildId}/channels/positions`, { method: 'PATCH', body: JSON.stringify({ positions }) }),
     setRoleColor: (guildId, roleId, color) => request(`/api/guilds/${guildId}/roles/${roleId}`, { method: 'PATCH', body: JSON.stringify({ color }) }),
     renameRole: (guildId, roleId, name) => request(`/api/guilds/${guildId}/roles/${roleId}`, { method: 'PATCH', body: JSON.stringify({ name }) }),
+    setRolePermissions: (guildId, roleId, permissions) => request(`/api/guilds/${guildId}/roles/${roleId}`, { method: 'PATCH', body: JSON.stringify({ permissions }) }),
     deleteRole: (guildId, roleId) => request(`/api/guilds/${guildId}/roles/${roleId}`, { method: 'DELETE' }),
     aiConfig: (guildId) => request(`/api/guilds/${guildId}/aiconfig`),
     saveAiConfig: (guildId, provider, apiKey) => request(`/api/guilds/${guildId}/aiconfig`, { method: 'PUT', body: JSON.stringify({ provider, apiKey }) }),
