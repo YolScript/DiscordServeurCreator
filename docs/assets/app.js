@@ -108,7 +108,7 @@ function sectionHtml(title, bodyHtml, { hint = '', open = false } = {}) {
         <span>${escapeHtml(title)}${hint ? `<span class="section-hint">${escapeHtml(hint)}</span>` : ''}</span>
         <span class="chevron">▾</span>
       </button>
-      <div class="section-body">${bodyHtml}</div>
+      <div class="section-body"><div class="section-body-inner">${bodyHtml}</div></div>
     </div>
   `;
 }
@@ -200,9 +200,9 @@ async function renderGuildList() {
           <div class="guild-list">${rows(filtered) || '<p class="muted">Aucun serveur trouve.</p>'}</div>
         </div>
         <div class="topgg-badges">
-          <a href="https://top.gg/bot/1526237674355036401" target="_blank" rel="noopener"><img src="https://top.gg/api/widget/servers/1526237674355036401.svg" alt="Serveurs top.gg" /></a>
-          <a href="https://top.gg/bot/1526237674355036401" target="_blank" rel="noopener"><img src="https://top.gg/api/widget/upvotes/1526237674355036401.svg" alt="Votes top.gg" /></a>
-          <a href="https://top.gg/bot/1526237674355036401" target="_blank" rel="noopener"><img src="https://top.gg/api/widget/owner/1526237674355036401.svg" alt="Proprietaire top.gg" /></a>
+          <a href="https://top.gg/bot/1526237674355036401" target="_blank" rel="noopener"><img src="https://top.gg/api/widget/servers/1526237674355036401.svg?noavatar=true" alt="Serveurs top.gg" /></a>
+          <a href="https://top.gg/bot/1526237674355036401" target="_blank" rel="noopener"><img src="https://top.gg/api/widget/upvotes/1526237674355036401.svg?noavatar=true" alt="Votes top.gg" /></a>
+          <a href="https://top.gg/bot/1526237674355036401" target="_blank" rel="noopener"><img src="https://top.gg/api/widget/owner/1526237674355036401.svg?noavatar=true" alt="Proprietaire top.gg" /></a>
         </div>
       </div>
     `;
@@ -428,6 +428,7 @@ async function renderPreviewPage(id) {
     chEl.addEventListener('click', () => {
       app.querySelectorAll('.dp-channel').forEach((el) => el.classList.remove('selected'));
       chEl.classList.add('selected');
+      window.UISound?.select();
       renderChannelPanel(id, chEl.dataset.channel, chEl.dataset.name, Number(chEl.dataset.type), config, channels);
     });
   });
@@ -436,6 +437,7 @@ async function renderPreviewPage(id) {
     el.addEventListener('click', () => {
       app.querySelectorAll('.dp-channel').forEach((e) => e.classList.remove('selected'));
       el.classList.add('selected');
+      window.UISound?.select();
       renderSettingsPanel(id, el.dataset.settings);
     });
   });

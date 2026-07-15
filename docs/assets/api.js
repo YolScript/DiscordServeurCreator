@@ -93,5 +93,9 @@ window.showToast = function showToast(message, type = 'success') {
   toast.className = `toast ${type}`;
   toast.textContent = message;
   document.body.appendChild(toast);
-  setTimeout(() => toast.remove(), 4000);
+  window.UISound?.[type === 'error' ? 'error' : 'success']?.();
+  setTimeout(() => {
+    toast.classList.add('leaving');
+    setTimeout(() => toast.remove(), 220);
+  }, 4000);
 };
