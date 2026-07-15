@@ -94,6 +94,23 @@ async function callOpenAi({
   return { content: (message.content || '').trim(), toolCalls };
 }
 
+// L'API REST Gemini attend un Schema façon protobuf (type en enum
+// MAJUSCULE : "OBJECT", "STRING"...), pas le JSON Schema standard
+// (minuscule) utilisé par Anthropic/OpenAI et par AI_TOOLS. Sans cette
+// conversion, Gemini rejette la requete (400) des qu'un outil est fourni.
+function toGeminiSchema(schema) {
+  if (!schema || typeof schema !== 'object') return schema;
+  const out = { ...schema };
+  if (typeof out.type === 'string') out.type = out.type.toUpperCase();
+  if (out.properties) {
+    out.properties = Object.fromEntries(
+      Object.entries(out.properties).map(([k, v]) => [k, toGeminiSchema(v)]),
+    );
+  }
+  if (out.items) out.items = toGeminiSchema(out.items);
+  return out;
+}
+
 async function callGemini({
   apiKey, systemPrompt, messages, tools,
 }) {
@@ -117,7 +134,7 @@ async function callGemini({
     body: JSON.stringify({
       system_instruction: { parts: [{ text: systemPrompt }] },
       contents,
-      tools: [{ function_declarations: tools.map((t) => ({ name: t.name, description: t.description, parameters: t.parameters })) }],
+      tools: [{ function_declarations: tools.map((t) => ({ name: t.name, description: t.description, parameters: toGeminiSchema(t.parameters) })) }],
     }),
   });
   if (!res.ok) throw new Error(`Gemini ${res.status}: ${(await res.text()).slice(0, 300)}`);

@@ -190,9 +190,11 @@ async function renderGuildList() {
         ? `<a class="btn" href="app.html?guild=${g.guildId}">Gerer</a>`
         : `<button class="btn generate-server-btn" data-guild="${g.guildId}" data-name="${escapeHtml(g.name || g.guildId)}">🪄 Generer le serveur</button>`;
     }
+    const icon = guildIconUrl(g);
     return `
       <div class="guild-row">
-        <div>
+        <div class="guild-row-icon">${icon ? `<img src="${icon}" alt="" />` : escapeHtml(initials(g.name || '?'))}</div>
+        <div class="guild-row-info">
           <div class="name">${escapeHtml(g.name || g.guildId)}</div>
           ${badge}
         </div>
@@ -211,11 +213,9 @@ async function renderGuildList() {
           <p class="muted">Serveurs Discord ou tu es administrateur.</p>
           <div class="guild-list">${rows(filtered) || '<p class="muted">Aucun serveur trouve.</p>'}</div>
         </div>
-        <div class="topgg-badges">
-          <a href="https://top.gg/bot/1526237674355036401" target="_blank" rel="noopener"><img src="https://top.gg/api/widget/servers/1526237674355036401.svg?noavatar=true" alt="Serveurs top.gg" /></a>
-          <a href="https://top.gg/bot/1526237674355036401" target="_blank" rel="noopener"><img src="https://top.gg/api/widget/upvotes/1526237674355036401.svg?noavatar=true" alt="Votes top.gg" /></a>
-          <a href="https://top.gg/bot/1526237674355036401" target="_blank" rel="noopener"><img src="https://top.gg/api/widget/owner/1526237674355036401.svg?noavatar=true" alt="Proprietaire top.gg" /></a>
-        </div>
+        <a class="topgg-chip" href="https://top.gg/bot/1526237674355036401" target="_blank" rel="noopener">
+          <span class="icon">⭐</span> Voter pour le bot sur top.gg
+        </a>
       </div>
     `;
   }
@@ -608,7 +608,7 @@ async function renderPreviewPage(id) {
       app.querySelectorAll('.dp-category').forEach((el) => el.classList.remove('settings-active'));
       btn.closest('.dp-category').classList.add('settings-active');
       window.UISound?.select();
-      renderCategoryPanel(id, btn.dataset.catSettings, btn.dataset.catName, config, channels);
+      renderCategoryPanel(id, btn.dataset.catSettings, btn.dataset.catName, config, channels, rolesSorted);
     });
   });
 
@@ -645,11 +645,11 @@ async function renderPreviewPage(id) {
     if (draggedChannel) {
       app.querySelectorAll('.dp-channel').forEach((el) => el.classList.remove('selected'));
       draggedChannel.classList.add('selected');
-      renderChannelPanel(id, draggedChannel.dataset.channel, draggedChannel.dataset.name, Number(draggedChannel.dataset.type), config, channels);
+      renderChannelPanel(id, draggedChannel.dataset.channel, draggedChannel.dataset.name, Number(draggedChannel.dataset.type), config, channels, rolesSorted);
     } else if (draggedCategory) {
       app.querySelectorAll('.dp-category').forEach((el) => el.classList.remove('settings-active'));
       draggedCategory.classList.add('settings-active');
-      renderCategoryPanel(id, draggedCategory.dataset.cat, draggedCategory.dataset.dragName, config, channels);
+      renderCategoryPanel(id, draggedCategory.dataset.cat, draggedCategory.dataset.dragName, config, channels, rolesSorted);
     } else if (draggedRole) {
       app.querySelectorAll('.dp-role-row').forEach((el) => el.classList.remove('settings-active'));
       draggedRole.classList.add('settings-active');
@@ -760,7 +760,7 @@ async function renderPreviewPage(id) {
       chEl.classList.add('selected');
       window.UISound?.select();
       withViewTransition(() => {
-        renderChannelPanel(id, chEl.dataset.channel, chEl.dataset.name, Number(chEl.dataset.type), config, channels);
+        renderChannelPanel(id, chEl.dataset.channel, chEl.dataset.name, Number(chEl.dataset.type), config, channels, rolesSorted);
       });
     });
   });
@@ -1038,7 +1038,7 @@ function channelActionsFor(channelId, type, config) {
 
 function channelActionDetailHtml(key, ctx) {
   const {
-    guildId, channelId, name, type, config, channels, channel,
+    guildId, channelId, name, type, config, channels, channel, roles,
   } = ctx;
   if (key === 'rename') {
     return `
@@ -1156,16 +1156,26 @@ function channelActionDetailHtml(key, ctx) {
   }
   if (key === 'permissions') {
     const otherChannels = channels.filter((c) => c.id !== channelId && c.type !== 4);
+    const roleOptions = (roles || []).map((r) => `<option value="${r.id}">${escapeHtml(r.name)}</option>`).join('');
     return `
       <div class="dp-block">
-        <p class="dp-block-title">🔐 Permissions</p>
-        <label>Importer les permissions d'un autre salon</label>
+        <p class="dp-block-title">🔐 Modifier pour un role</p>
+        <label>Role</label>
+        <select id="dp-perm-role">${roleOptions}</select>
+        <label>Action</label>
+        <select id="dp-perm-preset">
+          ${PERMISSION_PRESETS.map((p) => `<option value="${p.key}">${escapeHtml(p.label)}</option>`).join('')}
+        </select>
+        <button class="btn" id="dp-perm-apply" style="margin-top:10px;">Appliquer</button>
+      </div>
+      <div class="dp-block">
+        <p class="dp-block-title">📥 Importer d'un autre salon</p>
         <select id="dp-import-from">
           <option value="">Choisir un salon...</option>
           ${otherChannels.map((c) => `<option value="${c.id}">${c.type === 2 ? '🔊' : '#'}${escapeHtml(c.name)}</option>`).join('')}
         </select>
         <button class="btn secondary" id="dp-import-perms" style="margin-top:8px;">Importer</button>
-        <p class="muted" style="margin-top:12px;">Pour une edition fine role par role, utilise la page Permissions.</p>
+        <p class="muted" style="margin-top:12px;">Pour voir le detail complet des permissions, utilise la page Permissions.</p>
       </div>`;
   }
   if (key === 'delete') {
@@ -1254,7 +1264,7 @@ function renderActionChat(main, {
 
 function categoryActionDetailHtml(key, ctx) {
   const {
-    guildId, categoryId, name, config, channels,
+    guildId, categoryId, name, config, channels, roles,
   } = ctx;
   if (key === 'create-channel') {
     const otherChannels = channels.filter((c) => c.type !== 4);
@@ -1324,16 +1334,26 @@ function categoryActionDetailHtml(key, ctx) {
   }
   if (key === 'permissions') {
     const otherCategories = channels.filter((c) => c.type === 4 && c.id !== categoryId);
+    const roleOptions = (roles || []).map((r) => `<option value="${r.id}">${escapeHtml(r.name)}</option>`).join('');
     return `
       <div class="dp-block">
-        <p class="dp-block-title">🔐 Permissions</p>
-        <label>Importer les permissions d'une autre categorie</label>
+        <p class="dp-block-title">🔐 Modifier pour un role</p>
+        <label>Role</label>
+        <select id="dp-cat-perm-role">${roleOptions}</select>
+        <label>Action</label>
+        <select id="dp-cat-perm-preset">
+          ${PERMISSION_PRESETS.map((p) => `<option value="${p.key}">${escapeHtml(p.label)}</option>`).join('')}
+        </select>
+        <button class="btn" id="dp-cat-perm-apply" style="margin-top:10px;">Appliquer</button>
+        <p class="muted" style="margin-top:12px;">S'applique a la categorie elle-meme, pas aux salons qu'elle contient.</p>
+      </div>
+      <div class="dp-block">
+        <p class="dp-block-title">📥 Importer d'une autre categorie</p>
         <select id="dp-cat-import-from">
           <option value="">Choisir une categorie...</option>
           ${otherCategories.map((c) => `<option value="${c.id}">📁 ${escapeHtml(c.name)}</option>`).join('')}
         </select>
         <button class="btn secondary" id="dp-cat-import-perms" style="margin-top:8px;">Importer</button>
-        <p class="muted" style="margin-top:12px;">S'applique a la categorie elle-meme, pas aux salons qu'elle contient.</p>
       </div>`;
   }
   if (key === 'delete') {
@@ -1347,7 +1367,7 @@ function categoryActionDetailHtml(key, ctx) {
   return '';
 }
 
-function renderCategoryPanel(guildId, categoryId, name, config, channels) {
+function renderCategoryPanel(guildId, categoryId, name, config, channels, roles) {
   const main = document.getElementById('dp-main');
   const actions = [
     { key: 'create-channel', icon: '➕', label: 'Creer un salon' },
@@ -1358,7 +1378,7 @@ function renderCategoryPanel(guildId, categoryId, name, config, channels) {
     { key: 'delete', icon: '🗑️', label: 'Supprimer', danger: true },
   ];
   const ctx = {
-    guildId, categoryId, name, config, channels,
+    guildId, categoryId, name, config, channels, roles,
   };
 
   function wireDetail(scope, key) {
@@ -1418,6 +1438,20 @@ function renderCategoryPanel(guildId, categoryId, name, config, channels) {
       });
     }
     if (key === 'permissions') {
+      scope.querySelector('#dp-cat-perm-apply').addEventListener('click', async () => {
+        const roleId = scope.querySelector('#dp-cat-perm-role').value;
+        const preset = PERMISSION_PRESETS.find((p) => p.key === scope.querySelector('#dp-cat-perm-preset').value);
+        if (!roleId) { showToast('Choisis un role.', 'error'); return; }
+        try {
+          const results = await Api.bulkPermissions(guildId, {
+            channelIds: [categoryId], roleId, allow: preset.allow, deny: preset.deny,
+          });
+          const failed = results.filter((r) => !r.ok);
+          showToast(failed.length ? `Erreur : ${failed[0].error}` : 'Permissions mises a jour.', failed.length ? 'error' : 'success');
+        } catch (err) {
+          showToast(err.message, 'error');
+        }
+      });
       scope.querySelector('#dp-cat-import-perms').addEventListener('click', async () => {
         const sourceId = scope.querySelector('#dp-cat-import-from').value;
         if (!sourceId) { showToast('Choisis une categorie source.', 'error'); return; }
@@ -1587,13 +1621,13 @@ function renderRolePanel(guildId, roleId, name, config, roles, members) {
   });
 }
 
-function renderChannelPanel(guildId, channelId, name, type, config, channels) {
+function renderChannelPanel(guildId, channelId, name, type, config, channels, roles) {
   const main = document.getElementById('dp-main');
   const channel = channels.find((c) => c.id === channelId);
   const icon = type === 2 ? '🔊' : type === 4 ? '📁' : '#';
   const actions = channelActionsFor(channelId, type, config);
   const ctx = {
-    guildId, channelId, name, type, config, channels, channel,
+    guildId, channelId, name, type, config, channels, channel, roles,
   };
 
   function wireDetail(scope, key) {
@@ -1798,6 +1832,24 @@ function renderChannelPanel(guildId, channelId, name, type, config, channels) {
         } catch (err) {
           showToast(err.message, 'error');
           serviceToggle.checked = !serviceToggle.checked;
+        }
+      });
+    }
+
+    const applyPermBtn = scope.querySelector('#dp-perm-apply');
+    if (applyPermBtn) {
+      applyPermBtn.addEventListener('click', async () => {
+        const roleId = scope.querySelector('#dp-perm-role').value;
+        const preset = PERMISSION_PRESETS.find((p) => p.key === scope.querySelector('#dp-perm-preset').value);
+        if (!roleId) { showToast('Choisis un role.', 'error'); return; }
+        try {
+          const results = await Api.bulkPermissions(guildId, {
+            channelIds: [channelId], roleId, allow: preset.allow, deny: preset.deny,
+          });
+          const failed = results.filter((r) => !r.ok);
+          showToast(failed.length ? `Erreur : ${failed[0].error}` : 'Permissions mises a jour.', failed.length ? 'error' : 'success');
+        } catch (err) {
+          showToast(err.message, 'error');
         }
       });
     }
@@ -3147,11 +3199,10 @@ async function renderEmbedBuilderPage(id, container = app) {
             <p class="dp-block-title">📨 Message</p>
             <label>Texte au-dessus des embeds (optionnel)</label>
             <textarea id="embed-content" placeholder="Texte simple, en plus des embeds"></textarea>
-          </div>
 
-          <div class="row" id="embed-tabs" style="flex-wrap:wrap; gap:6px; margin-bottom:10px;"></div>
+            <div class="row" id="embed-tabs" style="flex-wrap:wrap; gap:6px; margin:14px 0 4px;"></div>
 
-          <div class="dp-block">
+            <div class="dp-subsection-divider"></div>
             <p class="dp-block-title">📝 Contenu principal</p>
             <label>Titre</label>
             <input type="text" id="embed-title" maxlength="256" placeholder="Titre de l'embed" />
@@ -3161,9 +3212,8 @@ async function renderEmbedBuilderPage(id, container = app) {
             <textarea id="embed-description" maxlength="4096" placeholder="Texte principal (markdown Discord supporte)"></textarea>
             <label>Couleur</label>
             <input type="color" id="embed-color" value="#5865f2" />
-          </div>
 
-          <div class="dp-block">
+            <div class="dp-subsection-divider"></div>
             <p class="dp-block-title">👤 Auteur</p>
             <label>Nom</label>
             <input type="text" id="embed-author-name" maxlength="256" placeholder="Nom affiche en haut" />
@@ -3171,23 +3221,20 @@ async function renderEmbedBuilderPage(id, container = app) {
             <input type="text" id="embed-author-url" placeholder="https://..." />
             <label>Icone (URL)</label>
             <input type="text" id="embed-author-icon" placeholder="https://..." />
-          </div>
 
-          <div class="dp-block">
+            <div class="dp-subsection-divider"></div>
             <p class="dp-block-title">🖼️ Images</p>
             <label>Miniature (petite image, en haut a droite)</label>
             <input type="text" id="embed-thumbnail" placeholder="https://..." />
             <label>Image (grande image, en bas)</label>
             <input type="text" id="embed-image" placeholder="https://..." />
-          </div>
 
-          <div class="dp-block">
+            <div class="dp-subsection-divider"></div>
             <p class="dp-block-title">📋 Champs</p>
             <div id="embed-fields-list"></div>
             <button type="button" class="btn secondary" id="embed-add-field" style="margin-top:8px;">+ Ajouter un champ</button>
-          </div>
 
-          <div class="dp-block">
+            <div class="dp-subsection-divider"></div>
             <p class="dp-block-title">🔻 Pied de page</p>
             <label>Texte</label>
             <input type="text" id="embed-footer-text" maxlength="2048" placeholder="Texte du pied de page" />
@@ -3197,22 +3244,20 @@ async function renderEmbedBuilderPage(id, container = app) {
               <span>Inclure la date/heure actuelles</span>
               <input type="checkbox" id="embed-timestamp" />
             </div>
-          </div>
 
-          ${sectionHtml('Modeles enregistres', `
+            <div class="dp-subsection-divider"></div>
             <p class="dp-block-title">💾 Modeles enregistres</p>
             <div id="embed-templates-list">${templateRows()}</div>
-          `, { alwaysOpen: true })}
 
-          ${sectionHtml('JSON avance (import/export)', `
+            <div class="dp-subsection-divider"></div>
             <p class="dp-block-title">🧾 JSON avance (import/export)</p>
             <p class="muted">Colle un JSON d'embed pour le charger, ou copie celui genere par le formulaire.</p>
-            <textarea id="embed-json" style="min-height:160px;" placeholder='{"title": "...", "description": "...", "color": 5793266}'></textarea>
+            <textarea id="embed-json" style="min-height:120px;" placeholder='{"title": "...", "description": "...", "color": 5793266}'></textarea>
             <div class="row" style="margin-top:8px;">
               <button type="button" class="btn secondary" id="embed-json-apply">Appliquer ce JSON</button>
               <button type="button" class="btn secondary" id="embed-json-copy">Copier le JSON actuel</button>
             </div>
-          `, { alwaysOpen: true })}
+          </div>
         </div>
 
         <div class="embed-builder-preview-wrap">

@@ -292,7 +292,12 @@ async function router(request, env) {
       if (!aiConfig) throw new HttpError(400, "Aucune cle API IA configuree pour ce serveur. Configure-la d'abord dans l'outil IA.");
 
       const working = [...messages, { role: 'user', content: message.trim() }];
-      const result = await runAiTurn(env, guildId, session, aiConfig.provider, aiConfig.apiKey, working);
+      let result;
+      try {
+        result = await runAiTurn(env, guildId, session, aiConfig.provider, aiConfig.apiKey, working);
+      } catch (err) {
+        throw new HttpError(502, `Assistant IA indisponible : ${err.message}`);
+      }
       return json(result, env);
     }
 
@@ -307,9 +312,14 @@ async function router(request, env) {
       const aiConfig = await getAiConfigWithKey(env, guildId);
       if (!aiConfig) throw new HttpError(400, 'Aucune cle API IA configuree pour ce serveur.');
 
-      const result = await resumeAfterConfirmation(
-        env, guildId, session, aiConfig.provider, aiConfig.apiKey, messages, pendingConfirmation, Boolean(confirmed),
-      );
+      let result;
+      try {
+        result = await resumeAfterConfirmation(
+          env, guildId, session, aiConfig.provider, aiConfig.apiKey, messages, pendingConfirmation, Boolean(confirmed),
+        );
+      } catch (err) {
+        throw new HttpError(502, `Assistant IA indisponible : ${err.message}`);
+      }
       return json(result, env);
     }
 
