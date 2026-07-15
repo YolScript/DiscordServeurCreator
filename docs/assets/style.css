@@ -540,6 +540,36 @@ input::placeholder, textarea::placeholder { color: var(--text-faint); }
 }
 .dp-chat-bubble .dp-block { margin-bottom: 0; }
 .dp-chat-bubble .dp-action-grid { min-width: 420px; }
+
+/* Fil de discussion libre avec l'assistant IA : contrairement au fil
+   d'actions scripte (choix predefinis, pas d'echo), ici l'utilisateur tape
+   du texte librement donc ses messages sont affiches comme un vrai chat. */
+.dp-chat-msg.ai-user { align-self: flex-end; flex-direction: row-reverse; }
+.dp-chat-msg.ai-user .dp-chat-avatar { background: #3a3c41; }
+.dp-chat-msg.ai-user .dp-chat-text { background: #5865f2; color: #fff; align-self: flex-end; }
+.dp-ai-tool-note { font-size: 0.76rem; color: #96989d; font-style: italic; }
+.dp-ai-confirm {
+  background: rgba(229, 72, 77, 0.08); border: 1px solid rgba(229, 72, 77, 0.35);
+  border-radius: 10px; padding: 12px 14px; display: flex; flex-direction: column; gap: 10px;
+}
+.dp-ai-confirm-row { display: flex; gap: 8px; }
+.dp-chat-input-bar {
+  flex: none; display: flex; gap: 10px; padding: 14px 24px; border-top: 1px solid #26272b;
+  background: rgba(0,0,0,0.12);
+}
+.dp-chat-input-bar input {
+  flex: 1; background: #1e1f22; border: 1px solid #3a3c41; border-radius: 8px; color: #dcddde;
+  padding: 10px 14px; font-size: 0.9rem;
+}
+.dp-chat-input-bar input:disabled { opacity: 0.5; }
+.dp-chat-typing { display: flex; gap: 4px; align-items: center; padding: 4px 0; }
+.dp-chat-typing span {
+  width: 6px; height: 6px; border-radius: 50%; background: #96989d;
+  animation: dpTypingBounce 1s ease-in-out infinite;
+}
+.dp-chat-typing span:nth-child(2) { animation-delay: 0.15s; }
+.dp-chat-typing span:nth-child(3) { animation-delay: 0.3s; }
+@keyframes dpTypingBounce { 0%, 60%, 100% { transform: translateY(0); opacity: 0.5; } 30% { transform: translateY(-4px); opacity: 1; } }
 .dp-panel-title { color: #fff; font-size: 1.05rem; font-weight: 700; margin-bottom: 16px; display: flex; align-items: center; gap: 8px; }
 .dp-panel input[type=text] { background: #1e1f22; border: 1px solid #3a3c41; color: #dcddde; }
 .dp-panel label { color: #96989d; }

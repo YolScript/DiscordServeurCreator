@@ -20,3 +20,4 @@ FRONTEND_REDIRECT_URL = "https://yolscript.github.io/DiscordServeurCreator/app.h
 # Secrets a definir via `wrangler secret put <NOM>` (jamais dans ce fichier) :
 #   DISCORD_CLIENT_SECRET
 #   DISCORD_BOT_TOKEN
+#   AI_KEY_ENCRYPTION_SECRET (chiffrement au repos des cles API IA fournies par les serveurs)

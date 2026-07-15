@@ -11,6 +11,14 @@ let currentUser = null;
 let currentUserAvatarUrl = '';
 let prefillChannelId = null;
 
+// Etat de la conversation avec l'assistant IA : persiste tant qu'on reste sur
+// le meme serveur (reinitialise au changement de serveur), independant du
+// re-rendu complet de renderPreviewPage (retour depuis un outil, etc).
+let aiConversationGuildId = null;
+let aiConversation = [];
+let aiPendingConfirmation = null;
+let aiBusy = false;
+
 // Bit Discord de chaque permission (cf. discord-api-types PermissionFlagsBits),
 // duplique cote dashboard pour decoder role.permissions sans lib externe.
 const PERMISSION_BITS = {
@@ -255,6 +263,7 @@ const SETTINGS_PANELS = [
   { key: 'botstatus', label: 'Statut du bot', icon: '🤖' },
   { key: 'templates', label: 'Templates', icon: '📁' },
   { key: 'customcommands', label: 'Commandes personnalisees', icon: '🧩' },
+  { key: 'assistant-ia', label: 'Assistant IA', icon: '✨' },
 ];
 
 function customChannelFormHtml(catId) {
@@ -303,6 +312,162 @@ function roleRowHtml(role, members) {
     </div>`;
 }
 
+function resolveAiActionLabel(pc, channels, roles) {
+  if (pc.name === 'delete_channel') {
+    const ch = channels.find((c) => c.id === pc.args.channelId);
+    return `Supprimer le salon ${ch ? `#${ch.name}` : pc.args.channelId}`;
+  }
+  if (pc.name === 'delete_category') {
+    const cat = channels.find((c) => c.id === pc.args.categoryId);
+    return `Supprimer la categorie ${cat ? cat.name : pc.args.categoryId}`;
+  }
+  if (pc.name === 'delete_role') {
+    const role = roles.find((r) => r.id === pc.args.roleId);
+    return `Supprimer le role ${role ? role.name : pc.args.roleId}`;
+  }
+  return `Executer ${pc.name}`;
+}
+
+function aiConversationHtml() {
+  let html = '';
+  for (const m of aiConversation) {
+    if (m.role === 'user') {
+      html += `
+        <div class="dp-chat-msg ai-user">
+          <div class="dp-chat-avatar">${currentUser?.username ? escapeHtml(initials(currentUser.username)) : '🙂'}</div>
+          <div class="dp-chat-bubble"><div class="dp-chat-text">${escapeHtml(m.content)}</div></div>
+        </div>`;
+    } else if (m.role === 'assistant' && m.content) {
+      html += `
+        <div class="dp-chat-msg bot">
+          <div class="dp-chat-avatar">🤖</div>
+          <div class="dp-chat-bubble">
+            <div class="dp-chat-author">ServeurCreator Bot</div>
+            <div class="dp-chat-text">${escapeHtml(m.content)}</div>
+          </div>
+        </div>`;
+    } else if (m.role === 'assistant' && m.toolCalls?.length) {
+      html += `<div class="dp-ai-tool-note">🔧 ${escapeHtml(m.toolCalls[0].name)}...</div>`;
+    } else if (m.role === 'tool' && m.result?.error) {
+      html += `<div class="dp-ai-tool-note">⚠️ ${escapeHtml(m.result.error)}</div>`;
+    }
+  }
+  if (aiBusy) {
+    html += `
+      <div class="dp-chat-msg bot">
+        <div class="dp-chat-avatar">🤖</div>
+        <div class="dp-chat-bubble"><div class="dp-chat-typing"><span></span><span></span><span></span></div></div>
+      </div>`;
+  }
+  if (aiPendingConfirmation) {
+    html += `
+      <div class="dp-chat-msg bot">
+        <div class="dp-chat-avatar">🤖</div>
+        <div class="dp-chat-bubble" style="max-width:420px;">
+          <div class="dp-ai-confirm">
+            <span>⚠️ ${escapeHtml(aiPendingConfirmation.label)} — action irreversible. Confirmer ?</span>
+            <div class="dp-ai-confirm-row">
+              <button type="button" class="btn danger" id="dp-ai-confirm-yes">Confirmer</button>
+              <button type="button" class="btn secondary" id="dp-ai-confirm-no">Annuler</button>
+            </div>
+          </div>
+        </div>
+      </div>`;
+  }
+  return html;
+}
+
+function aiHomeHtml(guild) {
+  return `
+    <div class="dp-chat" id="dp-ai-chat">
+      <div class="dp-chat-msg bot">
+        <div class="dp-chat-avatar">🤖</div>
+        <div class="dp-chat-bubble">
+          <div class="dp-chat-author">ServeurCreator Bot</div>
+          <div class="dp-chat-text">Salut, je suis le bot de configuration de ${escapeHtml(guild?.name || 'ton serveur')} ! Glisse un salon, une categorie ou un role ici pour le configurer, choisis un outil ci-dessous, ou ecris-moi directement.</div>
+          <div class="dp-action-grid">
+            ${SETTINGS_PANELS.map((p) => `
+              <button type="button" class="dp-action-card" data-goto-settings="${p.key}">
+                <span class="icon">${p.icon}</span>
+                <span class="label">${escapeHtml(p.label)}</span>
+              </button>
+            `).join('')}
+          </div>
+        </div>
+      </div>
+      <div id="dp-ai-tail">${aiConversationHtml()}</div>
+    </div>
+    <form class="dp-chat-input-bar" id="dp-ai-form">
+      <input type="text" id="dp-ai-input" placeholder="Ecris a l'assistant..." maxlength="1000" autocomplete="off" />
+      <button type="submit" class="btn" id="dp-ai-send">Envoyer</button>
+    </form>
+  `;
+}
+
+function wireAiHome(guildId, channels, rolesSorted) {
+  const form = document.getElementById('dp-ai-form');
+  const input = document.getElementById('dp-ai-input');
+  const sendBtn = document.getElementById('dp-ai-send');
+  const chatEl = document.getElementById('dp-ai-chat');
+
+  function refreshTail() {
+    document.getElementById('dp-ai-tail').innerHTML = aiConversationHtml();
+    input.disabled = aiBusy;
+    sendBtn.disabled = aiBusy;
+    const yesBtn = document.getElementById('dp-ai-confirm-yes');
+    const noBtn = document.getElementById('dp-ai-confirm-no');
+    if (yesBtn) yesBtn.addEventListener('click', () => handleConfirm(true));
+    if (noBtn) noBtn.addEventListener('click', () => handleConfirm(false));
+    chatEl.scrollTop = chatEl.scrollHeight;
+  }
+
+  async function handleConfirm(confirmed) {
+    const pending = aiPendingConfirmation;
+    aiPendingConfirmation = null;
+    aiBusy = true;
+    refreshTail();
+    try {
+      const result = await Api.aiChatConfirm(guildId, aiConversation, pending, confirmed);
+      aiConversation = result.messages;
+      aiPendingConfirmation = result.pendingConfirmation
+        ? { ...result.pendingConfirmation, label: resolveAiActionLabel(result.pendingConfirmation, channels, rolesSorted) }
+        : null;
+      aiBusy = false;
+      await renderPreviewPage(guildId);
+    } catch (err) {
+      showToast(err.message, 'error');
+      aiBusy = false;
+      refreshTail();
+    }
+  }
+
+  form.addEventListener('submit', async (e) => {
+    e.preventDefault();
+    const text = input.value.trim();
+    if (!text || aiBusy) return;
+    input.value = '';
+    aiConversation.push({ role: 'user', content: text });
+    aiBusy = true;
+    refreshTail();
+    try {
+      const result = await Api.aiChat(guildId, aiConversation.slice(0, -1), text);
+      aiConversation = result.messages;
+      aiPendingConfirmation = result.pendingConfirmation
+        ? { ...result.pendingConfirmation, label: resolveAiActionLabel(result.pendingConfirmation, channels, rolesSorted) }
+        : null;
+      aiBusy = false;
+      await renderPreviewPage(guildId);
+    } catch (err) {
+      aiConversation.pop();
+      aiBusy = false;
+      showToast(err.message, 'error');
+      refreshTail();
+    }
+  });
+
+  refreshTail();
+}
+
 async function renderPreviewPage(id) {
   app.classList.add('preview-fullbleed');
   app.innerHTML = '<p class="muted">Chargement...</p>';
@@ -314,6 +479,12 @@ async function renderPreviewPage(id) {
     Api.members(id).catch(() => []),
   ]);
   const rolesSorted = [...roles].sort((a, b) => b.position - a.position);
+
+  if (aiConversationGuildId !== id) {
+    aiConversationGuildId = id;
+    aiConversation = [];
+    aiPendingConfirmation = null;
+  }
 
   const categories = channels.filter((c) => c.type === 4).sort((a, b) => a.position - b.position);
   const uncategorized = channels.filter((c) => c.type !== 4 && !c.parent_id);
@@ -361,23 +532,7 @@ async function renderPreviewPage(id) {
           </div>
         </div>
         <div class="dp-main" id="dp-main">
-          <div class="dp-chat">
-            <div class="dp-chat-msg bot">
-              <div class="dp-chat-avatar">🤖</div>
-              <div class="dp-chat-bubble">
-                <div class="dp-chat-author">ServeurCreator Bot</div>
-                <div class="dp-chat-text">Salut, je suis le bot de configuration de ${escapeHtml(guild?.name || 'ton serveur')} ! Glisse un salon, une categorie ou un role ici pour le configurer, ou choisis un outil ci-dessous.</div>
-                <div class="dp-action-grid">
-                  ${SETTINGS_PANELS.map((p) => `
-                    <button type="button" class="dp-action-card" data-goto-settings="${p.key}">
-                      <span class="icon">${p.icon}</span>
-                      <span class="label">${escapeHtml(p.label)}</span>
-                    </button>
-                  `).join('')}
-                </div>
-              </div>
-            </div>
-          </div>
+          ${aiHomeHtml(guild)}
         </div>
         <div class="dp-roles-panel">
           <div class="dp-roles-header">Roles — ${rolesSorted.length}</div>
@@ -386,6 +541,8 @@ async function renderPreviewPage(id) {
       </div>
     </div>
   `;
+
+  wireAiHome(id, channels, rolesSorted);
 
   app.querySelectorAll('.dp-category').forEach((catEl) => {
     catEl.addEventListener('click', () => catEl.classList.toggle('collapsed'));
@@ -612,6 +769,7 @@ const SETTINGS_PANEL_INTROS = {
   botstatus: 'Configure le statut et l\'activite affiches par le bot.',
   templates: 'Gere les templates de structure de serveur.',
   customcommands: 'Cree tes propres commandes personnalisees.',
+  'assistant-ia': "Configure ta cle API pour discuter avec l'assistant et lui laisser creer/modifier des salons, categories et roles a ta place.",
 };
 
 function renderSettingsPanel(guildId, key) {
@@ -647,6 +805,7 @@ function renderSettingsPanel(guildId, key) {
     botstatus: () => renderBotStatusPage(body),
     templates: () => renderTemplatesPage(guildId, body),
     customcommands: () => renderCustomCommandsPage(guildId, body),
+    'assistant-ia': () => renderAiConfigPage(guildId, body),
   };
   renderers[key]?.();
 }
@@ -3010,6 +3169,75 @@ function formatUptime(ms) {
   if (hours || days) parts.push(`${hours}h`);
   parts.push(`${minutes}min`);
   return parts.join(' ');
+}
+
+const AI_PROVIDERS = [
+  { value: 'anthropic', label: 'Anthropic (Claude)' },
+  { value: 'openai', label: 'OpenAI (GPT)' },
+  { value: 'gemini', label: 'Google (Gemini)' },
+];
+
+async function renderAiConfigPage(guildId, container = app) {
+  container.innerHTML = '<p class="muted">Chargement...</p>';
+  const config = await Api.aiConfig(guildId).catch(() => null);
+
+  container.innerHTML = `
+    <div class="inner">
+      ${sectionHtml('Cle API', `
+        <p class="muted" style="margin:0 0 12px;">
+          ${config?.hasKey
+            ? `Cle configuree (${AI_PROVIDERS.find((p) => p.value === config.provider)?.label || config.provider}). La cle n'est jamais raffichee apres enregistrement.`
+            : "Aucune cle configuree pour l'instant. Sans cle, l'assistant ne peut pas repondre."}
+        </p>
+        <label>Fournisseur</label>
+        <select id="ai-provider">
+          ${AI_PROVIDERS.map((p) => `<option value="${p.value}" ${config?.provider === p.value ? 'selected' : ''}>${escapeHtml(p.label)}</option>`).join('')}
+        </select>
+        <label>Cle API</label>
+        <input type="password" id="ai-apikey" placeholder="${config?.hasKey ? 'Laisser vide pour ne pas changer' : 'sk-...'}" autocomplete="off" />
+        <div class="row" style="margin-top:12px;">
+          <button class="btn" id="ai-save">Enregistrer</button>
+          ${config?.hasKey ? '<button class="btn danger secondary" id="ai-clear">Retirer la cle</button>' : ''}
+        </div>
+      `, { open: true })}
+      ${sectionHtml('A propos', `
+        <p class="muted">
+          Chaque serveur utilise sa propre cle API, fournie par toi. Elle est chiffree avant stockage et n'est
+          jamais renvoyee en clair. Les actions non destructives (creer, renommer, changer une couleur...) sont
+          executees directement depuis la conversation. Les suppressions demandent toujours une confirmation
+          explicite avant d'etre executees.
+        </p>
+      `)}
+    </div>
+  `;
+  wireSections(container);
+
+  container.querySelector('#ai-save').addEventListener('click', async () => {
+    const provider = container.querySelector('#ai-provider').value;
+    const apiKey = container.querySelector('#ai-apikey').value.trim();
+    if (!apiKey) { showToast('Entre une cle API.', 'error'); return; }
+    try {
+      await Api.saveAiConfig(guildId, provider, apiKey);
+      showToast('Cle API enregistree.');
+      await renderAiConfigPage(guildId, container);
+    } catch (err) {
+      showToast(err.message, 'error');
+    }
+  });
+
+  const clearBtn = container.querySelector('#ai-clear');
+  if (clearBtn) {
+    clearBtn.addEventListener('click', async () => {
+      if (!window.confirm("Retirer la cle API de l'assistant IA ?")) return;
+      try {
+        await Api.clearAiConfig(guildId);
+        showToast('Cle API retiree.');
+        await renderAiConfigPage(guildId, container);
+      } catch (err) {
+        showToast(err.message, 'error');
+      }
+    });
+  }
 }
 
 async function renderBotStatusPage(container = app) {

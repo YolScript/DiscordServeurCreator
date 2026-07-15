@@ -35,6 +35,11 @@ import {
 } from './security.js';
 import { applyServiceVisibility } from './staffService.js';
 import { logAudit, getAuditLog } from './auditLog.js';
+import {
+  getAiConfig, setAiConfig, clearAiConfig, getAiConfigWithKey,
+} from './aiConfigStore.js';
+import { checkAiRateLimit } from './aiRateLimit.js';
+import { runAiTurn, resumeAfterConfirmation } from './aiOrchestrator.js';
 
 class HttpError extends Error {
   constructor(status, message) {
@@ -243,6 +248,69 @@ async function router(request, env) {
     if (sub === 'generation' && parts.length === 4 && method === 'GET') {
       await requireGuildAccess(env, request, guildId);
       return json(await getGenerationProgress(env, guildId), env);
+    }
+
+    // --- Assistant IA (dashboard uniquement, jamais expose publiquement) :
+    // chaque serveur fournit sa propre cle API (Claude/GPT/Gemini), chiffree
+    // au repos. Les actions destructives proposees par le modele ne sont
+    // jamais executees directement : elles reviennent au frontend comme
+    // pendingConfirmation, executees seulement apres clic explicite via
+    // /ai-chat/confirm.
+    if (sub === 'aiconfig' && parts.length === 4 && method === 'GET') {
+      await requireGuildAccess(env, request, guildId);
+      return json(await getAiConfig(env, guildId), env);
+    }
+
+    if (sub === 'aiconfig' && parts.length === 4 && method === 'PUT') {
+      const session = await requireGuildAccess(env, request, guildId);
+      const { provider, apiKey } = await readJson(request);
+      if (!['anthropic', 'openai', 'gemini'].includes(provider)) throw new HttpError(400, 'provider invalide.');
+      if (!apiKey || apiKey.length < 8) throw new HttpError(400, 'apiKey invalide.');
+      await setAiConfig(env, guildId, { provider, apiKey });
+      await logAudit(env, guildId, { title: 'Cle IA mise a jour', description: `${session.username} a configure l'assistant IA (${provider}).` });
+      return json({ ok: true }, env);
+    }
+
+    if (sub === 'aiconfig' && parts.length === 4 && method === 'DELETE') {
+      const session = await requireGuildAccess(env, request, guildId);
+      await clearAiConfig(env, guildId);
+      await logAudit(env, guildId, { title: 'Cle IA retiree', description: `${session.username} a retire la configuration de l'assistant IA.` });
+      return json({ ok: true }, env);
+    }
+
+    if (sub === 'aichat' && parts.length === 4 && method === 'POST') {
+      const session = await requireGuildAccess(env, request, guildId);
+      const rate = await checkAiRateLimit(env, guildId, session.userId);
+      if (!rate.allowed) throw new HttpError(429, `Trop de messages envoyes a l'assistant IA. Reessaie dans ${rate.retryAfterSeconds}s.`);
+
+      const { messages, message } = await readJson(request);
+      if (!Array.isArray(messages)) throw new HttpError(400, 'messages requis.');
+      if (typeof message !== 'string' || !message.trim()) throw new HttpError(400, 'message requis.');
+      if (message.length > 1000) throw new HttpError(400, 'Message trop long (1000 caracteres max).');
+
+      const aiConfig = await getAiConfigWithKey(env, guildId);
+      if (!aiConfig) throw new HttpError(400, "Aucune cle API IA configuree pour ce serveur. Configure-la d'abord dans l'outil IA.");
+
+      const working = [...messages, { role: 'user', content: message.trim() }];
+      const result = await runAiTurn(env, guildId, session, aiConfig.provider, aiConfig.apiKey, working);
+      return json(result, env);
+    }
+
+    if (sub === 'aichat' && parts[4] === 'confirm' && method === 'POST') {
+      const session = await requireGuildAccess(env, request, guildId);
+      const rate = await checkAiRateLimit(env, guildId, session.userId);
+      if (!rate.allowed) throw new HttpError(429, `Trop de messages envoyes a l'assistant IA. Reessaie dans ${rate.retryAfterSeconds}s.`);
+
+      const { messages, pendingConfirmation, confirmed } = await readJson(request);
+      if (!Array.isArray(messages) || !pendingConfirmation) throw new HttpError(400, 'messages et pendingConfirmation requis.');
+
+      const aiConfig = await getAiConfigWithKey(env, guildId);
+      if (!aiConfig) throw new HttpError(400, 'Aucune cle API IA configuree pour ce serveur.');
+
+      const result = await resumeAfterConfirmation(
+        env, guildId, session, aiConfig.provider, aiConfig.apiKey, messages, pendingConfirmation, Boolean(confirmed),
+      );
+      return json(result, env);
     }
 
     if (sub === 'channels' && parts.length === 4 && method === 'GET') {
