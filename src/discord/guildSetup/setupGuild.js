@@ -37,13 +37,16 @@ async function replicateGameRoles(guild, sourceGameRoles, minus16Role) {
   }
 }
 
-async function setupGuild({ guild, templateKey, requestedByUserId, reglementText }) {
+async function setupGuild({
+  guild, templateKey, requestedByUserId, reglementText, onStep = () => {},
+}) {
   const existing = await guildConfigStore.find(guild.id);
   if (existing) {
     throw new AlreadySetupError('Ce serveur a deja ete configure. Utilise le dashboard pour le modifier.');
   }
 
   const template = await getTemplate(templateKey, guild.client);
+  onStep({ kind: 'template', label: `Template "${template.label}" charge` });
 
   // Le bot n'est plus owner (il a ete invite classiquement) : toute action de
   // gestion de roles reste bornee par la position de SON PROPRE role le plus
@@ -65,6 +68,7 @@ async function setupGuild({ guild, templateKey, requestedByUserId, reglementText
       permissions: roleSpec.permissions,
     });
     roleObjects[roleSpec.key] = role;
+    onStep({ kind: 'role', label: `Role "${roleSpec.name}" cree` });
   }
 
   // Reordonnancement en un seul appel bulk (l'ordre a la creation n'est pas fiable).
@@ -83,6 +87,8 @@ async function setupGuild({ guild, templateKey, requestedByUserId, reglementText
       await roleObjects[orderedKeys[idx]].setPosition(startPosition + idx).catch(() => {});
     }
   });
+
+  onStep({ kind: 'hierarchy', label: 'Hierarchie des roles appliquee' });
 
   // Le bot porte aussi son role interne, pour rester garanti au-dessus des
   // roles qu'il gere a l'execution (Reglement valide, +16/-16, roles de jeu).
@@ -103,6 +109,7 @@ async function setupGuild({ guild, templateKey, requestedByUserId, reglementText
       permissionOverwrites: categorySpec.permissionOverwrites,
     });
     channelObjects[categorySpec.key] = category;
+    onStep({ kind: 'category', label: `Categorie "${categorySpec.name}" creee` });
 
     for (const channelSpec of categorySpec.channels) {
       const channel = await guild.channels.create({
@@ -112,6 +119,7 @@ async function setupGuild({ guild, templateKey, requestedByUserId, reglementText
         permissionOverwrites: channelSpec.permissionOverwrites,
       });
       channelObjects[channelSpec.key] = channel;
+      onStep({ kind: 'channel', label: `Salon "#${channelSpec.name}" cree` });
     }
   }
 
@@ -129,7 +137,10 @@ async function setupGuild({ guild, templateKey, requestedByUserId, reglementText
     new ButtonBuilder().setCustomId(AGE_PLUS16).setLabel('+16').setStyle(ButtonStyle.Primary),
     new ButtonBuilder().setCustomId(AGE_MINUS16).setLabel('-16').setStyle(ButtonStyle.Secondary),
   );
-  if (rolesChannel) await rolesChannel.send({ embeds: [ageEmbed], components: [ageRow] });
+  if (rolesChannel) {
+    await rolesChannel.send({ embeds: [ageEmbed], components: [ageRow] });
+    onStep({ kind: 'reglement', label: 'Verification age postee' });
+  }
 
   const finalReglementText = reglementText || template.content?.reglementText || DEFAULT_REGLEMENT_TEXT;
 
@@ -157,11 +168,15 @@ async function setupGuild({ guild, templateKey, requestedByUserId, reglementText
     minus16RoleId: roleObjects.minus16.id,
   });
 
-  if (reglementChannel) await postReglementPanel(guild).catch((err) => logger.error('postReglementPanel initial', err));
+  if (reglementChannel) {
+    await postReglementPanel(guild).catch((err) => logger.error('postReglementPanel initial', err));
+    onStep({ kind: 'reglement', label: 'Reglement publie' });
+  }
 
   if (template.modConfig) {
     await moderationConfigStore.upsert(guild.id, template.modConfig).catch((err) => logger.error('moderationConfigStore.upsert initial', err));
   }
+  onStep({ kind: 'config', label: 'Configuration enregistree' });
 
   if (template.guildIconURL) {
     await guild.setIcon(template.guildIconURL).catch((err) => logger.warn('guild.setIcon initial a echoue', err.message));
@@ -170,6 +185,7 @@ async function setupGuild({ guild, templateKey, requestedByUserId, reglementText
   if (template.gameRoles?.length) {
     await replicateGameRoles(guild, template.gameRoles, roleObjects.minus16).catch((err) => logger.error('replicateGameRoles', err));
     await rolesMessageManager.refresh(guild).catch((err) => logger.error('rolesMessageManager.refresh initial', err));
+    onStep({ kind: 'gameroles', label: `${template.gameRoles.length} role(s) de jeu repliques` });
   }
 
   // Structures dynamiques (staff/jeux/vocal public) : memes fonctions que
@@ -178,8 +194,10 @@ async function setupGuild({ guild, templateKey, requestedByUserId, reglementText
   await ensureGamesCategory(guild).catch((err) => logger.error('ensureGamesCategory initial', err));
   await syncGameChannels(guild).catch((err) => logger.error('syncGameChannels initial', err));
   await ensurePublicVoiceCreator(guild).catch((err) => logger.error('ensurePublicVoiceCreator initial', err));
+  onStep({ kind: 'structures', label: 'Structures Staff / Jeux / Vocal public initialisees' });
 
   logger.info(`Serveur ${guild.id} configure (template ${templateKey}) par ${requestedByUserId}`);
+  onStep({ kind: 'done', label: 'Serveur pret !' });
   return {
     guild, config: await guildConfigStore.find(guild.id), templateLabel: template.label,
   };

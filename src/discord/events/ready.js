@@ -19,6 +19,7 @@ const tempBanExpiry = require('../automation/tempBanExpiry');
 const birthdayAnnouncer = require('../automation/birthdayAnnouncer');
 const memberCountChannel = require('../automation/memberCountChannel');
 const botStatusHeartbeat = require('../automation/botStatusHeartbeat');
+const generationSync = require('../automation/generationSync');
 const logger = require('../../shared/logger');
 
 client.once(Events.ClientReady, async (readyClient) => {
@@ -50,4 +51,5 @@ client.once(Events.ClientReady, async (readyClient) => {
   birthdayAnnouncer.start();
   memberCountChannel.start();
   botStatusHeartbeat.start();
+  generationSync.start();
 });

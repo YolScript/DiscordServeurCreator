@@ -22,6 +22,8 @@ import {
   getShopItems, putShopItems, getEconomyAccounts,
   getTemplateRegistry, putTemplateRegistry,
   getCustomCommands, putCustomCommands,
+  getGenerationProgress, putGenerationProgress,
+  getPendingGeneration, putPendingGeneration,
 } from './kvStore.js';
 import {
   bulkEditPermissions, exportChannelPermissions, importChannelPermissions, resetRoleToDefault, bitmaskFromNames,
@@ -205,6 +207,33 @@ async function router(request, env) {
     if (parts.length === 3) throw new HttpError(404, 'Route inconnue.');
 
     const sub = parts[3];
+
+    // --- Generation du serveur depuis le dashboard (equivalent web de
+    // /setup) : depose une demande dans une file dediee, sondee par le bot
+    // (generationSync.js), qui ecrit sa progression pas a pas en KV pour
+    // que le dashboard l'anime en temps reel. ---
+    if (sub === 'generate' && parts.length === 4 && method === 'POST') {
+      const session = await requireGuildAccess(env, request, guildId);
+      const existingConfig = await getGuildConfig(env, guildId);
+      if (existingConfig) throw new HttpError(409, 'Ce serveur a deja ete configure.');
+      const alreadyPending = await getPendingGeneration(env, guildId);
+      if (alreadyPending) throw new HttpError(409, 'Une generation est deja en cours pour ce serveur.');
+
+      const { templateKey, reglementText } = await readJson(request);
+      if (!templateKey) throw new HttpError(400, 'templateKey requis.');
+
+      await putPendingGeneration(env, guildId, {
+        templateKey, reglementText: reglementText || null, requestedByUserId: session.userId,
+      });
+      await putGenerationProgress(env, guildId, { status: 'queued', steps: [], startedAt: Date.now() });
+      await logAudit(env, guildId, { title: 'Generation demandee', description: `${session.username} a lance la generation du serveur (template ${templateKey}).` });
+      return json({ ok: true }, env);
+    }
+
+    if (sub === 'generation' && parts.length === 4 && method === 'GET') {
+      await requireGuildAccess(env, request, guildId);
+      return json(await getGenerationProgress(env, guildId), env);
+    }
 
     if (sub === 'channels' && parts.length === 4 && method === 'GET') {
       await requireGuildAccess(env, request, guildId);

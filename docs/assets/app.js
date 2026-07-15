@@ -175,7 +175,7 @@ async function renderGuildList() {
         : '<span class="badge not-configured">A configurer (/setup)</span>';
       action = g.configured
         ? `<a class="btn" href="app.html?guild=${g.guildId}">Gerer</a>`
-        : '<span class="muted">Lance /setup dans Discord</span>';
+        : `<button class="btn generate-server-btn" data-guild="${g.guildId}" data-name="${escapeHtml(g.name || g.guildId)}">🪄 Generer le serveur</button>`;
     }
     return `
       <div class="guild-row">
@@ -207,8 +207,17 @@ async function renderGuildList() {
     `;
   }
 
+  function wireGenerateButtons() {
+    app.querySelectorAll('.generate-server-btn').forEach((btn) => {
+      btn.addEventListener('click', () => {
+        withViewTransition(() => renderGenerateChoice(btn.dataset.guild, btn.dataset.name));
+      });
+    });
+  }
+
   paint('');
-  searchInput.oninput = () => paint(searchInput.value);
+  wireGenerateButtons();
+  searchInput.oninput = () => { paint(searchInput.value); wireGenerateButtons(); };
 }
 
 /* ---------- Pages: apercu (preview interactif) ---------- */
@@ -2485,6 +2494,132 @@ async function renderCustomCommandsPage(guildId, container = app) {
       }
     });
   });
+}
+
+const GEN_STEP_ICONS = {
+  template: '📋', role: '🎭', hierarchy: '📶', category: '📁', channel: '#',
+  reglement: '📜', config: '⚙️', gameroles: '🎮', structures: '🏗️', done: '✅', error: '❌',
+};
+
+async function renderGenerateChoice(guildId, guildName) {
+  app.innerHTML = '<p class="muted">Chargement...</p>';
+  const savedTemplates = await Api.templates().catch(() => []);
+  const templateOptions = [
+    { key: 'live', label: 'Copie de ServeurCreator (a jour)' },
+    ...savedTemplates.map((t) => ({ key: `live:${t.id}`, label: t.name })),
+  ];
+
+  app.innerHTML = `
+    <div class="inner">
+      ${sectionHtml(`Generer "${escapeHtml(guildName)}"`, `
+        <p class="muted">Choisis un template : sa structure (roles, salons, permissions, textes) sera recreee en direct sur ce serveur.</p>
+        <label>Template</label>
+        <select id="gen-template">
+          ${templateOptions.map((t) => `<option value="${t.key}">${escapeHtml(t.label)}</option>`).join('')}
+        </select>
+        <label>Texte du reglement (optionnel, sinon celui du template)</label>
+        <textarea id="gen-reglement" placeholder="Laisse vide pour utiliser le reglement du template"></textarea>
+        <div class="row" style="margin-top:16px;">
+          <button class="btn secondary" id="gen-cancel">Annuler</button>
+          <button class="btn" id="gen-launch">🪄 Lancer la generation</button>
+        </div>
+      `, { open: true })}
+    </div>
+  `;
+  wireSections(app);
+
+  document.getElementById('gen-cancel').addEventListener('click', () => {
+    withViewTransition(() => renderGuildList());
+  });
+  document.getElementById('gen-launch').addEventListener('click', async () => {
+    const templateKey = document.getElementById('gen-template').value;
+    const reglementText = document.getElementById('gen-reglement').value.trim();
+    const btn = document.getElementById('gen-launch');
+    btn.disabled = true;
+    try {
+      await Api.generateServer(guildId, templateKey, reglementText || undefined);
+      withViewTransition(() => renderGenerationScreen(guildId, guildName));
+    } catch (err) {
+      showToast(err.message, 'error');
+      btn.disabled = false;
+    }
+  });
+}
+
+function renderGenerationScreen(guildId, guildName) {
+  app.innerHTML = `
+    <div class="inner">
+      ${sectionHtml(`Generation de "${escapeHtml(guildName)}"`, `
+        <div class="gen-status running" id="gen-status">
+          <span class="gen-status-dot"></span>
+          <span id="gen-status-text">En file d'attente...</span>
+        </div>
+        <div class="gen-timeline" id="gen-timeline"></div>
+        <div class="gen-final-actions" id="gen-final-actions" style="display:none;"></div>
+      `, { open: true })}
+    </div>
+  `;
+  wireSections(app);
+
+  const timelineEl = document.getElementById('gen-timeline');
+  const statusEl = document.getElementById('gen-status');
+  const statusTextEl = document.getElementById('gen-status-text');
+  const finalActionsEl = document.getElementById('gen-final-actions');
+  let renderedCount = 0;
+  let stopped = false;
+
+  function renderNewSteps(steps) {
+    for (let i = renderedCount; i < steps.length; i += 1) {
+      const step = steps[i];
+      const row = document.createElement('div');
+      row.className = `gen-step kind-${step.kind}`;
+      row.innerHTML = `
+        <span class="gen-step-icon">${GEN_STEP_ICONS[step.kind] || '•'}</span>
+        <span class="gen-step-label">${escapeHtml(step.label)}</span>
+        <span class="gen-step-time">${new Date(step.at).toLocaleTimeString('fr-FR')}</span>
+      `;
+      timelineEl.appendChild(row);
+    }
+    renderedCount = steps.length;
+  }
+
+  async function poll() {
+    if (stopped) return;
+    try {
+      const progress = await Api.generationProgress(guildId);
+      if (progress?.steps) renderNewSteps(progress.steps);
+
+      if (progress?.status === 'done') {
+        stopped = true;
+        statusEl.className = 'gen-status done';
+        statusTextEl.textContent = 'Serveur genere avec succes !';
+        finalActionsEl.style.display = 'flex';
+        finalActionsEl.innerHTML = `<a class="btn" href="app.html?guild=${guildId}">Ouvrir le dashboard du serveur</a>`;
+        window.UISound?.success?.();
+        return;
+      }
+      if (progress?.status === 'error') {
+        stopped = true;
+        statusEl.className = 'gen-status error';
+        statusTextEl.textContent = 'Erreur pendant la generation.';
+        finalActionsEl.style.display = 'flex';
+        finalActionsEl.innerHTML = '<button class="btn secondary" id="gen-retry">Reessayer</button>';
+        document.getElementById('gen-retry').addEventListener('click', () => {
+          withViewTransition(() => renderGenerateChoice(guildId, guildName));
+        });
+        window.UISound?.error?.();
+        return;
+      }
+      if (progress?.status === 'running') statusTextEl.textContent = 'Generation en cours...';
+    } catch (err) {
+      // Erreur reseau transitoire : on reessaie au prochain tick plutot que
+      // d'interrompre l'affichage sur un simple hoquet.
+      console.error('generation poll', err);
+    }
+    setTimeout(poll, 1500);
+  }
+
+  poll();
 }
 
 /* ---------- Boot ---------- */

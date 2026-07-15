@@ -726,3 +726,49 @@ textarea { min-height: 90px; resize: vertical; font-family: ui-monospace, "SF Mo
   .embed-builder-layout { flex-direction: column; }
   .embed-builder-preview-wrap { width: 100%; position: static; }
 }
+
+/* ---------- Generation cinematique ---------- */
+
+.gen-status {
+  display: flex; align-items: center; gap: 12px; margin-bottom: 24px;
+  font-family: var(--font-mono, ui-monospace, monospace); font-size: 0.82rem; color: var(--text-muted);
+  text-transform: uppercase; letter-spacing: 0.04em;
+}
+.gen-status-dot {
+  width: 10px; height: 10px; border-radius: 50%; background: var(--accent); flex: none;
+  box-shadow: 0 0 0 4px var(--accent-soft);
+}
+.gen-status.running .gen-status-dot { animation: genPulse 1.4s ease-in-out infinite; }
+.gen-status.done .gen-status-dot { background: var(--success); box-shadow: 0 0 0 4px var(--success-soft); }
+.gen-status.error .gen-status-dot { background: var(--danger); box-shadow: 0 0 0 4px var(--danger-soft); }
+@keyframes genPulse {
+  0%, 100% { box-shadow: 0 0 0 4px var(--accent-soft); }
+  50% { box-shadow: 0 0 0 9px transparent; }
+}
+
+.gen-timeline { display: flex; flex-direction: column; gap: 2px; }
+.gen-step {
+  display: flex; align-items: center; gap: 12px; padding: 9px 12px; border-radius: var(--radius-sm);
+  animation: genStepIn 380ms cubic-bezier(.16,1,.3,1);
+  position: relative;
+}
+.gen-step::before {
+  content: ''; position: absolute; left: 21px; top: -2px; width: 1px; height: 8px; background: var(--border);
+}
+.gen-step:first-child::before { display: none; }
+@keyframes genStepIn {
+  from { opacity: 0; transform: translateX(-8px); }
+  to { opacity: 1; transform: translateX(0); }
+}
+.gen-step-icon {
+  width: 26px; height: 26px; flex: none; border-radius: 50%;
+  display: flex; align-items: center; justify-content: center; font-size: 0.75rem;
+  background: var(--accent-soft); color: var(--accent);
+  box-shadow: 0 0 0 1px var(--border);
+}
+.gen-step.kind-done .gen-step-icon { background: var(--success-soft); color: var(--success); }
+.gen-step.kind-error .gen-step-icon { background: var(--danger-soft); color: var(--danger); }
+.gen-step-label { font-size: 0.87rem; color: var(--text); }
+.gen-step-time { margin-left: auto; font-family: var(--font-mono, ui-monospace, monospace); font-size: 0.72rem; color: var(--text-faint); flex: none; }
+
+.gen-final-actions { margin-top: 24px; display: flex; gap: 10px; }

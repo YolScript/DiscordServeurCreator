@@ -14,6 +14,8 @@ const reactionRolesKey = (guildId) => `guild:${guildId}:reactionroles`;
 const shopKey = (guildId) => `guild:${guildId}:shop`;
 const economyKey = (guildId) => `guild:${guildId}:economy`;
 const customCommandsKey = (guildId) => `guild:${guildId}:customcommands`;
+const generationKey = (guildId) => `guild:${guildId}:generation`;
+const pendingGenerationKey = (guildId) => `guild:${guildId}:pendinggeneration`;
 
 const MOD_CONFIG_DEFAULTS = {
   autoModEnabled: true,
@@ -111,6 +113,28 @@ export async function getTemplateRegistry(env) {
 }
 export async function putTemplateRegistry(env, items) {
   await env.GUILD_KV.put(TEMPLATE_REGISTRY_KEY, JSON.stringify(items));
+}
+
+export async function getGenerationProgress(env, guildId) {
+  const raw = await env.GUILD_KV.get(generationKey(guildId));
+  return raw ? JSON.parse(raw) : null;
+}
+export async function putGenerationProgress(env, guildId, state) {
+  await env.GUILD_KV.put(generationKey(guildId), JSON.stringify(state));
+}
+
+// File dediee (separee de pendingpanelactions) : une generation prend
+// 15-40s, on ne veut pas bloquer les autres actions du panel derriere elle
+// ni la faire disparaitre au premier "clear" de la boucle generique.
+export async function getPendingGeneration(env, guildId) {
+  const raw = await env.GUILD_KV.get(pendingGenerationKey(guildId));
+  return raw ? JSON.parse(raw) : null;
+}
+export async function putPendingGeneration(env, guildId, payload) {
+  await env.GUILD_KV.put(pendingGenerationKey(guildId), JSON.stringify(payload));
+}
+export async function clearPendingGeneration(env, guildId) {
+  await env.GUILD_KV.delete(pendingGenerationKey(guildId));
 }
 
 export async function getBotStatus(env) {
