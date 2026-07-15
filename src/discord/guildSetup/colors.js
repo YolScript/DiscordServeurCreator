@@ -1,15 +1,3 @@
-const BASE_ROLE_COLORS = {
-  administrateur: 0xe63946,
-  moderateur: 0xf3722c,
-  streameur: 0xf9844a,
-  contributeur: 0xf9c74f,
-  follow: 0x90be6d,
-  verifie: 0x43aa8b,
-  reglementValidated: 0x4d908e,
-  plus16: 0x5a189a,
-  minus16: 0x22223b,
-};
-
 // Rôles de jeu : interpolation HSL cyan -> violet selon la position d'apparition.
 // ASSUMED_MAX plafonne la progression pour ne pas dépendre du nombre total de jeux
 // (inconnu à l'avance puisqu'ils sont détectés dynamiquement) : au-delà, la teinte
@@ -36,4 +24,4 @@ function colorForGameIndex(index) {
   return hslToHex(h, s, l);
 }
 
-module.exports = { BASE_ROLE_COLORS, colorForGameIndex, hslToHex };
+module.exports = { colorForGameIndex, hslToHex };

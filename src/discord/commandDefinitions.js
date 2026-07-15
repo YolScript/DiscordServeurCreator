@@ -1,5 +1,5 @@
 const { SlashCommandBuilder, PermissionFlagsBits, ChannelType } = require('discord.js');
-const { TEMPLATES } = require('./guildSetup/templates');
+const { TEMPLATE_CHOICES } = require('./guildSetup/templates');
 
 const setupCommand = new SlashCommandBuilder()
   .setName('setup')
@@ -7,7 +7,7 @@ const setupCommand = new SlashCommandBuilder()
   .setDefaultMemberPermissions(PermissionFlagsBits.Administrator)
   .addStringOption((option) => {
     option.setName('template').setDescription('Template a appliquer').setRequired(true);
-    for (const template of Object.values(TEMPLATES)) {
+    for (const template of TEMPLATE_CHOICES) {
       option.addChoices({ name: template.label, value: template.key });
     }
     return option;

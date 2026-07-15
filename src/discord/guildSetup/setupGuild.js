@@ -2,12 +2,40 @@ const {
   ChannelType, EmbedBuilder, ActionRowBuilder, ButtonBuilder, ButtonStyle,
 } = require('discord.js');
 const guildConfigStore = require('../../kv/guildConfigStore');
+const gameRoleStore = require('../../kv/gameRoleStore');
+const moderationConfigStore = require('../../kv/moderationConfigStore');
 const { getTemplate } = require('./templates');
 const { DEFAULT_REGLEMENT_TEXT } = require('./defaultReglement');
-const { REGLEMENT_ACCEPT, REGLEMENT_TRANSLATE, AGE_PLUS16, AGE_MINUS16 } = require('../interactions/customIds');
+const { AGE_PLUS16, AGE_MINUS16 } = require('../interactions/customIds');
+const { postReglementPanel } = require('../roles/reglementPanel');
+const { ensureStaffCategory } = require('../roles/staffCategory');
+const { ensureGamesCategory, syncGameChannels } = require('../roles/gameChannels');
+const { ensurePublicVoiceCreator } = require('../roles/publicVoiceManager');
+const rolesMessageManager = require('../roles/rolesMessageManager');
+const { colorForGameIndex } = require('./colors');
 const logger = require('../../shared/logger');
 
 class AlreadySetupError extends Error {}
+
+// Recree sur la nouvelle guilde les roles de jeu du serveur de reference
+// (colorHex/colorIndex/gameKey conserves), positionnes juste au-dessus de
+// -16, et les enregistre dans gameRoleStore : sans ca ils existeraient sur
+// Discord mais seraient invisibles pour gameRolesSync (pas de salon #jeux
+// dedie, pas d'entree dans le select menu #roles).
+async function replicateGameRoles(guild, sourceGameRoles, minus16Role) {
+  for (const sourceRole of sourceGameRoles) {
+    const currentRoles = await gameRoleStore.list(guild.id);
+    const colorIndex = currentRoles.length;
+    const colorHex = sourceRole.colorHex || colorForGameIndex(colorIndex);
+    const role = await guild.roles.create({
+      name: sourceRole.displayName.slice(0, 100), color: colorHex, hoist: false, mentionable: false,
+    });
+    await role.setPosition(minus16Role.position + 1).catch(() => {});
+    await gameRoleStore.add(guild.id, {
+      gameKey: sourceRole.gameKey, displayName: sourceRole.displayName, roleId: role.id, colorHex, colorIndex,
+    });
+  }
+}
 
 async function setupGuild({ guild, templateKey, requestedByUserId, reglementText }) {
   const existing = await guildConfigStore.find(guild.id);
@@ -15,7 +43,7 @@ async function setupGuild({ guild, templateKey, requestedByUserId, reglementText
     throw new AlreadySetupError('Ce serveur a deja ete configure. Utilise le dashboard pour le modifier.');
   }
 
-  const template = getTemplate(templateKey);
+  const template = await getTemplate(templateKey, guild.client);
 
   // Le bot n'est plus owner (il a ete invite classiquement) : toute action de
   // gestion de roles reste bornee par la position de SON PROPRE role le plus
@@ -87,18 +115,12 @@ async function setupGuild({ guild, templateKey, requestedByUserId, reglementText
     }
   }
 
-  // Contenu initial : embed reglement + bouton, puis boutons +16/-16.
-  const finalReglementText = reglementText || DEFAULT_REGLEMENT_TEXT;
-  const reglementEmbed = new EmbedBuilder()
-    .setTitle('Reglement du serveur')
-    .setDescription(finalReglementText)
-    .setColor(0xe63946);
-  const reglementRow = new ActionRowBuilder().addComponents(
-    new ButtonBuilder().setCustomId(REGLEMENT_ACCEPT).setLabel("J'accepte le reglement").setStyle(ButtonStyle.Success),
-    new ButtonBuilder().setCustomId(REGLEMENT_TRANSLATE).setLabel('Autres langues').setEmoji('🌐').setStyle(ButtonStyle.Secondary),
-  );
-  const reglementMessage = await channelObjects.reglement.send({ embeds: [reglementEmbed], components: [reglementRow] });
+  const reglementChannel = channelObjects[template.specialKeys.reglement];
+  const arrivalChannel = channelObjects[template.specialKeys.arrivalDeparture];
+  const rolesChannel = channelObjects[template.specialKeys.roles];
 
+  // Boutons +16/-16 (le reglement lui-meme est poste plus bas, une fois la
+  // config enregistree, via postReglementPanel).
   const ageEmbed = new EmbedBuilder()
     .setTitle('Verification age (obligatoire)')
     .setDescription("Selectionne ta tranche d'age pour acceder au serveur.")
@@ -107,20 +129,22 @@ async function setupGuild({ guild, templateKey, requestedByUserId, reglementText
     new ButtonBuilder().setCustomId(AGE_PLUS16).setLabel('+16').setStyle(ButtonStyle.Primary),
     new ButtonBuilder().setCustomId(AGE_MINUS16).setLabel('-16').setStyle(ButtonStyle.Secondary),
   );
-  await channelObjects.roles.send({ embeds: [ageEmbed], components: [ageRow] });
+  if (rolesChannel) await rolesChannel.send({ embeds: [ageEmbed], components: [ageRow] });
+
+  const finalReglementText = reglementText || template.content?.reglementText || DEFAULT_REGLEMENT_TEXT;
 
   const config = await guildConfigStore.upsert(guild.id, {
     requestedByUserId,
     template: templateKey,
     reglementText: finalReglementText,
-    welcomeMessageTemplate: 'Bienvenue {user} sur {server} !',
-    leaveMessageTemplate: '{username} a quitte le serveur.',
-    arrivalDepartureChannelId: channelObjects['arrivee-depart'].id,
-    rulesChannelId: channelObjects.reglement.id,
-    reglementMessageId: reglementMessage.id,
-    rolesChannelId: channelObjects.roles.id,
-    vocauxCategoryId: channelObjects.vocaux.id,
-    publicVoiceBaseChannelIds: [channelObjects['vocal-public-1'].id, channelObjects['vocal-public-2'].id],
+    welcomeMessageTemplate: template.content?.welcomeMessageTemplate || 'Bienvenue {user} sur {server} !',
+    leaveMessageTemplate: template.content?.leaveMessageTemplate || '{username} a quitte le serveur.',
+    captchaEnabled: template.content?.captchaEnabled !== false,
+    reglementTranslations: template.content?.reglementTranslations || undefined,
+    arrivalDepartureChannelId: arrivalChannel?.id,
+    rulesChannelId: reglementChannel?.id,
+    rolesChannelId: rolesChannel?.id,
+    vocauxCategoryId: channelObjects[template.specialKeys.vocaux]?.id,
     botRoleId: roleObjects.bot.id,
     adminRoleId: roleObjects.administrateur.id,
     moderateurRoleId: roleObjects.moderateur.id,
@@ -133,8 +157,32 @@ async function setupGuild({ guild, templateKey, requestedByUserId, reglementText
     minus16RoleId: roleObjects.minus16.id,
   });
 
+  if (reglementChannel) await postReglementPanel(guild).catch((err) => logger.error('postReglementPanel initial', err));
+
+  if (template.modConfig) {
+    await moderationConfigStore.upsert(guild.id, template.modConfig).catch((err) => logger.error('moderationConfigStore.upsert initial', err));
+  }
+
+  if (template.guildIconURL) {
+    await guild.setIcon(template.guildIconURL).catch((err) => logger.warn('guild.setIcon initial a echoue', err.message));
+  }
+
+  if (template.gameRoles?.length) {
+    await replicateGameRoles(guild, template.gameRoles, roleObjects.minus16).catch((err) => logger.error('replicateGameRoles', err));
+    await rolesMessageManager.refresh(guild).catch((err) => logger.error('rolesMessageManager.refresh initial', err));
+  }
+
+  // Structures dynamiques (staff/jeux/vocal public) : memes fonctions que
+  // celles rappelees a chaque redemarrage pour les guildes existantes.
+  await ensureStaffCategory(guild).catch((err) => logger.error('ensureStaffCategory initial', err));
+  await ensureGamesCategory(guild).catch((err) => logger.error('ensureGamesCategory initial', err));
+  await syncGameChannels(guild).catch((err) => logger.error('syncGameChannels initial', err));
+  await ensurePublicVoiceCreator(guild).catch((err) => logger.error('ensurePublicVoiceCreator initial', err));
+
   logger.info(`Serveur ${guild.id} configure (template ${templateKey}) par ${requestedByUserId}`);
-  return { guild, config };
+  return {
+    guild, config: await guildConfigStore.find(guild.id), templateLabel: template.label,
+  };
 }
 
 module.exports = { setupGuild, AlreadySetupError };

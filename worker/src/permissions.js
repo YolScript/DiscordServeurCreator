@@ -55,8 +55,9 @@ export async function importChannelPermissions(env, channelId, permissionOverwri
   }
 }
 
-// Presets de permissions par defaut, alignes sur src/discord/guildSetup/templates/common.js
-// cote bot (a garder synchronise si les roles de base evoluent).
+// Presets de permissions par defaut, alignes sur le ROLE_BLUEPRINT genere
+// cote bot (src/discord/guildSetup/templates/liveTemplate.js) a garder
+// synchronise si les roles de base evoluent.
 export const DEFAULT_ROLE_PERMISSIONS = {
   administrateur: ['Administrator'],
   moderateur: [

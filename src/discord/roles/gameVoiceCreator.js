@@ -20,7 +20,7 @@ async function handleVoiceStateUpdate(oldState, newState) {
 
     if (newState.channelId === config.gameVoiceCreatorChannelId && newState.member) {
       const room = await guild.channels.create({
-        name: `🎮 Vocal de ${newState.member.displayName}`.slice(0, 100),
+        name: `Vocal de ${newState.member.displayName}`.slice(0, 100),
         type: ChannelType.GuildVoice,
         parent: config.gamesCategoryId,
       });
