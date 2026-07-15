@@ -292,13 +292,25 @@ async function router(request, env) {
     if (sub === 'roles' && parts.length === 5 && method === 'PATCH') {
       const session = await requireGuildAccess(env, request, guildId);
       const roleId = parts[4];
-      const { color } = await readJson(request);
+      const { color, name } = await readJson(request);
+      const body = {};
+      if (color !== undefined) body.color = color;
+      if (name !== undefined) body.name = name;
       const role = await botFetchJson(env, `/guilds/${guildId}/roles/${roleId}`, {
         method: 'PATCH',
-        body: JSON.stringify({ color }),
+        body: JSON.stringify(body),
       });
-      await logAudit(env, guildId, { title: 'Couleur de role modifiee', description: `${session.username} a change la couleur de <@&${roleId}>.` });
+      await logAudit(env, guildId, { title: 'Role modifie', description: `${session.username} a modifie <@&${roleId}> (${Object.keys(body).join(', ')}).` });
       return json(role, env);
+    }
+
+    if (sub === 'roles' && parts.length === 5 && method === 'DELETE') {
+      const session = await requireGuildAccess(env, request, guildId);
+      const roleId = parts[4];
+      const res = await botFetch(env, `/guilds/${guildId}/roles/${roleId}`, { method: 'DELETE' });
+      if (!res.ok) throw new HttpError(res.status === 404 ? 404 : 502, "Impossible de supprimer ce role.");
+      await logAudit(env, guildId, { title: 'Role supprime', description: `${session.username} a supprime un role (${roleId}).` });
+      return json({ ok: true }, env);
     }
 
     if (sub === 'members' && parts.length === 4 && method === 'GET') {

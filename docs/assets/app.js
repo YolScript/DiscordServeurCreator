@@ -9,6 +9,7 @@ const guildId = params.get('guild');
 let allGuilds = [];
 let currentUser = null;
 let currentUserAvatarUrl = '';
+let prefillChannelId = null;
 
 // Bit Discord de chaque permission (cf. discord-api-types PermissionFlagsBits),
 // duplique cote dashboard pour decoder role.permissions sans lib externe.
@@ -281,12 +282,13 @@ function roleRowHtml(role, members) {
   const isEveryone = role.name === '@everyone';
   const hex = role.color ? `#${role.color.toString(16).padStart(6, '0')}` : '#99aab5';
   return `
-    <div class="dp-role-row" data-role="${role.id}" data-position="${role.position}" ${isEveryone ? '' : 'draggable="true"'}>
+    <div class="dp-role-row" data-role="${role.id}" data-role-name="${escapeHtml(role.name)}" data-position="${role.position}" ${isEveryone ? '' : 'draggable="true"'}>
       <div class="dp-role-summary">
         ${!isEveryone ? '<span class="dp-role-handle">⠿</span>' : ''}
         ${roleColorDot(role)}
         <span class="dp-role-name">${escapeHtml(role.name)}</span>
         <span class="dp-role-count">${memberNames.length}</span>
+        ${!isEveryone ? `<button type="button" class="dp-role-settings" data-role-settings="${role.id}" title="Configurer">⚙</button>` : ''}
       </div>
       <div class="dp-role-detail">
         ${!isEveryone ? `
@@ -325,7 +327,11 @@ async function renderPreviewPage(id) {
   const categoryBlock = (cat) => {
     const children = channels.filter((c) => c.parent_id === cat.id).sort((a, b) => a.position - b.position);
     return `
-      <div class="dp-category" data-cat="${cat.id}"><span class="chevron">▾</span> ${escapeHtml(cat.name)}</div>
+      <div class="dp-category" data-cat="${cat.id}" draggable="true" data-drag-type="category" data-drag-name="${escapeHtml(cat.name)}">
+        <span class="chevron">▾</span>
+        <span class="dp-category-name">${escapeHtml(cat.name)}</span>
+        <button type="button" class="dp-category-settings" data-cat-settings="${cat.id}" data-cat-name="${escapeHtml(cat.name)}" title="Configurer">⚙</button>
+      </div>
       <div class="dp-channels">
         ${children.map(channelRow).join('')}
         <button type="button" class="dp-add-channel" data-add-cat="${cat.id}">+ Ajouter un salon</button>
@@ -333,8 +339,6 @@ async function renderPreviewPage(id) {
       </div>
     `;
   };
-
-  const guildIcon = guild ? guildIconUrl(guild) : null;
 
   app.innerHTML = `
     <div class="inner fill" style="max-width:none;">
@@ -363,10 +367,14 @@ async function renderPreviewPage(id) {
           </div>
         </div>
         <div class="dp-main" id="dp-main">
-          <div class="dp-welcome">
-            <div class="dp-welcome-icon">${guildIcon ? `<img src="${guildIcon}" alt="" />` : escapeHtml(initials(guild?.name))}</div>
-            <h3>${escapeHtml(guild?.name || 'Ton serveur')}</h3>
-            <p>Selectionne un salon ou un parametre a gauche pour le configurer.</p>
+          <div class="dp-chat">
+            <div class="dp-chat-msg bot">
+              <div class="dp-chat-avatar">🤖</div>
+              <div class="dp-chat-bubble">
+                <div class="dp-chat-author">ServeurCreator Bot</div>
+                <div class="dp-chat-text">Salut, je suis le bot de configuration de ${escapeHtml(guild?.name || 'ton serveur')} ! Glisse un salon, une categorie ou un role ici pour le configurer, ou clique dessus dans la barre laterale.</div>
+              </div>
+            </div>
           </div>
         </div>
         <div class="dp-roles-panel">
@@ -381,12 +389,82 @@ async function renderPreviewPage(id) {
     catEl.addEventListener('click', () => catEl.classList.toggle('collapsed'));
   });
 
+  app.querySelectorAll('.dp-category-settings').forEach((btn) => {
+    btn.addEventListener('click', (e) => {
+      e.stopPropagation();
+      app.querySelectorAll('.dp-category').forEach((el) => el.classList.remove('settings-active'));
+      btn.closest('.dp-category').classList.add('settings-active');
+      window.UISound?.select();
+      renderCategoryPanel(id, btn.dataset.catSettings, btn.dataset.catName, config, channels);
+    });
+  });
+
+  app.querySelectorAll('.dp-category[draggable="true"]').forEach((catEl) => {
+    catEl.addEventListener('dragstart', (e) => {
+      catEl.classList.add('dragging');
+      e.dataTransfer.setData('text/plain', catEl.dataset.cat);
+      e.dataTransfer.effectAllowed = 'move';
+      e.stopPropagation();
+    });
+    catEl.addEventListener('dragend', () => catEl.classList.remove('dragging'));
+  });
+
+  // Drag&drop d'un salon ou d'une categorie depuis la barre laterale
+  // directement dans la zone centrale ("chatbot" d'actions) : le clic sur
+  // ces memes elements ouvre aussi le panel, le glisser-deposer est une
+  // methode alternative plus visuelle.
+  const dpMain = document.getElementById('dp-main');
+  dpMain.addEventListener('dragover', (e) => {
+    if (!document.querySelector('.dp-channel.dragging, .dp-category.dragging, .dp-role-row.dragging')) return;
+    e.preventDefault();
+    dpMain.classList.add('drag-over');
+  });
+  dpMain.addEventListener('dragleave', (e) => {
+    if (e.target === dpMain) dpMain.classList.remove('drag-over');
+  });
+  dpMain.addEventListener('drop', (e) => {
+    e.preventDefault();
+    dpMain.classList.remove('drag-over');
+    const draggedChannel = document.querySelector('.dp-channel.dragging');
+    const draggedCategory = document.querySelector('.dp-category.dragging');
+    const draggedRole = document.querySelector('.dp-role-row.dragging');
+    window.UISound?.select();
+    if (draggedChannel) {
+      app.querySelectorAll('.dp-channel').forEach((el) => el.classList.remove('selected'));
+      draggedChannel.classList.add('selected');
+      renderChannelPanel(id, draggedChannel.dataset.channel, draggedChannel.dataset.name, Number(draggedChannel.dataset.type), config, channels);
+    } else if (draggedCategory) {
+      app.querySelectorAll('.dp-category').forEach((el) => el.classList.remove('settings-active'));
+      draggedCategory.classList.add('settings-active');
+      renderCategoryPanel(id, draggedCategory.dataset.cat, draggedCategory.dataset.dragName, config, channels);
+    } else if (draggedRole) {
+      app.querySelectorAll('.dp-role-row').forEach((el) => el.classList.remove('settings-active'));
+      draggedRole.classList.add('settings-active');
+      renderRolePanel(id, draggedRole.dataset.role, draggedRole.dataset.roleName, config, rolesSorted, members);
+    }
+  });
+
   app.querySelectorAll('.dp-role-row').forEach((row) => {
     row.querySelector('.dp-role-summary').addEventListener('click', () => row.classList.toggle('expanded'));
   });
 
+  app.querySelectorAll('.dp-role-settings').forEach((btn) => {
+    btn.addEventListener('click', (e) => {
+      e.stopPropagation();
+      app.querySelectorAll('.dp-role-row').forEach((el) => el.classList.remove('settings-active'));
+      const row = btn.closest('.dp-role-row');
+      row.classList.add('settings-active');
+      window.UISound?.select();
+      renderRolePanel(id, btn.dataset.roleSettings, row.dataset.roleName, config, rolesSorted, members);
+    });
+  });
+
   app.querySelectorAll('.dp-role-row[draggable="true"]').forEach((row) => {
-    row.addEventListener('dragstart', () => row.classList.add('dragging'));
+    row.addEventListener('dragstart', (e) => {
+      row.classList.add('dragging');
+      e.dataTransfer.setData('text/plain', row.dataset.role);
+      e.dataTransfer.effectAllowed = 'move';
+    });
     row.addEventListener('dragover', (e) => {
       e.preventDefault();
       const list = row.parentElement;
@@ -419,7 +497,11 @@ async function renderPreviewPage(id) {
   // est l'index dans la liste reordonnee ; Discord regroupe ensuite par type
   // (texte/vocal) comme dans son propre client.
   app.querySelectorAll('.dp-channel[data-channel]').forEach((chEl) => {
-    chEl.addEventListener('dragstart', () => chEl.classList.add('dragging'));
+    chEl.addEventListener('dragstart', (e) => {
+      chEl.classList.add('dragging');
+      e.dataTransfer.setData('text/plain', chEl.dataset.channel);
+      e.dataTransfer.effectAllowed = 'move';
+    });
     chEl.addEventListener('dragover', (e) => {
       e.preventDefault();
       const list = chEl.parentElement;
@@ -610,179 +692,685 @@ function specialChannelToggleHtml(channelId, type, config) {
     </div>`;
 }
 
-function renderChannelPanel(guildId, channelId, name, type, config, channels) {
-  const main = document.getElementById('dp-main');
-  const channel = channels.find((c) => c.id === channelId);
-  const icon = type === 2 ? '🔊' : type === 4 ? '📁' : '#';
-  const currentlyVisible = config?.reglementValidatedRoleId
-    ? isViewAllowed(channel, config.reglementValidatedRoleId)
-    : null;
+const CHANNEL_EMOJI_PICKS = ['📢', '💬', '🎮', '🎫', '📜', '👋', '🔊', '⭐', '🔥', '🎉', '📁', '🛡️'];
 
-  main.innerHTML = `
-    <div class="dp-panel">
-      <div class="dp-panel-title">${icon} ${escapeHtml(name)}</div>
+function channelActionsFor(channelId, type, config) {
+  const isTextChannel = type === 0;
+  const isServiceHidden = (config?.onDutyHiddenChannelIds || []).includes(channelId);
+  return [
+    { key: 'rename', icon: '✏️', label: 'Renommer' },
+    { key: 'emoji', icon: '😀', label: 'Emoji' },
+    ...(isTextChannel ? [
+      { key: 'reglement', icon: '📜', label: 'Reglement', on: config?.rulesChannelId === channelId },
+      { key: 'arrival', icon: '👋', label: 'Bienvenue', on: config?.arrivalDepartureChannelId === channelId },
+      { key: 'panels', icon: '📋', label: 'Panneaux' },
+      { key: 'embed', icon: '💬', label: 'Embed' },
+      { key: 'reactionroles', icon: '🎭', label: 'Roles' },
+    ] : []),
+    ...(config?.reglementValidatedRoleId && type !== 4 ? [{ key: 'visibility', icon: '👁️', label: 'Visibilite' }] : []),
+    { key: 'service', icon: '🛡️', label: 'Service staff', on: isServiceHidden },
+    { key: 'permissions', icon: '🔐', label: 'Permissions' },
+    { key: 'delete', icon: '🗑️', label: 'Supprimer', danger: true },
+  ];
+}
 
+function channelActionDetailHtml(key, ctx) {
+  const {
+    guildId, channelId, name, type, config, channels, channel,
+  } = ctx;
+  if (key === 'rename') {
+    return `
       <div class="dp-block">
         <p class="dp-block-title">Nom du salon</p>
         <input type="text" id="dp-rename" value="${escapeHtml(name)}" />
-        <button class="btn" id="dp-save-name" style="margin-top:10px;">Enregistrer le nom</button>
-
-        ${config?.reglementValidatedRoleId && type !== 4 ? `
-          <div class="dp-toggle-row">
-            <span>Visible pour "Reglement valide"</span>
-            <input type="checkbox" id="dp-visible-toggle" ${currentlyVisible !== false ? 'checked' : ''} />
-          </div>
-        ` : ''}
+        <button class="btn" id="dp-save-name" style="margin-top:10px;">Enregistrer</button>
+      </div>`;
+  }
+  if (key === 'emoji') {
+    return `
+      <div class="dp-block">
+        <p class="dp-block-title">Prefixer le nom avec un emoji</p>
+        <div class="row" style="flex-wrap:wrap; gap:6px; margin-bottom:10px;">
+          ${CHANNEL_EMOJI_PICKS.map((e) => `<button type="button" class="btn secondary dp-emoji-pick" data-emoji="${e}" style="font-size:1.05rem; padding:6px 10px;">${e}</button>`).join('')}
+        </div>
+        <input type="text" id="dp-emoji-name" value="${escapeHtml(name)}" />
+        <button class="btn" id="dp-save-emoji" style="margin-top:10px;">Enregistrer</button>
+      </div>`;
+  }
+  if (key === 'reglement') {
+    return `
+      <div class="dp-block">
+        <p class="dp-block-title">📜 Salon Reglement</p>
+        <div class="dp-toggle-row">
+          <span>Ce salon sert de salon Reglement</span>
+          <input type="checkbox" id="dp-set-rules" ${config?.rulesChannelId === channelId ? 'checked' : ''} />
+        </div>
       </div>
-
-      ${specialChannelToggleHtml(channelId, type, config)}
-      ${contextualChannelSettingsHtml(channelId, config)}
-      ${channelPanelsBlockHtml(type)}
-
+      ${contextualChannelSettingsHtml(channelId, config)}`;
+  }
+  if (key === 'arrival') {
+    return `
+      <div class="dp-block">
+        <p class="dp-block-title">👋 Salon Bienvenue / Depart</p>
+        <div class="dp-toggle-row">
+          <span>Ce salon recoit les messages de bienvenue/depart</span>
+          <input type="checkbox" id="dp-set-arrival" ${config?.arrivalDepartureChannelId === channelId ? 'checked' : ''} />
+        </div>
+      </div>
+      ${contextualChannelSettingsHtml(channelId, config)}`;
+  }
+  if (key === 'panels') return channelPanelsBlockHtml(type);
+  if (key === 'visibility') {
+    const currentlyVisible = config?.reglementValidatedRoleId
+      ? isViewAllowed(channel, config.reglementValidatedRoleId)
+      : null;
+    return `
+      <div class="dp-block">
+        <p class="dp-block-title">👁️ Visibilite</p>
+        <div class="dp-toggle-row">
+          <span>Visible pour "Reglement valide"</span>
+          <input type="checkbox" id="dp-visible-toggle" ${currentlyVisible !== false ? 'checked' : ''} />
+        </div>
+      </div>`;
+  }
+  if (key === 'embed') {
+    return `
+      <div class="dp-block">
+        <p class="dp-block-title">💬 Embed</p>
+        <p class="muted" style="margin:0 0 12px;">Cree un embed (texte riche, image, boutons) et poste-le directement dans #${escapeHtml(name)}.</p>
+        <button class="btn" id="dp-goto-embed">Ouvrir le generateur d'embed</button>
+      </div>`;
+  }
+  if (key === 'reactionroles') {
+    return `
+      <div class="dp-block">
+        <p class="dp-block-title">🎭 Roles-reaction</p>
+        <p class="muted" style="margin:0 0 12px;">Cree un groupe de roles-reaction (menu deroulant, choix multiple) poste dans #${escapeHtml(name)}.</p>
+        <button class="btn" id="dp-goto-roles">Ouvrir la gestion des roles</button>
+      </div>`;
+  }
+  if (key === 'service') {
+    const isServiceHidden = (config?.onDutyHiddenChannelIds || []).includes(channelId);
+    return `
+      <div class="dp-block">
+        <p class="dp-block-title">🛡️ Service staff</p>
+        <div class="dp-toggle-row">
+          <span>Cache sauf staff actuellement en service</span>
+          <input type="checkbox" id="dp-service-toggle" ${isServiceHidden ? 'checked' : ''} />
+        </div>
+        <p class="muted" style="margin-top:10px;">Un membre du staff rejoint le vocal SERVICE STAFF pour activer son statut "en service". Gere la liste des roles consideres comme staff depuis Automatisations &gt; Service.</p>
+      </div>`;
+  }
+  if (key === 'permissions') {
+    const otherChannels = channels.filter((c) => c.id !== channelId && c.type !== 4);
+    return `
+      <div class="dp-block">
+        <p class="dp-block-title">🔐 Permissions</p>
+        <label>Importer les permissions d'un autre salon</label>
+        <select id="dp-import-from">
+          <option value="">Choisir un salon...</option>
+          ${otherChannels.map((c) => `<option value="${c.id}">${c.type === 2 ? '🔊' : '#'}${escapeHtml(c.name)}</option>`).join('')}
+        </select>
+        <button class="btn secondary" id="dp-import-perms" style="margin-top:8px;">Importer</button>
+        <p class="muted" style="margin-top:12px;">Pour une edition fine role par role, utilise la page Permissions.</p>
+      </div>`;
+  }
+  if (key === 'delete') {
+    return `
       <div class="dp-block danger">
         <p class="dp-block-title">Zone de danger</p>
         <p class="muted" style="margin:0 0 12px;">Cette action est irreversible.</p>
         <button class="btn danger" id="dp-delete">Supprimer ce salon</button>
-      </div>
-    </div>
-  `;
+      </div>`;
+  }
+  return '';
+}
 
-  const saveReglementBtn = document.getElementById('dp-ctx-save-reglement');
-  if (saveReglementBtn) {
-    saveReglementBtn.addEventListener('click', async () => {
-      try {
-        await Api.updateConfig(guildId, {
-          reglementText: document.getElementById('dp-ctx-reglement').value,
-          captchaEnabled: document.getElementById('dp-ctx-captcha').checked,
-          captchaType: document.getElementById('dp-ctx-captcha-type').value,
+// Fil de conversation generique (bot d'actions) : un message d'accueil avec
+// une grille d'actions visuelle reste affiche en haut, et chaque clic sur une
+// action remplace la reponse precedente du bot (une seule reponse visible a
+// la fois, toujours en bas) — pas d'echo du choix de l'utilisateur, pas
+// d'empilement d'historique.
+function renderActionChat(main, { greeting, actions, getDetailHtml, wireDetail }) {
+  const chatId = `dp-chat-${Date.now().toString(36)}`;
+  main.innerHTML = `<div class="dp-chat" id="${chatId}"></div>`;
+  const chat = document.getElementById(chatId);
+
+  function scrollToBottom() {
+    chat.scrollTop = chat.scrollHeight;
+  }
+
+  function appendBotMessage(bodyHtml) {
+    const msg = document.createElement('div');
+    msg.className = 'dp-chat-msg bot';
+    msg.innerHTML = `
+      <div class="dp-chat-avatar">🤖</div>
+      <div class="dp-chat-bubble">
+        <div class="dp-chat-author">ServeurCreator Bot</div>
+        ${bodyHtml}
+      </div>`;
+    chat.appendChild(msg);
+    return msg;
+  }
+
+  function actionGridHtml() {
+    return `
+      <div class="dp-action-grid">
+        ${actions.map((a) => `
+          <button type="button" class="dp-action-card${a.danger ? ' danger' : ''}" data-action="${a.key}">
+            <span class="icon">${a.icon}</span>
+            <span class="label">${escapeHtml(a.label)}</span>
+            ${a.on ? '<span class="state-dot"></span>' : ''}
+          </button>
+        `).join('')}
+      </div>`;
+  }
+
+  function wireActionGrid(scope) {
+    scope.querySelectorAll('.dp-action-card').forEach((btn) => {
+      btn.addEventListener('click', () => {
+        window.UISound?.select();
+        const action = actions.find((a) => a.key === btn.dataset.action);
+        const existingResponse = chat.querySelector('.dp-chat-msg.bot[data-response]');
+        if (existingResponse) existingResponse.remove();
+        const botMsg = appendBotMessage(getDetailHtml(action.key));
+        botMsg.dataset.response = 'true';
+        botMsg.dataset.detailKey = action.key;
+        wireDetail(botMsg, action.key);
+        scrollToBottom();
+      });
+    });
+  }
+
+  const first = appendBotMessage(`<div class="dp-chat-text">${escapeHtml(greeting)}</div>${actionGridHtml()}`);
+  wireActionGrid(first);
+  scrollToBottom();
+}
+
+function categoryActionDetailHtml(key, ctx) {
+  const {
+    guildId, categoryId, name, config, channels,
+  } = ctx;
+  if (key === 'rename') {
+    return `
+      <div class="dp-block">
+        <p class="dp-block-title">Nom de la categorie</p>
+        <input type="text" id="dp-cat-rename" value="${escapeHtml(name)}" />
+        <button class="btn" id="dp-cat-save-name" style="margin-top:10px;">Enregistrer</button>
+      </div>`;
+  }
+  if (key === 'emoji') {
+    return `
+      <div class="dp-block">
+        <p class="dp-block-title">Prefixer le nom avec un emoji</p>
+        <div class="row" style="flex-wrap:wrap; gap:6px; margin-bottom:10px;">
+          ${CHANNEL_EMOJI_PICKS.map((e) => `<button type="button" class="btn secondary dp-cat-emoji-pick" data-emoji="${e}" style="font-size:1.05rem; padding:6px 10px;">${e}</button>`).join('')}
+        </div>
+        <input type="text" id="dp-cat-emoji-name" value="${escapeHtml(name)}" />
+        <button class="btn" id="dp-cat-save-emoji" style="margin-top:10px;">Enregistrer</button>
+      </div>`;
+  }
+  if (key === 'service') {
+    const isServiceHidden = (config?.onDutyHiddenCategoryIds || []).includes(categoryId);
+    return `
+      <div class="dp-block">
+        <p class="dp-block-title">🛡️ Service staff</p>
+        <div class="dp-toggle-row">
+          <span>Cachee sauf staff actuellement en service</span>
+          <input type="checkbox" id="dp-cat-service-toggle" ${isServiceHidden ? 'checked' : ''} />
+        </div>
+        <p class="muted" style="margin-top:10px;">S'applique a toute la categorie (tous les salons qu'elle contient).</p>
+      </div>`;
+  }
+  if (key === 'permissions') {
+    const otherCategories = channels.filter((c) => c.type === 4 && c.id !== categoryId);
+    return `
+      <div class="dp-block">
+        <p class="dp-block-title">🔐 Permissions</p>
+        <label>Importer les permissions d'une autre categorie</label>
+        <select id="dp-cat-import-from">
+          <option value="">Choisir une categorie...</option>
+          ${otherCategories.map((c) => `<option value="${c.id}">📁 ${escapeHtml(c.name)}</option>`).join('')}
+        </select>
+        <button class="btn secondary" id="dp-cat-import-perms" style="margin-top:8px;">Importer</button>
+        <p class="muted" style="margin-top:12px;">S'applique a la categorie elle-meme, pas aux salons qu'elle contient.</p>
+      </div>`;
+  }
+  if (key === 'delete') {
+    return `
+      <div class="dp-block danger">
+        <p class="dp-block-title">Zone de danger</p>
+        <p class="muted" style="margin:0 0 12px;">Supprime la categorie. Les salons qu'elle contient ne sont pas supprimes, juste detaches.</p>
+        <button class="btn danger" id="dp-cat-delete">Supprimer cette categorie</button>
+      </div>`;
+  }
+  return '';
+}
+
+function renderCategoryPanel(guildId, categoryId, name, config, channels) {
+  const main = document.getElementById('dp-main');
+  const actions = [
+    { key: 'rename', icon: '✏️', label: 'Renommer' },
+    { key: 'emoji', icon: '😀', label: 'Emoji' },
+    { key: 'service', icon: '🛡️', label: 'Service staff', on: (config?.onDutyHiddenCategoryIds || []).includes(categoryId) },
+    { key: 'permissions', icon: '🔐', label: 'Permissions' },
+    { key: 'delete', icon: '🗑️', label: 'Supprimer', danger: true },
+  ];
+  const ctx = {
+    guildId, categoryId, name, config, channels,
+  };
+
+  function wireDetail(scope, key) {
+    if (key === 'rename' || key === 'emoji') {
+      scope.querySelectorAll('.dp-cat-emoji-pick').forEach((btn) => {
+        btn.addEventListener('click', () => {
+          const input = scope.querySelector('#dp-cat-emoji-name');
+          if (!input.value.startsWith(btn.dataset.emoji)) input.value = `${btn.dataset.emoji} ${input.value}`.trim();
         });
-        showToast('Reglement enregistre.');
-      } catch (err) {
-        showToast(err.message, 'error');
-      }
-    });
-  }
-
-  const repostReglementBtn = document.getElementById('dp-ctx-repost-reglement');
-  if (repostReglementBtn) {
-    repostReglementBtn.addEventListener('click', async () => {
-      try {
-        await Api.postPanel(guildId, 'reglement');
-        showToast('Reposte demande, actif sous quelques secondes.');
-      } catch (err) {
-        showToast(err.message, 'error');
-      }
-    });
-  }
-
-  const postTicketPanelBtn = document.getElementById('dp-post-ticket-panel');
-  if (postTicketPanelBtn) {
-    postTicketPanelBtn.addEventListener('click', async () => {
-      try {
-        await Api.postPanel(guildId, 'ticket', channelId);
-        showToast('Panneau tickets demande, actif sous quelques secondes.');
-      } catch (err) {
-        showToast(err.message, 'error');
-      }
-    });
-  }
-
-  const postPollPanelBtn = document.getElementById('dp-post-poll-panel');
-  if (postPollPanelBtn) {
-    postPollPanelBtn.addEventListener('click', async () => {
-      try {
-        await Api.postPanel(guildId, 'poll', channelId);
-        showToast('Panneau sondage demande, actif sous quelques secondes.');
-      } catch (err) {
-        showToast(err.message, 'error');
-      }
-    });
-  }
-
-  const saveWelcomeBtn = document.getElementById('dp-ctx-save-welcome');
-  if (saveWelcomeBtn) {
-    saveWelcomeBtn.addEventListener('click', async () => {
-      try {
-        await Api.updateConfig(guildId, {
-          welcomeMessageTemplate: document.getElementById('dp-ctx-welcome').value,
-          leaveMessageTemplate: document.getElementById('dp-ctx-leave').value,
+      });
+      const saveBtn = scope.querySelector(key === 'rename' ? '#dp-cat-save-name' : '#dp-cat-save-emoji');
+      const input = scope.querySelector(key === 'rename' ? '#dp-cat-rename' : '#dp-cat-emoji-name');
+      if (saveBtn) {
+        saveBtn.addEventListener('click', async () => {
+          const value = input.value.trim();
+          if (!value) return;
+          try {
+            await Api.renameChannel(guildId, categoryId, value);
+            showToast('Categorie renommee.');
+            await renderPreviewPage(guildId);
+          } catch (err) {
+            showToast(err.message, 'error');
+          }
         });
-        showToast('Messages enregistres.');
-      } catch (err) {
-        showToast(err.message, 'error');
       }
-    });
-  }
-
-  const setRulesToggle = document.getElementById('dp-set-rules');
-  if (setRulesToggle) {
-    setRulesToggle.addEventListener('change', async () => {
-      try {
-        config.rulesChannelId = setRulesToggle.checked ? channelId : null;
-        await Api.updateConfig(guildId, { rulesChannelId: config.rulesChannelId });
-        showToast('Salon reglement mis a jour.');
-        renderChannelPanel(guildId, channelId, name, type, config, channels);
-      } catch (err) {
-        showToast(err.message, 'error');
-        setRulesToggle.checked = !setRulesToggle.checked;
-      }
-    });
-  }
-
-  const setArrivalToggle = document.getElementById('dp-set-arrival');
-  if (setArrivalToggle) {
-    setArrivalToggle.addEventListener('change', async () => {
-      try {
-        config.arrivalDepartureChannelId = setArrivalToggle.checked ? channelId : null;
-        await Api.updateConfig(guildId, { arrivalDepartureChannelId: config.arrivalDepartureChannelId });
-        showToast('Salon bienvenue/depart mis a jour.');
-        renderChannelPanel(guildId, channelId, name, type, config, channels);
-      } catch (err) {
-        showToast(err.message, 'error');
-        setArrivalToggle.checked = !setArrivalToggle.checked;
-      }
-    });
-  }
-
-  document.getElementById('dp-save-name').addEventListener('click', async () => {
-    const value = document.getElementById('dp-rename').value.trim();
-    if (!value) return;
-    try {
-      await Api.renameChannel(guildId, channelId, value);
-      showToast('Salon renomme.');
-      await renderPreviewPage(guildId);
-    } catch (err) {
-      showToast(err.message, 'error');
     }
+    if (key === 'service') {
+      const serviceToggle = scope.querySelector('#dp-cat-service-toggle');
+      serviceToggle.addEventListener('change', async () => {
+        try {
+          const current = new Set(config.onDutyHiddenCategoryIds || []);
+          if (serviceToggle.checked) current.add(categoryId); else current.delete(categoryId);
+          config.onDutyHiddenCategoryIds = [...current];
+          await Api.updateConfig(guildId, { onDutyHiddenCategoryIds: config.onDutyHiddenCategoryIds });
+          await Api.applyServiceVisibility(guildId);
+          showToast('Service staff mis a jour.');
+        } catch (err) {
+          showToast(err.message, 'error');
+          serviceToggle.checked = !serviceToggle.checked;
+        }
+      });
+    }
+    if (key === 'permissions') {
+      scope.querySelector('#dp-cat-import-perms').addEventListener('click', async () => {
+        const sourceId = scope.querySelector('#dp-cat-import-from').value;
+        if (!sourceId) { showToast('Choisis une categorie source.', 'error'); return; }
+        try {
+          const data = await Api.exportPermissions(guildId, sourceId);
+          await Api.importPermissions(guildId, categoryId, data.permissionOverwrites);
+          showToast('Permissions importees.');
+        } catch (err) {
+          showToast(err.message, 'error');
+        }
+      });
+    }
+    if (key === 'delete') {
+      scope.querySelector('#dp-cat-delete').addEventListener('click', async () => {
+        if (!window.confirm(`Supprimer definitivement la categorie "${name}" ?`)) return;
+        try {
+          await Api.deleteChannel(guildId, categoryId);
+          showToast('Categorie supprimee.');
+          await renderPreviewPage(guildId);
+        } catch (err) {
+          showToast(err.message, 'error');
+        }
+      });
+    }
+  }
+
+  renderActionChat(main, {
+    greeting: `Tu as glisse la categorie "${name}" ici. Que veux-tu faire ?`,
+    actions,
+    getDetailHtml: (key) => categoryActionDetailHtml(key, ctx),
+    wireDetail,
   });
+}
 
-  const toggle = document.getElementById('dp-visible-toggle');
-  if (toggle) {
-    toggle.addEventListener('change', async () => {
-      try {
-        await Api.bulkPermissions(guildId, {
-          channelIds: [channelId],
-          roleId: config.reglementValidatedRoleId,
-          allow: toggle.checked ? ['ViewChannel'] : [],
-          deny: toggle.checked ? [] : ['ViewChannel'],
-        });
-        showToast('Visibilite mise a jour.');
-      } catch (err) {
-        showToast(err.message, 'error');
-        toggle.checked = !toggle.checked;
-      }
-    });
+function roleActionDetailHtml(key, ctx) {
+  const {
+    roleId, name, role, memberNames,
+  } = ctx;
+  const hex = role?.color ? `#${role.color.toString(16).padStart(6, '0')}` : '#99aab5';
+  if (key === 'rename') {
+    return `
+      <div class="dp-block">
+        <p class="dp-block-title">Nom du role</p>
+        <input type="text" id="dp-role-rename" value="${escapeHtml(name)}" />
+        <button class="btn" id="dp-role-save-name" style="margin-top:10px;">Enregistrer</button>
+      </div>`;
+  }
+  if (key === 'color') {
+    return `
+      <div class="dp-block">
+        <p class="dp-block-title">Couleur du role</p>
+        <input type="color" id="dp-role-color" value="${hex}" data-role="${roleId}" />
+      </div>`;
+  }
+  if (key === 'permissions') {
+    const perms = decodeRolePermissions(role?.permissions);
+    return `
+      <div class="dp-block">
+        <p class="dp-block-title">🔐 Permissions</p>
+        <p class="muted">${perms.length ? escapeHtml(perms.join(', ')) : 'Aucune permission particuliere'}</p>
+        <p class="muted" style="margin-top:12px;">Pour une edition fine, utilise la page Permissions.</p>
+      </div>`;
+  }
+  if (key === 'members') {
+    return `
+      <div class="dp-block">
+        <p class="dp-block-title">Membres (${memberNames.length})</p>
+        <p class="muted">${memberNames.length ? escapeHtml(memberNames.join(', ')) : 'Aucun membre'}</p>
+      </div>`;
+  }
+  if (key === 'delete') {
+    return `
+      <div class="dp-block danger">
+        <p class="dp-block-title">Zone de danger</p>
+        <p class="muted" style="margin:0 0 12px;">Cette action est irreversible.</p>
+        <button class="btn danger" id="dp-role-delete">Supprimer ce role</button>
+      </div>`;
+  }
+  return '';
+}
+
+function renderRolePanel(guildId, roleId, name, config, roles, members) {
+  const main = document.getElementById('dp-main');
+  const role = roles.find((r) => r.id === roleId);
+  const memberNames = members.filter((m) => (m.roles || []).includes(roleId)).map((m) => m.displayName);
+  const actions = [
+    { key: 'rename', icon: '✏️', label: 'Renommer' },
+    { key: 'color', icon: '🎨', label: 'Couleur' },
+    { key: 'permissions', icon: '🔐', label: 'Permissions' },
+    { key: 'members', icon: '👥', label: 'Membres' },
+    { key: 'delete', icon: '🗑️', label: 'Supprimer', danger: true },
+  ];
+  const ctx = {
+    guildId, roleId, name, role, memberNames,
+  };
+
+  function wireDetail(scope, key) {
+    if (key === 'rename') {
+      scope.querySelector('#dp-role-save-name').addEventListener('click', async () => {
+        const value = scope.querySelector('#dp-role-rename').value.trim();
+        if (!value) return;
+        try {
+          await Api.renameRole(guildId, roleId, value);
+          showToast('Role renomme.');
+          await renderPreviewPage(guildId);
+        } catch (err) {
+          showToast(err.message, 'error');
+        }
+      });
+    }
+    if (key === 'color') {
+      scope.querySelector('#dp-role-color').addEventListener('change', async (e) => {
+        try {
+          await Api.setRoleColor(guildId, roleId, parseInt(e.target.value.slice(1), 16));
+          showToast('Couleur mise a jour.');
+          const dot = document.querySelector(`.dp-role-row[data-role="${roleId}"] .dp-role-dot`);
+          if (dot) dot.style.background = e.target.value;
+        } catch (err) {
+          showToast(err.message, 'error');
+        }
+      });
+    }
+    if (key === 'delete') {
+      scope.querySelector('#dp-role-delete').addEventListener('click', async () => {
+        if (!window.confirm(`Supprimer definitivement le role "${name}" ?`)) return;
+        try {
+          await Api.deleteRole(guildId, roleId);
+          showToast('Role supprime.');
+          await renderPreviewPage(guildId);
+        } catch (err) {
+          showToast(err.message, 'error');
+        }
+      });
+    }
   }
 
-  document.getElementById('dp-delete').addEventListener('click', async () => {
-    if (!window.confirm(`Supprimer definitivement "${name}" ?`)) return;
-    try {
-      await Api.deleteChannel(guildId, channelId);
-      showToast('Salon supprime.');
-      await renderPreviewPage(guildId);
-    } catch (err) {
-      showToast(err.message, 'error');
+  renderActionChat(main, {
+    greeting: `Tu as glisse le role "${name}" ici. Que veux-tu faire ?`,
+    actions,
+    getDetailHtml: (key) => roleActionDetailHtml(key, ctx),
+    wireDetail,
+  });
+}
+
+function renderChannelPanel(guildId, channelId, name, type, config, channels) {
+  const main = document.getElementById('dp-main');
+  const channel = channels.find((c) => c.id === channelId);
+  const icon = type === 2 ? '🔊' : type === 4 ? '📁' : '#';
+  const actions = channelActionsFor(channelId, type, config);
+  const ctx = {
+    guildId, channelId, name, type, config, channels, channel,
+  };
+
+  function wireDetail(scope, key) {
+    const saveNameBtn = scope.querySelector('#dp-save-name');
+    if (saveNameBtn) {
+      saveNameBtn.addEventListener('click', async () => {
+        const value = scope.querySelector('#dp-rename').value.trim();
+        if (!value) return;
+        try {
+          await Api.renameChannel(guildId, channelId, value);
+          showToast('Salon renomme.');
+          await renderPreviewPage(guildId);
+        } catch (err) {
+          showToast(err.message, 'error');
+        }
+      });
     }
+
+    scope.querySelectorAll('.dp-emoji-pick').forEach((btn) => {
+      btn.addEventListener('click', () => {
+        const input = scope.querySelector('#dp-emoji-name');
+        if (!input.value.startsWith(btn.dataset.emoji)) input.value = `${btn.dataset.emoji} ${input.value}`.trim();
+      });
+    });
+    const saveEmojiBtn = scope.querySelector('#dp-save-emoji');
+    if (saveEmojiBtn) {
+      saveEmojiBtn.addEventListener('click', async () => {
+        const value = scope.querySelector('#dp-emoji-name').value.trim();
+        if (!value) return;
+        try {
+          await Api.renameChannel(guildId, channelId, value);
+          showToast('Salon renomme.');
+          await renderPreviewPage(guildId);
+        } catch (err) {
+          showToast(err.message, 'error');
+        }
+      });
+    }
+
+    const saveReglementBtn = scope.querySelector('#dp-ctx-save-reglement');
+    if (saveReglementBtn) {
+      saveReglementBtn.addEventListener('click', async () => {
+        try {
+          await Api.updateConfig(guildId, {
+            reglementText: scope.querySelector('#dp-ctx-reglement').value,
+            captchaEnabled: scope.querySelector('#dp-ctx-captcha').checked,
+            captchaType: scope.querySelector('#dp-ctx-captcha-type').value,
+          });
+          showToast('Reglement enregistre.');
+        } catch (err) {
+          showToast(err.message, 'error');
+        }
+      });
+    }
+
+    const repostReglementBtn = scope.querySelector('#dp-ctx-repost-reglement');
+    if (repostReglementBtn) {
+      repostReglementBtn.addEventListener('click', async () => {
+        try {
+          await Api.postPanel(guildId, 'reglement');
+          showToast('Reposte demande, actif sous quelques secondes.');
+        } catch (err) {
+          showToast(err.message, 'error');
+        }
+      });
+    }
+
+    const postTicketPanelBtn = scope.querySelector('#dp-post-ticket-panel');
+    if (postTicketPanelBtn) {
+      postTicketPanelBtn.addEventListener('click', async () => {
+        try {
+          await Api.postPanel(guildId, 'ticket', channelId);
+          showToast('Panneau tickets demande, actif sous quelques secondes.');
+        } catch (err) {
+          showToast(err.message, 'error');
+        }
+      });
+    }
+
+    const postPollPanelBtn = scope.querySelector('#dp-post-poll-panel');
+    if (postPollPanelBtn) {
+      postPollPanelBtn.addEventListener('click', async () => {
+        try {
+          await Api.postPanel(guildId, 'poll', channelId);
+          showToast('Panneau sondage demande, actif sous quelques secondes.');
+        } catch (err) {
+          showToast(err.message, 'error');
+        }
+      });
+    }
+
+    const saveWelcomeBtn = scope.querySelector('#dp-ctx-save-welcome');
+    if (saveWelcomeBtn) {
+      saveWelcomeBtn.addEventListener('click', async () => {
+        try {
+          await Api.updateConfig(guildId, {
+            welcomeMessageTemplate: scope.querySelector('#dp-ctx-welcome').value,
+            leaveMessageTemplate: scope.querySelector('#dp-ctx-leave').value,
+          });
+          showToast('Messages enregistres.');
+        } catch (err) {
+          showToast(err.message, 'error');
+        }
+      });
+    }
+
+    const setRulesToggle = scope.querySelector('#dp-set-rules');
+    if (setRulesToggle) {
+      setRulesToggle.addEventListener('change', async () => {
+        try {
+          config.rulesChannelId = setRulesToggle.checked ? channelId : null;
+          await Api.updateConfig(guildId, { rulesChannelId: config.rulesChannelId });
+          showToast('Salon reglement mis a jour.');
+        } catch (err) {
+          showToast(err.message, 'error');
+          setRulesToggle.checked = !setRulesToggle.checked;
+        }
+      });
+    }
+
+    const setArrivalToggle = scope.querySelector('#dp-set-arrival');
+    if (setArrivalToggle) {
+      setArrivalToggle.addEventListener('change', async () => {
+        try {
+          config.arrivalDepartureChannelId = setArrivalToggle.checked ? channelId : null;
+          await Api.updateConfig(guildId, { arrivalDepartureChannelId: config.arrivalDepartureChannelId });
+          showToast('Salon bienvenue/depart mis a jour.');
+        } catch (err) {
+          showToast(err.message, 'error');
+          setArrivalToggle.checked = !setArrivalToggle.checked;
+        }
+      });
+    }
+
+    const visibilityToggle = scope.querySelector('#dp-visible-toggle');
+    if (visibilityToggle) {
+      visibilityToggle.addEventListener('change', async () => {
+        try {
+          await Api.bulkPermissions(guildId, {
+            channelIds: [channelId],
+            roleId: config.reglementValidatedRoleId,
+            allow: visibilityToggle.checked ? ['ViewChannel'] : [],
+            deny: visibilityToggle.checked ? [] : ['ViewChannel'],
+          });
+          showToast('Visibilite mise a jour.');
+        } catch (err) {
+          showToast(err.message, 'error');
+          visibilityToggle.checked = !visibilityToggle.checked;
+        }
+      });
+    }
+
+    const gotoEmbedBtn = scope.querySelector('#dp-goto-embed');
+    if (gotoEmbedBtn) {
+      gotoEmbedBtn.addEventListener('click', () => {
+        prefillChannelId = channelId;
+        withViewTransition(() => renderSettingsPanel(guildId, 'embedbuilder'));
+      });
+    }
+
+    const gotoRolesBtn = scope.querySelector('#dp-goto-roles');
+    if (gotoRolesBtn) {
+      gotoRolesBtn.addEventListener('click', () => {
+        withViewTransition(() => renderSettingsPanel(guildId, 'jeux'));
+      });
+    }
+
+    const serviceToggle = scope.querySelector('#dp-service-toggle');
+    if (serviceToggle) {
+      serviceToggle.addEventListener('change', async () => {
+        try {
+          const current = new Set(config.onDutyHiddenChannelIds || []);
+          if (serviceToggle.checked) current.add(channelId); else current.delete(channelId);
+          config.onDutyHiddenChannelIds = [...current];
+          await Api.updateConfig(guildId, { onDutyHiddenChannelIds: config.onDutyHiddenChannelIds });
+          await Api.applyServiceVisibility(guildId);
+          showToast('Service staff mis a jour.');
+        } catch (err) {
+          showToast(err.message, 'error');
+          serviceToggle.checked = !serviceToggle.checked;
+        }
+      });
+    }
+
+    const importPermsBtn = scope.querySelector('#dp-import-perms');
+    if (importPermsBtn) {
+      importPermsBtn.addEventListener('click', async () => {
+        const sourceId = scope.querySelector('#dp-import-from').value;
+        if (!sourceId) { showToast('Choisis un salon source.', 'error'); return; }
+        try {
+          const data = await Api.exportPermissions(guildId, sourceId);
+          await Api.importPermissions(guildId, channelId, data.permissionOverwrites);
+          showToast('Permissions importees.');
+        } catch (err) {
+          showToast(err.message, 'error');
+        }
+      });
+    }
+
+    const deleteBtn = scope.querySelector('#dp-delete');
+    if (deleteBtn) {
+      deleteBtn.addEventListener('click', async () => {
+        if (!window.confirm(`Supprimer definitivement "${name}" ?`)) return;
+        try {
+          await Api.deleteChannel(guildId, channelId);
+          showToast('Salon supprime.');
+          await renderPreviewPage(guildId);
+        } catch (err) {
+          showToast(err.message, 'error');
+        }
+      });
+    }
+  }
+
+  renderActionChat(main, {
+    greeting: `Tu as glisse ${icon === '#' ? '#' : icon}${name} ici. Que veux-tu faire ?`,
+    actions,
+    getDetailHtml: (key) => channelActionDetailHtml(key, ctx),
+    wireDetail,
   });
 }
 
@@ -2196,6 +2784,12 @@ async function renderEmbedBuilderPage(id, container = app) {
 
   container.__mb = { embeds: [{}], active: 0 };
   renderEmbedTabs(container);
+
+  if (prefillChannelId) {
+    const targetSel = container.querySelector('#embed-target-channel');
+    if (targetSel) targetSel.value = prefillChannelId;
+    prefillChannelId = null;
+  }
 
   container.querySelectorAll('input, textarea').forEach((el) => {
     el.addEventListener('input', () => updateEmbedPreview(container));
