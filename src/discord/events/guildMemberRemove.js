@@ -2,15 +2,8 @@ const { Events, EmbedBuilder } = require('discord.js');
 const client = require('../client');
 const guildConfigStore = require('../../kv/guildConfigStore');
 const webhookDispatcher = require('../automation/webhookDispatcher');
+const { applyPlaceholders } = require('../../shared/placeholders');
 const logger = require('../../shared/logger');
-
-function applyPlaceholders(template, member) {
-  return template
-    .replaceAll('{user}', `<@${member.id}>`)
-    .replaceAll('{username}', member.user.username)
-    .replaceAll('{server}', member.guild.name)
-    .replaceAll('{membercount}', String(member.guild.memberCount));
-}
 
 client.on(Events.GuildMemberRemove, async (member) => {
   webhookDispatcher.fireEvent(member.guild.id, 'member_leave', {
@@ -27,7 +20,7 @@ client.on(Events.GuildMemberRemove, async (member) => {
     const channel = await member.guild.channels.fetch(config.arrivalDepartureChannelId).catch(() => null);
     if (!channel) return;
 
-    const text = applyPlaceholders(config.leaveMessageTemplate || '{username} a quitte le serveur.', member);
+    const text = applyPlaceholders(config.leaveMessageTemplate || '{username} a quitte le serveur.', { user: member.user, guild: member.guild });
     const embed = new EmbedBuilder()
       .setAuthor({ name: member.user.username, iconURL: member.user.displayAvatarURL() })
       .setTitle('👋 Depart')

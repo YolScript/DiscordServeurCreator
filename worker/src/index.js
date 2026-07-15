@@ -218,6 +218,16 @@ async function router(request, env) {
       if (existingConfig) throw new HttpError(409, 'Ce serveur a deja ete configure.');
       const alreadyPending = await getPendingGeneration(env, guildId);
       if (alreadyPending) throw new HttpError(409, 'Une generation est deja en cours pour ce serveur.');
+      // Couvre la fenetre entre le moment ou le bot retire la demande de la
+      // file (debut de traitement) et celui ou setupGuild() ecrit la config
+      // finale (15-40s plus tard) : sans ca, la file etant deja vide et la
+      // config pas encore ecrite, un second clic pendant cette fenetre
+      // passerait les deux verifications precedentes et lancerait une
+      // generation en double sur le meme serveur.
+      const existingProgress = await getGenerationProgress(env, guildId);
+      if (existingProgress?.status === 'running' || existingProgress?.status === 'queued') {
+        throw new HttpError(409, 'Une generation est deja en cours pour ce serveur.');
+      }
 
       const { templateKey, reglementText } = await readJson(request);
       if (!templateKey) throw new HttpError(400, 'templateKey requis.');

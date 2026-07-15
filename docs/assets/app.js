@@ -1183,7 +1183,7 @@ async function renderAutomationsPage(id, container = app) {
     .map((c) => `<option value="${c.id}">#${escapeHtml(c.name)}</option>`).join('');
   const channelName = (cid) => {
     const c = channels.find((ch) => ch.id === cid);
-    return c ? `#${c.name}` : cid;
+    return c ? `${c.type === 2 ? '🔊' : '#'}${c.name}` : cid;
   };
   const roleName = (rid) => roles.find((r) => r.id === rid)?.name || rid;
 
@@ -2639,7 +2639,11 @@ function renderGenerationScreen(guildId, guildName) {
   }
 
   async function poll() {
-    if (stopped) return;
+    // Ce SPA remplace app.innerHTML sans hook de demontage : si l'utilisateur
+    // a navigue ailleurs pendant qu'on attendait, timelineEl n'est plus dans
+    // le document. Sans cette verification, le polling recursif continuerait
+    // indefiniment en arriere-plan (requetes reseau orphelines).
+    if (stopped || !document.body.contains(timelineEl)) return;
     try {
       const progress = await Api.generationProgress(guildId);
       if (progress?.steps) renderNewSteps(progress.steps);

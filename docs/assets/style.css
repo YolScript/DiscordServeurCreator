@@ -70,7 +70,11 @@ body {
 .bg-overlay {
   position: absolute;
   inset: 0;
-  background: transparent;
+  /* Voile de contraste : garantit une lisibilite minimale du texte flottant
+     hors des panels glass, quelle que soit la luminosite du fond video a cet
+     instant (la video de fond n'est pas maitrisee, contrairement aux tokens
+     de l'UI). Volontairement modere pour laisser le mouvement perceptible. */
+  background: radial-gradient(120% 100% at 50% 0%, rgba(6,7,10,0.28), rgba(6,7,10,0.48));
 }
 
 h1, h2, h3 { font-weight: 600; letter-spacing: -0.01em; }
@@ -385,6 +389,9 @@ input[type=password]:focus, input[type=url]:focus, textarea:focus, select:focus 
 input[type=text]:hover, input[type=number]:hover, input[type=date]:hover, input[type=time]:hover,
 input[type=datetime-local]:hover, textarea:hover, select:hover { border-color: var(--border); }
 textarea { min-height: 90px; resize: vertical; font-family: ui-monospace, "SF Mono", Consolas, monospace; font-size: 0.82rem; line-height: 1.5; }
+
+input[type=checkbox], input[type=radio] { accent-color: var(--accent); width: 15px; height: 15px; cursor: pointer; }
+input::placeholder, textarea::placeholder { color: var(--text-faint); }
 
 .channel-picker {
   display: flex; flex-direction: column; gap: 2px; max-height: 260px; overflow-y: auto;

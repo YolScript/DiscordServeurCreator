@@ -18,11 +18,6 @@ async function add(guildId, suggestion) {
   return entry;
 }
 
-async function findByMessage(guildId, messageId) {
-  const items = await list(guildId);
-  return items.find((s) => s.messageId === messageId) ?? null;
-}
-
 async function update(guildId, suggestionId, mutator) {
   const items = await list(guildId);
   const suggestion = items.find((s) => s.id === suggestionId);
@@ -33,5 +28,5 @@ async function update(guildId, suggestionId, mutator) {
 }
 
 module.exports = {
-  list, replaceAll, add, findByMessage, update,
+  list, replaceAll, add, update,
 };

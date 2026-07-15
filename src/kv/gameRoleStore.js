@@ -30,18 +30,6 @@ async function replaceAll(guildId, roles) {
   await kvPut(key(guildId), roles);
 }
 
-async function removeByRoleId(guildId, roleId) {
-  const roles = await list(guildId);
-  await kvPut(key(guildId), roles.filter((r) => r.roleId !== roleId));
-}
-
-async function rename(guildId, roleId, displayName) {
-  const roles = await list(guildId);
-  const role = roles.find((r) => r.roleId === roleId);
-  if (role) role.displayName = displayName;
-  await kvPut(key(guildId), roles);
-}
-
 module.exports = {
-  normalizeGameKey, list, findByKey, findByRoleId, add, removeByRoleId, rename, replaceAll,
+  normalizeGameKey, list, findByKey, findByRoleId, add, replaceAll,
 };

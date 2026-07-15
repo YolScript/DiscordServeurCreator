@@ -4,15 +4,8 @@ const guildConfigStore = require('../../kv/guildConfigStore');
 const antiRaid = require('../moderation/antiRaid');
 const inviteTracker = require('../engagement/inviteTracker');
 const webhookDispatcher = require('../automation/webhookDispatcher');
+const { applyPlaceholders } = require('../../shared/placeholders');
 const logger = require('../../shared/logger');
-
-function applyPlaceholders(template, member) {
-  return template
-    .replaceAll('{user}', `<@${member.id}>`)
-    .replaceAll('{username}', member.user.username)
-    .replaceAll('{server}', member.guild.name)
-    .replaceAll('{membercount}', String(member.guild.memberCount));
-}
 
 client.on(Events.GuildMemberAdd, async (member) => {
   antiRaid.handleGuildMemberAdd(member);
@@ -35,7 +28,7 @@ client.on(Events.GuildMemberAdd, async (member) => {
     const channel = await member.guild.channels.fetch(config.arrivalDepartureChannelId).catch(() => null);
     if (!channel) return;
 
-    const text = applyPlaceholders(config.welcomeMessageTemplate || 'Bienvenue {user} sur {server} !', member);
+    const text = applyPlaceholders(config.welcomeMessageTemplate || 'Bienvenue {user} sur {server} !', { user: member.user, guild: member.guild });
     const embed = new EmbedBuilder()
       .setAuthor({ name: member.user.username, iconURL: member.user.displayAvatarURL() })
       .setTitle('👋 Nouveau membre')
