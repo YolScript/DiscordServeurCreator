@@ -13,6 +13,7 @@ import {
   getScheduledTasks, putScheduledTasks,
   getTickets, putTickets,
   pushPendingPanelAction,
+  getStats,
 } from './kvStore.js';
 import {
   bulkEditPermissions, exportChannelPermissions, importChannelPermissions, resetRoleToDefault,
@@ -23,6 +24,7 @@ import {
   buildSnapshot, restoreSnapshot, lockdownGuild, unlockGuild, pushSnapshot, getSnapshots,
 } from './security.js';
 import { applyServiceVisibility } from './staffService.js';
+import { logAudit, getAuditLog } from './auditLog.js';
 
 class HttpError extends Error {
   constructor(status, message) {
@@ -139,6 +141,27 @@ async function router(request, env) {
       return json(role, env);
     }
 
+    if (sub === 'roles' && parts[4] === 'positions' && method === 'PATCH') {
+      const session = await requireGuildAccess(env, request, guildId);
+      const { positions } = await readJson(request);
+      if (!Array.isArray(positions) || !positions.length) throw new HttpError(400, 'positions requis.');
+      await botFetchJson(env, `/guilds/${guildId}/roles`, { method: 'PATCH', body: JSON.stringify(positions) });
+      await logAudit(env, guildId, { title: 'Ordre des roles modifie', description: `${session.username} a reordonne les roles.` });
+      return json({ ok: true }, env);
+    }
+
+    if (sub === 'roles' && parts.length === 5 && method === 'PATCH') {
+      const session = await requireGuildAccess(env, request, guildId);
+      const roleId = parts[4];
+      const { color } = await readJson(request);
+      const role = await botFetchJson(env, `/guilds/${guildId}/roles/${roleId}`, {
+        method: 'PATCH',
+        body: JSON.stringify({ color }),
+      });
+      await logAudit(env, guildId, { title: 'Couleur de role modifiee', description: `${session.username} a change la couleur de <@&${roleId}>.` });
+      return json(role, env);
+    }
+
     if (sub === 'members' && parts.length === 4 && method === 'GET') {
       await requireGuildAccess(env, request, guildId);
       const members = await botFetchJson(env, `/guilds/${guildId}/members?limit=1000`);
@@ -157,10 +180,15 @@ async function router(request, env) {
         return json(config, env);
       }
       if (method === 'PATCH') {
+        const session = await requireGuildAccess(env, request, guildId);
         const body = await readJson(request);
         const existing = (await getGuildConfig(env, guildId)) || {};
         const merged = { ...existing, ...body };
         await putGuildConfig(env, guildId, merged);
+        await logAudit(env, guildId, {
+          title: 'Configuration modifiee',
+          description: `${session.username} a modifie : ${Object.keys(body).join(', ')}`,
+        });
         return json(merged, env);
       }
     }
@@ -202,10 +230,14 @@ async function router(request, env) {
     }
 
     if (sub === 'permissions' && parts[4] === 'bulk' && method === 'POST') {
-      await requireGuildAccess(env, request, guildId);
+      const session = await requireGuildAccess(env, request, guildId);
       const { channelIds, roleId, allow, deny } = await readJson(request);
       if (!Array.isArray(channelIds) || !roleId) throw new HttpError(400, 'channelIds et roleId requis.');
       const results = await bulkEditPermissions(env, { channelIds, roleId, allow: allow || [], deny: deny || [] });
+      await logAudit(env, guildId, {
+        title: 'Permissions modifiees',
+        description: `${session.username} a modifie les permissions du role <@&${roleId}> sur ${channelIds.length} salon(s).`,
+      });
       return json(results, env);
     }
 
@@ -227,33 +259,37 @@ async function router(request, env) {
     }
 
     if (sub === 'channels' && parts.length === 4 && method === 'POST') {
-      await requireGuildAccess(env, request, guildId);
+      const session = await requireGuildAccess(env, request, guildId);
       const { name, type, categoryId } = await readJson(request);
       const config = (await getGuildConfig(env, guildId)) || {};
       const channel = await createCustomChannel(env, guildId, config, { name, type, categoryId });
+      await logAudit(env, guildId, { title: 'Salon cree', description: `${session.username} a cree #${name}.` });
       return json(channel, env);
     }
 
     if (sub === 'categories' && parts.length === 4 && method === 'POST') {
-      await requireGuildAccess(env, request, guildId);
+      const session = await requireGuildAccess(env, request, guildId);
       const { name } = await readJson(request);
       const config = (await getGuildConfig(env, guildId)) || {};
       const category = await createCustomCategory(env, guildId, config, { name });
+      await logAudit(env, guildId, { title: 'Categorie creee', description: `${session.username} a cree la categorie ${name}.` });
       return json(category, env);
     }
 
     if (sub === 'channels' && parts.length === 5) {
-      await requireGuildAccess(env, request, guildId);
+      const session = await requireGuildAccess(env, request, guildId);
       const channelId = parts[4];
 
       if (method === 'PATCH') {
         const { name } = await readJson(request);
         if (!name) throw new HttpError(400, 'name requis.');
         const channel = await botFetchJson(env, `/channels/${channelId}`, { method: 'PATCH', body: JSON.stringify({ name }) });
+        await logAudit(env, guildId, { title: 'Salon renomme', description: `${session.username} a renomme un salon en #${name}.` });
         return json(channel, env);
       }
       if (method === 'DELETE') {
         await botFetch(env, `/channels/${channelId}`, { method: 'DELETE' });
+        await logAudit(env, guildId, { title: 'Salon supprime', description: `${session.username} a supprime un salon (${channelId}).` });
         return json({ ok: true }, env);
       }
     }
@@ -411,9 +447,13 @@ async function router(request, env) {
       return json(await buildSnapshot(env, guildId), env);
     }
     if (sub === 'security' && parts[4] === 'restore' && method === 'POST') {
-      await requireGuildAccess(env, request, guildId);
+      const session = await requireGuildAccess(env, request, guildId);
       const snapshot = await readJson(request);
       const result = await restoreSnapshot(env, guildId, snapshot);
+      await logAudit(env, guildId, {
+        title: 'Restauration structure',
+        description: `${session.username} a restaure : ${result.roles} role(s), ${result.categories} categorie(s), ${result.channels} salon(s).`,
+      });
       return json(result, env);
     }
     if (sub === 'security' && parts[4] === 'snapshots' && method === 'GET') {
@@ -427,17 +467,29 @@ async function router(request, env) {
       return json(snapshot, env);
     }
     if (sub === 'security' && parts[4] === 'lockdown' && method === 'POST') {
-      await requireGuildAccess(env, request, guildId);
+      const session = await requireGuildAccess(env, request, guildId);
       const previousLevel = await lockdownGuild(env, guildId);
       const config = (await getGuildConfig(env, guildId)) || {};
       await putGuildConfig(env, guildId, { ...config, lockdownPreviousLevel: previousLevel });
+      await logAudit(env, guildId, { title: '🔒 Serveur verrouille', description: `${session.username} a verrouille le serveur.` });
       return json({ ok: true }, env);
     }
     if (sub === 'security' && parts[4] === 'unlock' && method === 'POST') {
-      await requireGuildAccess(env, request, guildId);
+      const session = await requireGuildAccess(env, request, guildId);
       const config = (await getGuildConfig(env, guildId)) || {};
       await unlockGuild(env, guildId, config.lockdownPreviousLevel);
+      await logAudit(env, guildId, { title: '🔓 Serveur deverrouille', description: `${session.username} a deverrouille le serveur.` });
       return json({ ok: true }, env);
+    }
+
+    if (sub === 'auditlog' && parts.length === 4 && method === 'GET') {
+      await requireGuildAccess(env, request, guildId);
+      return json(await getAuditLog(env, guildId), env);
+    }
+
+    if (sub === 'stats' && parts.length === 4 && method === 'GET') {
+      await requireGuildAccess(env, request, guildId);
+      return json(await getStats(env, guildId), env);
     }
 
     // --- Panneaux (reglement/roles/poll/ticket) : depose une action que le
@@ -453,9 +505,10 @@ async function router(request, env) {
 
     // --- Service (staff en service) ---
     if (sub === 'service' && parts[4] === 'apply' && method === 'POST') {
-      await requireGuildAccess(env, request, guildId);
+      const session = await requireGuildAccess(env, request, guildId);
       const config = (await getGuildConfig(env, guildId)) || {};
       const result = await applyServiceVisibility(env, guildId, config);
+      await logAudit(env, guildId, { title: 'Configuration du service appliquee', description: `${session.username} a applique la configuration du service.` });
       return json(result, env);
     }
   }

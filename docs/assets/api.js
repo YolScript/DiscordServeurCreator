@@ -80,6 +80,10 @@ window.Api = (function api() {
     unlock: (guildId) => request(`/api/guilds/${guildId}/security/unlock`, { method: 'POST' }),
 
     applyServiceVisibility: (guildId) => request(`/api/guilds/${guildId}/service/apply`, { method: 'POST' }),
+    auditLog: (guildId) => request(`/api/guilds/${guildId}/auditlog`),
+    stats: (guildId) => request(`/api/guilds/${guildId}/stats`),
+    setRolePositions: (guildId, positions) => request(`/api/guilds/${guildId}/roles/positions`, { method: 'PATCH', body: JSON.stringify({ positions }) }),
+    setRoleColor: (guildId, roleId, color) => request(`/api/guilds/${guildId}/roles/${roleId}`, { method: 'PATCH', body: JSON.stringify({ color }) }),
     postPanel: (guildId, key, channelId) => request(`/api/guilds/${guildId}/panels/${key}`, { method: 'POST', body: JSON.stringify({ channelId }) }),
   };
 }());

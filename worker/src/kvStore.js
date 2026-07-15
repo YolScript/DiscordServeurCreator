@@ -8,6 +8,7 @@ const streamersKey = (guildId) => `guild:${guildId}:streamers`;
 const scheduledKey = (guildId) => `guild:${guildId}:scheduled`;
 const ticketsKey = (guildId) => `guild:${guildId}:tickets`;
 const pendingPanelActionsKey = (guildId) => `guild:${guildId}:pendingpanelactions`;
+const statsKey = (guildId) => `guild:${guildId}:stats`;
 
 const MOD_CONFIG_DEFAULTS = {
   autoModEnabled: true,
@@ -80,3 +81,5 @@ export async function pushPendingPanelAction(env, guildId, action) {
   items.push({ ...action, requestedAt: Date.now() });
   await putList(env, pendingPanelActionsKey(guildId), items);
 }
+
+export const getStats = (env, guildId) => getList(env, statsKey(guildId));

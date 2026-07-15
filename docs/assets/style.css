@@ -262,6 +262,16 @@ html, body { height: 100%; }
 /* ---------- Guild list ---------- */
 
 .guild-list { display: flex; flex-direction: column; gap: 1px; background: var(--border); border-radius: var(--radius); overflow: hidden; border: 1px solid var(--border); }
+.topgg-badges { display: flex; flex-wrap: wrap; gap: 8px; justify-content: center; margin-top: 20px; }
+.topgg-badges img { height: 48px; border-radius: 6px; }
+
+.audit-log-list { display: flex; flex-direction: column; gap: 2px; max-height: 480px; overflow-y: auto; }
+.audit-row { padding: 10px 12px; border-radius: var(--radius-sm); background: var(--bg-input); }
+.audit-row-header { display: flex; align-items: baseline; justify-content: space-between; gap: 12px; }
+.audit-row-header strong { font-size: 0.88rem; }
+.audit-row-header .muted { font-size: 0.76rem; white-space: nowrap; }
+
+.stats-chart { width: 100%; height: 140px; display: block; }
 .guild-row {
   display: flex;
   align-items: center;
@@ -427,6 +437,14 @@ textarea { min-height: 90px; resize: vertical; font-family: ui-monospace, "SF Mo
   background: rgba(30, 31, 34, 0.82); backdrop-filter: blur(6px); -webkit-backdrop-filter: blur(6px);
   box-shadow: 0 4px 16px -4px rgba(0,0,0,0.5);
 }
+.dp-user-chip {
+  position: absolute; top: 16px; right: 16px; z-index: 20;
+  display: flex; align-items: center; gap: 8px; padding: 6px 12px 6px 6px;
+  background: rgba(30, 31, 34, 0.82); backdrop-filter: blur(6px); -webkit-backdrop-filter: blur(6px);
+  border-radius: 100px; box-shadow: 0 4px 16px -4px rgba(0,0,0,0.5);
+  color: #dcddde; font-size: 0.85rem; font-weight: 600;
+}
+.dp-user-chip img { width: 26px; height: 26px; border-radius: 50%; }
 .dp-sidebar {
   width: 240px; flex: none; background: color-mix(in srgb, #2b2d31 78%, transparent);
   display: flex; flex-direction: column;
@@ -551,6 +569,13 @@ textarea { min-height: 90px; resize: vertical; font-family: ui-monospace, "SF Mo
 .dp-role-row.expanded .dp-role-detail { display: block; }
 .dp-role-detail-title { color: #dcddde; font-weight: 700; font-size: 0.72rem; text-transform: uppercase; letter-spacing: 0.02em; margin: 8px 0 4px; }
 .dp-role-detail .muted { font-size: 0.8rem; line-height: 1.4; margin: 0; }
+.dp-role-handle { flex: none; color: #4e5058; cursor: grab; font-size: 0.9rem; }
+.dp-role-row[draggable="true"]:active .dp-role-handle { cursor: grabbing; }
+.dp-role-row.dragging { opacity: 0.4; }
+.dp-role-color-input {
+  width: 100%; height: 32px; padding: 2px; border: 1px solid #3a3c41; border-radius: 6px;
+  background: #1e1f22; cursor: pointer;
+}
 
 @media (prefers-color-scheme: light) {
   :root {

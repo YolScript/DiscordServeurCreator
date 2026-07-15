@@ -8,6 +8,8 @@ const params = new URLSearchParams(location.search);
 const guildId = params.get('guild');
 
 let allGuilds = [];
+let currentUser = null;
+let currentUserAvatarUrl = '';
 
 // Bit Discord de chaque permission (cf. discord-api-types PermissionFlagsBits),
 // duplique cote dashboard pour decoder role.permissions sans lib externe.
@@ -197,6 +199,11 @@ async function renderGuildList() {
           <p class="muted">Serveurs Discord ou tu es administrateur.</p>
           <div class="guild-list">${rows(filtered) || '<p class="muted">Aucun serveur trouve.</p>'}</div>
         </div>
+        <div class="topgg-badges">
+          <a href="https://top.gg/bot/1526237674355036401" target="_blank" rel="noopener"><img src="https://top.gg/api/widget/servers/1526237674355036401.svg" alt="Serveurs top.gg" /></a>
+          <a href="https://top.gg/bot/1526237674355036401" target="_blank" rel="noopener"><img src="https://top.gg/api/widget/upvotes/1526237674355036401.svg" alt="Votes top.gg" /></a>
+          <a href="https://top.gg/bot/1526237674355036401" target="_blank" rel="noopener"><img src="https://top.gg/api/widget/owner/1526237674355036401.svg" alt="Proprietaire top.gg" /></a>
+        </div>
       </div>
     `;
   }
@@ -225,6 +232,8 @@ const SETTINGS_PANELS = [
   { key: 'jeux', label: 'Roles de jeu' },
   { key: 'automatisations', label: 'Automatisations' },
   { key: 'securite', label: 'Securite' },
+  { key: 'stats', label: 'Statistiques' },
+  { key: 'auditlog', label: "Logs d'audit" },
 ];
 
 function customChannelFormHtml(catId) {
@@ -249,14 +258,21 @@ function roleRowHtml(role, members) {
     ? members.map((m) => m.displayName)
     : members.filter((m) => (m.roles || []).includes(role.id)).map((m) => m.displayName);
   const perms = decodeRolePermissions(role.permissions);
+  const isEveryone = role.name === '@everyone';
+  const hex = role.color ? `#${role.color.toString(16).padStart(6, '0')}` : '#99aab5';
   return `
-    <div class="dp-role-row" data-role="${role.id}">
+    <div class="dp-role-row" data-role="${role.id}" data-position="${role.position}" ${isEveryone ? '' : 'draggable="true"'}>
       <div class="dp-role-summary">
+        ${!isEveryone ? '<span class="dp-role-handle">⠿</span>' : ''}
         ${roleColorDot(role)}
         <span class="dp-role-name">${escapeHtml(role.name)}</span>
         <span class="dp-role-count">${memberNames.length}</span>
       </div>
       <div class="dp-role-detail">
+        ${!isEveryone ? `
+          <p class="dp-role-detail-title">Couleur</p>
+          <input type="color" class="dp-role-color-input" value="${hex}" data-role="${role.id}" />
+        ` : ''}
         <p class="dp-role-detail-title">Permissions</p>
         <p class="muted">${perms.length ? escapeHtml(perms.join(', ')) : 'Aucune permission particuliere'}</p>
         <p class="dp-role-detail-title">Membres (${memberNames.length})</p>
@@ -303,6 +319,12 @@ async function renderPreviewPage(id) {
     <div class="inner fill" style="max-width:none;">
       <div class="discord-preview" style="position:relative;">
         <button type="button" class="btn secondary dp-fullscreen-btn" id="dp-fullscreen-btn">⛶ Plein ecran</button>
+        ${currentUser ? `
+          <div class="dp-user-chip" title="${escapeHtml(currentUser.username)}">
+            <img src="${currentUserAvatarUrl}" alt="" />
+            <span>${escapeHtml(currentUser.username)}</span>
+          </div>
+        ` : ''}
         <div class="dp-sidebar">
           <div class="dp-server-header">
             <span class="name">${escapeHtml(guild?.name || 'Serveur')}</span>
@@ -310,7 +332,7 @@ async function renderPreviewPage(id) {
           </div>
           <div class="dp-channel-list">
             <div class="dp-settings-group">
-              <div class="dp-category" data-cat="__settings"><span class="chevron">▾</span> Parametres</div>
+              <div class="dp-category collapsed" data-cat="__settings"><span class="chevron">▾</span> Parametres</div>
               <div class="dp-channels">
                 ${SETTINGS_PANELS.map((p) => `<div class="dp-channel" data-settings="${p.key}"><span class="hash">⚙</span> ${escapeHtml(p.label)}</div>`).join('')}
               </div>
@@ -360,6 +382,46 @@ async function renderPreviewPage(id) {
 
   app.querySelectorAll('.dp-role-row').forEach((row) => {
     row.querySelector('.dp-role-summary').addEventListener('click', () => row.classList.toggle('expanded'));
+  });
+
+  app.querySelectorAll('.dp-role-row[draggable="true"]').forEach((row) => {
+    row.addEventListener('dragstart', () => row.classList.add('dragging'));
+    row.addEventListener('dragover', (e) => {
+      e.preventDefault();
+      const list = row.parentElement;
+      const dragging = list.querySelector('.dragging');
+      if (!dragging || dragging === row) return;
+      const rect = row.getBoundingClientRect();
+      const before = (e.clientY - rect.top) < rect.height / 2;
+      list.insertBefore(dragging, before ? row : row.nextSibling);
+    });
+    row.addEventListener('dragend', async () => {
+      row.classList.remove('dragging');
+      const list = row.parentElement;
+      const orderedIds = [...list.querySelectorAll('.dp-role-row[draggable="true"]')].map((r) => r.dataset.role);
+      const maxPos = Math.max(...rolesSorted.filter((r) => r.name !== '@everyone').map((r) => r.position));
+      const positions = orderedIds.map((rid, idx) => ({ id: rid, position: maxPos - idx }));
+      try {
+        await Api.setRolePositions(id, positions);
+        showToast('Ordre des roles mis a jour.');
+      } catch (err) {
+        showToast(err.message, 'error');
+        await renderPreviewPage(id);
+      }
+    });
+  });
+
+  app.querySelectorAll('.dp-role-color-input').forEach((input) => {
+    input.addEventListener('change', async () => {
+      try {
+        await Api.setRoleColor(id, input.dataset.role, parseInt(input.value.slice(1), 16));
+        showToast('Couleur mise a jour.');
+        const dot = input.closest('.dp-role-row').querySelector('.dp-role-dot');
+        if (dot) dot.style.background = input.value;
+      } catch (err) {
+        showToast(err.message, 'error');
+      }
+    });
   });
 
   app.querySelectorAll('.dp-channel[data-channel]').forEach((chEl) => {
@@ -431,6 +493,8 @@ function renderSettingsPanel(guildId, key) {
     jeux: () => renderGameRolesPage(guildId, body),
     automatisations: () => renderAutomationsPage(guildId, body),
     securite: () => renderSecurityPage(guildId, body),
+    stats: () => renderStatsPage(guildId, body),
+    auditlog: () => renderAuditLogPage(guildId, body),
   };
   renderers[key]?.();
 }
@@ -1344,6 +1408,89 @@ async function renderSecurityPage(id, container = app) {
   });
 }
 
+/* ---------- Pages: logs d'audit ---------- */
+
+function resolveMentions(text, members, roles) {
+  const resolved = String(text || '')
+    .replace(/<@&(\d+)>/g, (_, roleId) => `@${(roles.find((r) => r.id === roleId) || {}).name || 'role'}`)
+    .replace(/<@(\d+)>/g, (_, userId) => `@${(members.find((m) => m.userId === userId) || {}).displayName || userId}`);
+  return escapeHtml(resolved);
+}
+
+async function renderAuditLogPage(id, container = app) {
+  container.innerHTML = '<p class="muted">Chargement...</p>';
+  const [logs, members, roles] = await Promise.all([
+    Api.auditLog(id), Api.members(id).catch(() => []), Api.roles(id).catch(() => []),
+  ]);
+
+  const rows = logs.map((entry) => `
+    <div class="audit-row">
+      <div class="audit-row-header">
+        <strong>${escapeHtml(entry.title)}</strong>
+        <span class="muted">${new Date(entry.timestamp).toLocaleString('fr-FR')}</span>
+      </div>
+      <p class="muted" style="margin:4px 0 0;">${resolveMentions(entry.description, members, roles)}</p>
+    </div>
+  `).join('') || '<p class="muted">Aucune action enregistree pour le moment.</p>';
+
+  container.innerHTML = `
+    <div class="inner">
+      ${sectionHtml("Logs d'audit", `
+        <p class="muted">Historique des actions de moderation et de configuration (200 dernieres).</p>
+        <div class="audit-log-list">${rows}</div>
+      `, { open: true })}
+    </div>
+  `;
+  wireSections(container);
+}
+
+/* ---------- Pages: statistiques ---------- */
+
+function lineChartSvg(points, { width = 560, height = 140, color = '#5865f2' } = {}) {
+  if (!points.length) return '<p class="muted">Pas encore de donnees.</p>';
+  const max = Math.max(1, ...points);
+  const min = Math.min(0, ...points);
+  const range = max - min || 1;
+  const stepX = points.length > 1 ? width / (points.length - 1) : 0;
+  const coords = points.map((v, i) => {
+    const x = points.length > 1 ? i * stepX : width / 2;
+    const y = height - ((v - min) / range) * (height - 16) - 8;
+    return [x, y];
+  });
+  const path = coords.map(([x, y], i) => `${i === 0 ? 'M' : 'L'}${x.toFixed(1)},${y.toFixed(1)}`).join(' ');
+  const dots = coords.map(([x, y]) => `<circle cx="${x.toFixed(1)}" cy="${y.toFixed(1)}" r="2.5" fill="${color}" />`).join('');
+  return `
+    <svg viewBox="0 0 ${width} ${height}" class="stats-chart" preserveAspectRatio="none">
+      <path d="${path}" fill="none" stroke="${color}" stroke-width="2" />
+      ${dots}
+    </svg>`;
+}
+
+async function renderStatsPage(id, container = app) {
+  container.innerHTML = '<p class="muted">Chargement...</p>';
+  const stats = await Api.stats(id);
+
+  const memberPoints = stats.map((s) => s.memberCount);
+  const messagePoints = stats.map((s) => s.messageCount);
+  const lastDate = stats.length ? stats[stats.length - 1].date : null;
+  const firstDate = stats.length ? stats[0].date : null;
+
+  container.innerHTML = `
+    <div class="inner">
+      ${sectionHtml('Membres', `
+        <p class="muted">Evolution du nombre de membres (${stats.length} jour(s) enregistre(s)${firstDate ? `, depuis le ${firstDate}` : ''}).</p>
+        ${lineChartSvg(memberPoints, { color: '#5865f2' })}
+        ${lastDate ? `<p class="muted" style="margin-top:8px;">Dernier releve : ${lastDate} — ${memberPoints[memberPoints.length - 1]} membre(s)</p>` : ''}
+      `, { open: true })}
+      ${sectionHtml('Activite (messages/jour)', `
+        <p class="muted">Nombre de messages envoyes par jour (hors bots).</p>
+        ${lineChartSvg(messagePoints, { color: '#43aa8b' })}
+      `, { open: true })}
+    </div>
+  `;
+  wireSections(container);
+}
+
 /* ---------- Boot ---------- */
 
 async function renderGuildDetail(id) {
@@ -1360,11 +1507,12 @@ async function renderGuildDetail(id) {
 async function init() {
   try {
     const me = await Api.me();
+    currentUser = me;
     document.getElementById('whoami').textContent = me.username;
-    const avatarUrl = me.avatar
+    currentUserAvatarUrl = me.avatar
       ? `https://cdn.discordapp.com/avatars/${me.userId}/${me.avatar}.png?size=64`
       : `https://cdn.discordapp.com/embed/avatars/${Number((BigInt(me.userId) >> 22n) % 6n)}.png`;
-    document.getElementById('user-avatar').src = avatarUrl;
+    document.getElementById('user-avatar').src = currentUserAvatarUrl;
   } catch {
     return; // Api.me() redirige deja vers index.html sur 401
   }

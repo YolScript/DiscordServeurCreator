@@ -1,5 +1,6 @@
 const { ChannelType, EmbedBuilder } = require('discord.js');
 const guildConfigStore = require('../../kv/guildConfigStore');
+const auditLogStore = require('../../kv/auditLogStore');
 const { toSmallCaps } = require('../../shared/smallCaps');
 const { ensureStaffCategory, toggleOnlyOverwrites } = require('../roles/staffCategory');
 const logger = require('../../shared/logger');
@@ -38,6 +39,12 @@ async function postModLog(guild, { title, description, color = 0xd3a13a, fields 
   } catch (err) {
     logger.error('postModLog', err);
   }
+
+  const detailsSuffix = fields.map((f) => `${f.name}: ${f.value}`).join(' — ');
+  await auditLogStore.add(guild.id, {
+    title,
+    description: detailsSuffix ? `${description} (${detailsSuffix})` : description,
+  }).catch((err) => logger.error('auditLogStore.add', err));
 }
 
 module.exports = { ensureModLogChannel, postModLog };

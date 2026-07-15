@@ -13,6 +13,7 @@ const giveawayManager = require('../engagement/giveawayManager');
 const inviteTracker = require('../engagement/inviteTracker');
 const gameRolesSync = require('../roles/gameRolesSync');
 const panelActionsSync = require('../automation/panelActionsSync');
+const statsTracker = require('../automation/statsTracker');
 const logger = require('../../shared/logger');
 
 client.once(Events.ClientReady, async (readyClient) => {
@@ -38,4 +39,5 @@ client.once(Events.ClientReady, async (readyClient) => {
   giveawayManager.start();
   gameRolesSync.start();
   panelActionsSync.start();
+  statsTracker.start();
 });
