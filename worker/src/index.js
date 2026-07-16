@@ -41,6 +41,10 @@ import {
 import { checkAiRateLimit } from './aiRateLimit.js';
 import { runAiTurn, resumeAfterConfirmation } from './aiOrchestrator.js';
 
+// Serveur de reference dont la structure est lue en direct pour le template
+// "live" (miroir de SOURCE_GUILD_ID dans src/discord/guildSetup/templates/liveTemplate.js).
+const LIVE_TEMPLATE_SOURCE_GUILD_ID = '1526242972989915307';
+
 class HttpError extends Error {
   constructor(status, message) {
     super(message);
@@ -165,6 +169,73 @@ async function router(request, env) {
       await requireGuildAccess(env, request, entry.sourceGuildId);
       await putTemplateRegistry(env, items.filter((t) => t.id !== parts[2]));
       return json({ ok: true }, env);
+    }
+    // Apercu (mock) de la structure d'un template pour l'assistant de
+    // generation : lecture seule sur le serveur source, accessible a tout
+    // utilisateur connecte (pas besoin d'etre admin du serveur source, qui
+    // est souvent le serveur de reference du bot lui-meme).
+    if (parts.length === 4 && parts[3] === 'preview' && method === 'GET') {
+      await requireSession(env, request);
+      const templateKey = decodeURIComponent(parts[2]);
+      let sourceGuildId = null;
+      let label = null;
+      if (templateKey === 'live') {
+        sourceGuildId = LIVE_TEMPLATE_SOURCE_GUILD_ID;
+      } else if (templateKey.startsWith('live:')) {
+        const items = await getTemplateRegistry(env);
+        const entry = items.find((t) => t.id === templateKey.slice('live:'.length));
+        if (!entry) throw new HttpError(404, 'Template introuvable.');
+        sourceGuildId = entry.sourceGuildId;
+        label = entry.name;
+      } else {
+        throw new HttpError(400, 'Template inconnu.');
+      }
+
+      const sourceConfig = await getGuildConfig(env, sourceGuildId);
+      if (!sourceConfig) throw new HttpError(404, 'Serveur source introuvable ou non configure.');
+
+      const [sourceGuild, allRoles, allChannels] = await Promise.all([
+        botFetchJson(env, `/guilds/${sourceGuildId}`).catch(() => null),
+        botFetchJson(env, `/guilds/${sourceGuildId}/roles`).catch(() => []),
+        botFetchJson(env, `/guilds/${sourceGuildId}/channels`).catch(() => []),
+      ]);
+
+      const baseRoleFields = [
+        'adminRoleId', 'moderateurRoleId', 'streameurRoleId', 'contributeurRoleId',
+        'followRoleId', 'verifieRoleId', 'reglementValidatedRoleId', 'plus16RoleId', 'minus16RoleId',
+      ];
+      const baseRoleIds = new Set(baseRoleFields.map((f) => sourceConfig[f]).filter(Boolean));
+      const previewRoles = allRoles
+        .filter((r) => baseRoleIds.has(r.id))
+        .sort((a, b) => b.position - a.position)
+        .map((r) => ({ name: r.name, color: `#${(r.color || 0).toString(16).padStart(6, '0')}` }));
+
+      const excludedCategoryIds = new Set([
+        sourceConfig.staffCategoryId, sourceConfig.gamesCategoryId, sourceConfig.ticketCategoryId,
+      ].filter(Boolean));
+      const excludedChannelIds = new Set([
+        sourceConfig.publicVoiceCreatorChannelId, sourceConfig.staffChatChannelId,
+        sourceConfig.gameVoiceCreatorChannelId, sourceConfig.serviceStaffChannelId,
+        sourceConfig.staffVoiceCreatorChannelId,
+      ].filter(Boolean));
+
+      const categories = allChannels
+        .filter((c) => c.type === 4 && !excludedCategoryIds.has(c.id))
+        .sort((a, b) => a.position - b.position)
+        .map((cat) => ({
+          name: cat.name,
+          channels: allChannels
+            .filter((c) => c.parent_id === cat.id && !excludedChannelIds.has(c.id) && (c.type === 0 || c.type === 2))
+            .sort((a, b) => a.position - b.position)
+            .map((ch) => ({ name: ch.name, type: ch.type === 2 ? 'voice' : 'text' })),
+        }));
+
+      return json({
+        label: label || `Copie de ${sourceGuild?.name || 'ServeurCreator'} (a jour)`,
+        guildIconUrl: sourceGuild?.icon ? `https://cdn.discordapp.com/icons/${sourceGuildId}/${sourceGuild.icon}.png?size=64` : null,
+        roles: previewRoles,
+        categories,
+      }, env);
     }
   }
 

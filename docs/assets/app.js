@@ -3767,19 +3767,42 @@ async function renderGenerateChoice(guildId, guildName) {
       ${sectionHtml(`Generer "${escapeHtml(guildName)}"`, `
         <p class="dp-panel-title">🪄 Generer "${escapeHtml(guildName)}"</p>
         <p class="muted">Choisis un template : sa structure (roles, salons, permissions, textes) sera recreee en direct sur ce serveur.</p>
-        <label>Template</label>
-        <select id="gen-template">
-          ${templateOptions.map((t) => `<option value="${t.key}">${escapeHtml(t.label)}</option>`).join('')}
-        </select>
-        <label>Texte du reglement (optionnel, sinon celui du template)</label>
-        <textarea id="gen-reglement" placeholder="Laisse vide pour utiliser le reglement du template"></textarea>
-        <div class="row" style="margin-top:16px;">
-          <button class="btn secondary" id="gen-cancel">Annuler</button>
-          <button class="btn" id="gen-launch">🪄 Lancer la generation</button>
+        <div class="gen-layout">
+          <div class="gen-layout-form">
+            <label>Template</label>
+            <select id="gen-template">
+              ${templateOptions.map((t) => `<option value="${t.key}">${escapeHtml(t.label)}</option>`).join('')}
+            </select>
+            <label>Texte du reglement (optionnel, sinon celui du template)</label>
+            <textarea id="gen-reglement" placeholder="Laisse vide pour utiliser le reglement du template"></textarea>
+            <div class="row" style="margin-top:16px;">
+              <button class="btn secondary" id="gen-cancel">Annuler</button>
+              <button class="btn" id="gen-launch">🪄 Lancer la generation</button>
+            </div>
+          </div>
+          <div class="gen-preview-mock" id="gen-template-preview">
+            <p class="muted">Chargement de l'apercu...</p>
+          </div>
         </div>
       `, { alwaysOpen: true })}
     </div>
   `;
+
+  const templateSelect = document.getElementById('gen-template');
+  const previewEl = document.getElementById('gen-template-preview');
+
+  async function loadPreview() {
+    const key = templateSelect.value;
+    previewEl.innerHTML = '<p class="muted">Chargement de l\'apercu...</p>';
+    try {
+      const preview = await Api.templatePreview(key);
+      previewEl.innerHTML = templatePreviewHtml(preview);
+    } catch (err) {
+      previewEl.innerHTML = `<p class="muted">Apercu indisponible (${escapeHtml(err.message)}).</p>`;
+    }
+  }
+  templateSelect.addEventListener('change', loadPreview);
+  loadPreview();
 
   document.getElementById('gen-cancel').addEventListener('click', () => {
     withViewTransition(() => renderGuildList());
@@ -3797,6 +3820,35 @@ async function renderGenerateChoice(guildId, guildName) {
       btn.disabled = false;
     }
   });
+}
+
+function templatePreviewHtml(preview) {
+  if (!preview) return '<p class="muted">Apercu indisponible.</p>';
+  const roles = preview.roles || [];
+  const categories = preview.categories || [];
+  return `
+    <div class="tplprev-head">
+      ${preview.guildIconUrl ? `<img class="tplprev-icon" src="${preview.guildIconUrl}" alt="" />` : '<span class="tplprev-icon tplprev-icon-fallback">🪄</span>'}
+      <strong>${escapeHtml(preview.label || 'Template')}</strong>
+    </div>
+    <div class="tplprev-body">
+      <div class="tplprev-roles-block">
+        <p class="tplprev-subtitle">Roles (${roles.length})</p>
+        <div class="tplprev-roles">
+          ${roles.length ? roles.map((r) => `<span class="tplprev-role-chip" style="--rc:${escapeHtml(r.color)}">${escapeHtml(r.name)}</span>`).join('') : '<span class="muted">Aucun</span>'}
+        </div>
+      </div>
+      <div class="tplprev-channels-block">
+        <p class="tplprev-subtitle">Salons (${categories.reduce((n, c) => n + c.channels.length, 0)})</p>
+        <div class="tplprev-channels">
+          ${categories.length ? categories.map((c) => `
+            <div class="tplprev-cat">${escapeHtml(c.name)}</div>
+            ${c.channels.map((ch) => `<div class="tplprev-chan">${ch.type === 'voice' ? '🔊' : '#'} ${escapeHtml(ch.name)}</div>`).join('')}
+          `).join('') : '<span class="muted">Aucun</span>'}
+        </div>
+      </div>
+    </div>
+  `;
 }
 
 function renderGenerationScreen(guildId, guildName) {

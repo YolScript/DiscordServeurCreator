@@ -114,6 +114,7 @@ window.Api = (function api() {
     templates: () => request('/api/templates'),
     saveTemplate: (name, sourceGuildId) => request('/api/templates', { method: 'POST', body: JSON.stringify({ name, sourceGuildId }) }),
     deleteTemplate: (templateId) => request(`/api/templates/${templateId}`, { method: 'DELETE' }),
+    templatePreview: (key) => request(`/api/templates/${encodeURIComponent(key)}/preview`),
     generateServer: (guildId, templateKey, reglementText) => request(`/api/guilds/${guildId}/generate`, { method: 'POST', body: JSON.stringify({ templateKey, reglementText }) }),
     generationProgress: (guildId) => request(`/api/guilds/${guildId}/generation`),
     customCommands: (guildId) => request(`/api/guilds/${guildId}/customcommands`),
