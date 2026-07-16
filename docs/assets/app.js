@@ -99,6 +99,17 @@ function escapeHtml(str) {
   }[c]));
 }
 
+function highlightMatch(text, query) {
+  const safe = escapeHtml(text);
+  if (!query) return safe;
+  const idx = text.toLowerCase().indexOf(query.toLowerCase());
+  if (idx === -1) return safe;
+  const before = escapeHtml(text.slice(0, idx));
+  const match = escapeHtml(text.slice(idx, idx + query.length));
+  const after = escapeHtml(text.slice(idx + query.length));
+  return `${before}<mark>${match}</mark>${after}`;
+}
+
 function skeletonHtml(lines = 3) {
   const widths = ['100%', '92%', '60%'];
   return `<div class="skeleton-block">${Array.from({ length: lines }, (_, i) => `<div class="skeleton-line" style="width:${widths[i % widths.length]}"></div>`).join('')}</div>`;
@@ -181,31 +192,86 @@ function renderRail() {
 
 /* ---------- Pages: guild list ---------- */
 
+const GUILD_GROUPS = [
+  { key: 'toConfigure', label: 'A configurer', test: (g) => g.botPresent && !g.configured },
+  { key: 'notInvited', label: 'Bot absent', test: (g) => !g.botPresent },
+  { key: 'configured', label: 'Configures', test: (g) => g.botPresent && g.configured },
+];
+
 async function renderGuildList() {
   app.classList.remove('preview-fullbleed');
   searchBox.style.display = '';
-  const rows = (list) => list.map((g) => {
-    let badge = '<span class="badge not-invited">Bot absent</span>';
+
+  function guildRowHtml(g, delay, isFirstUrgent) {
+    let badge = '<span class="badge not-invited" title="Ce serveur n\'a pas encore le bot">Bot absent</span>';
     let action = `<a class="btn secondary" href="${g.inviteUrl}" target="_blank" rel="noopener">Inviter le bot</a>`;
     if (g.botPresent) {
       badge = g.configured
-        ? '<span class="badge configured">Configure</span>'
-        : '<span class="badge not-configured">A configurer (/setup)</span>';
+        ? '<span class="badge configured" title="Salons et roles deja generes">Configure</span>'
+        : '<span class="badge not-configured" title="Clique sur Generer pour creer les salons et roles">A configurer (/setup)</span>';
       action = g.configured
-        ? `<a class="btn" href="app.html?guild=${g.guildId}">Gerer</a>`
+        ? `<span class="btn" aria-hidden="true">Gerer</span>`
         : `<button class="btn generate-server-btn" data-guild="${g.guildId}" data-name="${escapeHtml(g.name || g.guildId)}">Generer le serveur</button>`;
     }
     const icon = guildIconUrl(g);
-    return `
-      <div class="guild-row">
+    const inner = `
         <div class="guild-row-icon">${icon ? `<img src="${icon}" alt="" />` : escapeHtml(initials(g.name || '?'))}</div>
         <div class="guild-row-info">
           <div class="name">${escapeHtml(g.name || g.guildId)}</div>
           ${badge}
         </div>
-        ${action}
+        ${action}`;
+    const style = `style="animation-delay:${Math.min(delay, 400)}ms"`;
+    const cls = `guild-row stagger-in${isFirstUrgent ? ' urgent' : ''}`;
+    // Serveur deja configure : toute la ligne est un lien de navigation (pas
+    // de bouton imbrique dans un lien, cf. la note d'accessibilite plus haut).
+    return g.botPresent && g.configured
+      ? `<a class="${cls}" href="app.html?guild=${g.guildId}" ${style}>${inner}</a>`
+      : `<div class="${cls}" ${style}>${inner}</div>`;
+  }
+
+  function groupedRowsHtml(list) {
+    let delay = 0;
+    let firstUrgentUsed = false;
+    const chunks = GUILD_GROUPS.map((group) => {
+      const items = list.filter(group.test);
+      if (!items.length) return '';
+      const showLabel = GUILD_GROUPS.filter((gr) => list.some(gr.test)).length > 1;
+      const html = items.map((g) => {
+        const isUrgent = group.key === 'toConfigure' && !firstUrgentUsed;
+        if (isUrgent) firstUrgentUsed = true;
+        const row = guildRowHtml(g, delay, isUrgent);
+        delay += 40;
+        return row;
+      }).join('');
+      return `${showLabel ? `<div class="guild-group-label">${group.label} — ${items.length}</div>` : ''}${html}`;
+    });
+    return chunks.join('');
+  }
+
+  function syncLabel() {
+    const at = Number(localStorage.getItem('guilds-cache-at') || 0);
+    if (!at) return '';
+    const mins = Math.floor((Date.now() - at) / 60000);
+    const text = mins < 1 ? "a l'instant" : `il y a ${mins} min`;
+    return `<span class="muted" style="font-size:0.76rem;" title="Derniere synchronisation avec Discord">Sync ${text}</span>`;
+  }
+
+  function summaryHtml() {
+    const total = allGuilds.length;
+    const configured = allGuilds.filter((g) => g.botPresent && g.configured).length;
+    const toConfigure = allGuilds.filter((g) => g.botPresent && !g.configured).length;
+    if (!total) return '';
+    const pct = Math.round((configured / total) * 100);
+    return `
+      <div class="guild-summary">
+        <span class="todo-count">${toConfigure > 0 ? `<b>${toConfigure}</b> serveur${toConfigure > 1 ? 's' : ''} a configurer` : 'Tout est configure'}</span>
+        <span style="display:flex; align-items:center; gap:10px;">
+          ${syncLabel()}
+          <span class="progress-gauge" title="${configured}/${total} serveurs configures"><span class="progress-gauge-fill" style="width:${pct}%"></span></span>
+        </span>
       </div>`;
-  }).join('');
+  }
 
   function paint(filterText) {
     const filtered = filterText
@@ -216,13 +282,28 @@ async function renderGuildList() {
         <div class="card">
           <h2>Tes serveurs</h2>
           <p class="muted">Serveurs Discord ou tu es administrateur.</p>
-          <div class="guild-list">${rows(filtered) || '<p class="muted">Aucun serveur trouve.</p>'}</div>
+          ${summaryHtml()}
+          <div class="guild-list">${groupedRowsHtml(filtered) || '<p class="muted">Aucun serveur trouve.</p>'}</div>
         </div>
-        <a class="topgg-chip" href="https://top.gg/bot/1526237674355036401" target="_blank" rel="noopener">
-          <span class="icon">⭐</span> Voter pour le bot sur top.gg
+        <a class="topgg-chip" id="topgg-chip" href="https://top.gg/bot/1526237674355036401" target="_blank" rel="noopener">
+          <span class="icon">⭐</span> <span id="topgg-chip-label">Voter pour le bot sur top.gg</span>
         </a>
       </div>
     `;
+    paintToppgVoted();
+  }
+
+  function paintToppgVoted() {
+    const chip = document.getElementById('topgg-chip');
+    const label = document.getElementById('topgg-chip-label');
+    if (!chip || !label) return;
+    const votedToday = localStorage.getItem('toppgg-voted-date') === new Date().toDateString();
+    chip.classList.toggle('voted', votedToday);
+    label.textContent = votedToday ? 'Merci d\'avoir vote aujourd\'hui !' : 'Voter pour le bot sur top.gg';
+    if (!chip.dataset.wired) {
+      chip.dataset.wired = '1';
+      chip.addEventListener('click', () => localStorage.setItem('toppgg-voted-date', new Date().toDateString()));
+    }
   }
 
   function wireGenerateButtons() {
@@ -566,7 +647,7 @@ async function renderPreviewPage(id) {
 
   const channelRow = (c) => `
     <div class="dp-channel" draggable="true" data-channel="${c.id}" data-name="${escapeHtml(c.name)}" data-type="${c.type}">
-      <span class="hash">${channelIcon(c)}</span> ${escapeHtml(c.name)}
+      <span class="hash">${channelIcon(c)}</span> <span class="dp-channel-name">${escapeHtml(c.name)}</span>
     </div>`;
 
   const categoryBlock = (cat) => {
@@ -605,7 +686,7 @@ async function renderPreviewPage(id) {
           ${aiHomeHtml(guild)}
         </div>
         <div class="dp-roles-panel">
-          <div class="dp-roles-header">Roles — ${rolesSorted.length}</div>
+          <div class="dp-roles-header${rolesSorted.length >= 230 ? ' near-limit' : ''}" title="${rolesSorted.length >= 230 ? 'Limite Discord : 250 roles par serveur' : ''}">Roles — ${rolesSorted.length}</div>
           <div class="dp-sidebar-search">
             <input type="text" id="dp-role-search" placeholder="🔎 Filtrer les roles..." autocomplete="off" />
           </div>
@@ -621,6 +702,8 @@ async function renderPreviewPage(id) {
     const q = e.target.value.trim().toLowerCase();
     app.querySelectorAll('.dp-channel[data-channel]').forEach((chEl) => {
       chEl.classList.toggle('dp-filtered-out', Boolean(q) && !(chEl.dataset.name || '').toLowerCase().includes(q));
+      const nameEl = chEl.querySelector('.dp-channel-name');
+      if (nameEl) nameEl.innerHTML = highlightMatch(chEl.dataset.name || '', q);
     });
     app.querySelectorAll('.dp-category').forEach((catEl) => {
       const list = catEl.nextElementSibling;
@@ -635,6 +718,8 @@ async function renderPreviewPage(id) {
     const q = e.target.value.trim().toLowerCase();
     app.querySelectorAll('.dp-role-row[data-role]').forEach((row) => {
       row.classList.toggle('dp-filtered-out', Boolean(q) && !(row.dataset.roleName || '').toLowerCase().includes(q));
+      const nameEl = row.querySelector('.dp-role-name');
+      if (nameEl) nameEl.innerHTML = highlightMatch(row.dataset.roleName || '', q);
     });
   });
 
@@ -3817,13 +3902,16 @@ async function renderGenerateChoice(guildId, guildName) {
     const templateKey = document.getElementById('gen-template').value;
     const reglementText = document.getElementById('gen-reglement').value.trim();
     const btn = document.getElementById('gen-launch');
+    const originalHtml = btn.innerHTML;
     btn.disabled = true;
+    btn.innerHTML = '<span class="spinner"></span> Generation...';
     try {
       await Api.generateServer(guildId, templateKey, reglementText || undefined);
       withViewTransition(() => renderGenerationScreen(guildId, guildName));
     } catch (err) {
       showToast(err.message, 'error');
       btn.disabled = false;
+      btn.innerHTML = originalHtml;
     }
   });
 }
@@ -4094,7 +4182,82 @@ async function init() {
     backBtn?.click();
   });
 
-  allGuilds = await Api.guilds();
+  // Raccourci "/" pour focus direct sur la recherche (pattern Discord/Linear/
+  // GitHub), sauf si on est deja en train de taper ailleurs.
+  document.addEventListener('keydown', (e) => {
+    if (e.key !== '/' || e.target.matches('input, textarea, [contenteditable]')) return;
+    if (searchBox.style.display === 'none') return;
+    e.preventDefault();
+    if (window.matchMedia('(max-width: 480px)').matches) searchBox.classList.add('search-open');
+    searchInput.focus();
+  });
+
+  const videoToggleBtn = document.getElementById('video-toggle-btn');
+  if (videoToggleBtn) {
+    const applyVideoState = () => {
+      const off = localStorage.getItem('bgVideoOff') === '1';
+      document.body.classList.toggle('bg-video-off', off);
+      videoToggleBtn.classList.toggle('is-off', off);
+      videoToggleBtn.title = off ? 'Reactiver la video de fond' : 'Couper la video de fond';
+    };
+    applyVideoState();
+    videoToggleBtn.addEventListener('click', () => {
+      localStorage.setItem('bgVideoOff', localStorage.getItem('bgVideoOff') === '1' ? '0' : '1');
+      applyVideoState();
+      window.UISound?.click();
+    });
+  }
+
+  const searchToggleBtn = document.getElementById('search-box-toggle');
+  if (searchToggleBtn) {
+    searchToggleBtn.addEventListener('click', () => {
+      searchBox.classList.add('search-open');
+      searchInput.focus();
+    });
+    searchInput.addEventListener('blur', () => {
+      if (!searchInput.value) searchBox.classList.remove('search-open');
+    });
+  }
+
+  const topbarEl = document.getElementById('content-topbar');
+  const contentBodyEl = document.querySelector('.content-body');
+  if (topbarEl && contentBodyEl) {
+    contentBodyEl.addEventListener('scroll', () => {
+      topbarEl.classList.toggle('is-scrolled', contentBodyEl.scrollTop > 4);
+    }, { passive: true });
+  }
+
+  // Cache local de la derniere liste connue : affichage instantane pendant
+  // que la vraie requete part en arriere-plan (stale-while-revalidate).
+  if (!guildId) {
+    try {
+      const cached = JSON.parse(localStorage.getItem('guilds-cache') || 'null');
+      if (Array.isArray(cached)) {
+        allGuilds = cached;
+        renderRail();
+        await renderGuildList();
+      }
+    } catch { /* cache corrompu, on ignore */ }
+  }
+
+  try {
+    allGuilds = await Api.guilds();
+  } catch (err) {
+    app.innerHTML = `
+      <div class="inner"><div class="card">
+        <div class="inline-banner error">
+          <span class="icon">⚠</span>
+          <span class="msg">Impossible de charger tes serveurs (${escapeHtml(err.message)}).</span>
+          <button class="retry-btn" id="guilds-retry">Reessayer</button>
+        </div>
+      </div></div>`;
+    document.getElementById('guilds-retry')?.addEventListener('click', () => { location.reload(); });
+    return;
+  }
+  try {
+    localStorage.setItem('guilds-cache', JSON.stringify(allGuilds));
+    localStorage.setItem('guilds-cache-at', String(Date.now()));
+  } catch { /* quota localStorage depasse, tant pis pour le cache */ }
   renderRail();
 
   if (guildId) {

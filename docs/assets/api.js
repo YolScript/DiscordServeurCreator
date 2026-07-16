@@ -126,11 +126,26 @@ window.Api = (function api() {
 window.showToast = function showToast(message, type = 'success') {
   const toast = document.createElement('div');
   toast.className = `toast ${type}`;
-  toast.textContent = message;
+  const icon = type === 'error' ? '⚠' : '✓';
+  const safeMessage = window.escapeHtml ? window.escapeHtml(message) : String(message ?? '');
+  toast.innerHTML = `<span class="toast-icon" aria-hidden="true">${icon}</span><span>${safeMessage}</span>`;
+  toast.setAttribute('role', 'status');
   document.body.appendChild(toast);
   window.UISound?.[type === 'error' ? 'error' : 'success']?.();
+
+  // Plusieurs toasts a la suite ne doivent pas se superposer a la meme
+  // position fixe : on empile par-dessus les toasts encore visibles.
+  const reflow = () => {
+    let offset = 90;
+    document.querySelectorAll('.toast:not(.leaving)').forEach((t) => {
+      t.style.bottom = `${offset}px`;
+      offset += t.offsetHeight + 10;
+    });
+  };
+  reflow();
+
   setTimeout(() => {
     toast.classList.add('leaving');
-    setTimeout(() => toast.remove(), 220);
+    setTimeout(() => { toast.remove(); reflow(); }, 220);
   }, 4000);
 };
