@@ -640,6 +640,25 @@ function sectionHtml(title, bodyHtml, { id = '', alwaysOpen = false } = {}) {
   return `<div class="section-panel${alwaysOpen ? ' active' : ''}"${id ? ` id="section-${id}"` : ''}>${bodyHtml}</div>`;
 }
 
+// Undo global (roadmap n°112) : la ligne disparait tout de suite, la
+// suppression reelle ne part qu'apres le compte a rebours du toast (Annuler
+// la restaure sans rien avoir supprime).
+function undoableDelete(btn, label, doDelete) {
+  const row = btn.closest('.row') || btn.parentElement;
+  row.style.display = 'none';
+  window.showUndoToast(label, {
+    onUndo: () => { row.style.display = ''; },
+    onExpire: async () => {
+      try {
+        await doDelete();
+      } catch (err) {
+        showToast(err.message, 'error');
+        row.style.display = '';
+      }
+    },
+  });
+}
+
 /* ---------- Rail (guild switcher) ---------- */
 
 function renderRail() {
@@ -4338,16 +4357,12 @@ async function renderAutomationsPage(id, container = app) {
   };
   function wireWebhookDeleteButtons() {
     document.querySelectorAll('.delete-webhook').forEach((btn) => {
-      btn.addEventListener('click', async () => {
-        if (!window.confirm('Supprimer ce webhook ?')) return;
-        try {
+      btn.addEventListener('click', () => {
+        undoableDelete(btn, 'Webhook supprime.', async () => {
           currentWebhooks = currentWebhooks.filter((_, i) => i !== Number(btn.dataset.index));
           await Api.updateConfig(id, { outgoingWebhooks: currentWebhooks });
           refreshWebhookRows();
-          showToast('Webhook supprime.');
-        } catch (err) {
-          showToast(err.message, 'error');
-        }
+        });
       });
     });
   }
@@ -4381,15 +4396,8 @@ async function renderAutomationsPage(id, container = app) {
     }
   });
   container.querySelectorAll('.delete-shop-item').forEach((btn) => {
-    btn.addEventListener('click', async () => {
-      if (!window.confirm('Supprimer cet article de la boutique ?')) return;
-      try {
-        await Api.deleteShopItem(id, btn.dataset.id);
-        showToast('Article supprime.');
-        await renderAutomationsPage(id, container);
-      } catch (err) {
-        showToast(err.message, 'error');
-      }
+    btn.addEventListener('click', () => {
+      undoableDelete(btn, 'Article de boutique supprime.', () => Api.deleteShopItem(id, btn.dataset.id));
     });
   });
 
@@ -4564,15 +4572,8 @@ async function renderAutomationsPage(id, container = app) {
     }
   });
   container.querySelectorAll('.delete-level-role').forEach((btn) => {
-    btn.addEventListener('click', async () => {
-      if (!window.confirm('Supprimer ce role de niveau ?')) return;
-      try {
-        await Api.deleteLevelRole(id, btn.dataset.level);
-        showToast('Role de niveau supprime.');
-        await renderAutomationsPage(id, container);
-      } catch (err) {
-        showToast(err.message, 'error');
-      }
+    btn.addEventListener('click', () => {
+      undoableDelete(btn, 'Role de niveau supprime.', () => Api.deleteLevelRole(id, btn.dataset.level));
     });
   });
 
@@ -4599,15 +4600,8 @@ async function renderAutomationsPage(id, container = app) {
     }
   });
   container.querySelectorAll('.delete-referral-role').forEach((btn) => {
-    btn.addEventListener('click', async () => {
-      if (!window.confirm('Supprimer ce role de parrainage ?')) return;
-      try {
-        await Api.deleteReferralRole(id, btn.dataset.count);
-        showToast('Role de parrainage supprime.');
-        await renderAutomationsPage(id, container);
-      } catch (err) {
-        showToast(err.message, 'error');
-      }
+    btn.addEventListener('click', () => {
+      undoableDelete(btn, 'Role de parrainage supprime.', () => Api.deleteReferralRole(id, btn.dataset.count));
     });
   });
 
@@ -4649,15 +4643,8 @@ async function renderAutomationsPage(id, container = app) {
     }
   });
   container.querySelectorAll('.delete-streamer').forEach((btn) => {
-    btn.addEventListener('click', async () => {
-      if (!window.confirm('Retirer ce streamer ?')) return;
-      try {
-        await Api.deleteStreamer(id, btn.dataset.user, btn.dataset.platform);
-        showToast('Streamer retire.');
-        await renderAutomationsPage(id, container);
-      } catch (err) {
-        showToast(err.message, 'error');
-      }
+    btn.addEventListener('click', () => {
+      undoableDelete(btn, 'Streamer retire.', () => Api.deleteStreamer(id, btn.dataset.user, btn.dataset.platform));
     });
   });
 
@@ -4720,15 +4707,8 @@ async function renderAutomationsPage(id, container = app) {
   });
 
   container.querySelectorAll('.delete-rule').forEach((btn) => {
-    btn.addEventListener('click', async () => {
-      if (!window.confirm('Supprimer cette regle ?')) return;
-      try {
-        await Api.updateConfig(id, { autoRules: (config?.autoRules || []).filter((r) => r.id !== btn.dataset.ruleId) });
-        showToast('Regle supprimee.');
-        await renderAutomationsPage(id, container);
-      } catch (err) {
-        showToast(err.message, 'error');
-      }
+    btn.addEventListener('click', () => {
+      undoableDelete(btn, 'Regle supprimee.', () => Api.updateConfig(id, { autoRules: (config?.autoRules || []).filter((r) => r.id !== btn.dataset.ruleId) }));
     });
   });
 
@@ -4765,15 +4745,8 @@ async function renderAutomationsPage(id, container = app) {
     }
   });
   container.querySelectorAll('.delete-scheduled').forEach((btn) => {
-    btn.addEventListener('click', async () => {
-      if (!window.confirm('Supprimer cette annonce programmee ?')) return;
-      try {
-        await Api.deleteScheduled(id, btn.dataset.id);
-        showToast('Annonce supprimee.');
-        await renderAutomationsPage(id, container);
-      } catch (err) {
-        showToast(err.message, 'error');
-      }
+    btn.addEventListener('click', () => {
+      undoableDelete(btn, 'Annonce programmee supprimee.', () => Api.deleteScheduled(id, btn.dataset.id));
     });
   });
 
@@ -6790,15 +6763,8 @@ async function renderEmbedBuilderPage(id, container = app) {
     });
   });
   container.querySelectorAll('.embed-delete-template').forEach((btn) => {
-    btn.addEventListener('click', async () => {
-      if (!window.confirm('Supprimer ce modele ?')) return;
-      try {
-        await Api.deleteEmbedTemplate(id, btn.dataset.id);
-        showToast('Modele supprime.');
-        await renderEmbedBuilderPage(id, container);
-      } catch (err) {
-        showToast(err.message, 'error');
-      }
+    btn.addEventListener('click', () => {
+      undoableDelete(btn, 'Modele supprime.', () => Api.deleteEmbedTemplate(id, btn.dataset.id));
     });
   });
 
@@ -7022,15 +6988,8 @@ async function renderTemplatesPage(guildId, container = app) {
     }
   });
   container.querySelectorAll('.delete-template').forEach((btn) => {
-    btn.addEventListener('click', async () => {
-      if (!window.confirm('Supprimer ce template ?')) return;
-      try {
-        await Api.deleteTemplate(btn.dataset.id);
-        showToast('Template supprime.');
-        await renderTemplatesPage(guildId, container);
-      } catch (err) {
-        showToast(err.message, 'error');
-      }
+    btn.addEventListener('click', () => {
+      undoableDelete(btn, 'Template supprime.', () => Api.deleteTemplate(btn.dataset.id));
     });
   });
 }
@@ -7090,15 +7049,8 @@ async function renderCustomCommandsPage(guildId, container = app) {
     }
   });
   container.querySelectorAll('.delete-custom-command').forEach((btn) => {
-    btn.addEventListener('click', async () => {
-      if (!window.confirm('Supprimer cette commande ?')) return;
-      try {
-        await Api.deleteCustomCommand(guildId, btn.dataset.id);
-        showToast('Commande supprimee.');
-        await renderCustomCommandsPage(guildId, container);
-      } catch (err) {
-        showToast(err.message, 'error');
-      }
+    btn.addEventListener('click', () => {
+      undoableDelete(btn, 'Commande supprimee.', () => Api.deleteCustomCommand(guildId, btn.dataset.id));
     });
   });
 }
