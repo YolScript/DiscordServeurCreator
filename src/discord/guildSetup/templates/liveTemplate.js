@@ -144,7 +144,7 @@ async function buildLiveTemplate(client, sourceGuildId = SOURCE_GUILD_ID, label)
 
   return {
     key: 'live',
-    label: label || `Copie de ${sourceGuild.name} (a jour)`,
+    label: label || `${sourceGuild.name} (a jour)`,
     ROLE_BLUEPRINT,
     getChannelBlueprint,
     specialKeys: {

@@ -280,7 +280,7 @@ async function router(request, env) {
       });
 
       return json({
-        label: label || `Copie de ${sourceGuild?.name || 'ServeurCreator'} (a jour)`,
+        label: label || `${sourceGuild?.name || 'ServeurCreator'} (a jour)`,
         guildIconUrl: sourceGuild?.icon ? `https://cdn.discordapp.com/icons/${sourceGuildId}/${sourceGuild.icon}.png?size=64` : null,
         roles: previewRoles,
         gameRoles: gameRolesCatalog.map((r) => ({ name: r.displayName, color: r.colorHex || '#5865f2' })),

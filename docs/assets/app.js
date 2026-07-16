@@ -3763,12 +3763,12 @@ async function renderGenerateChoice(guildId, guildName) {
   app.innerHTML = skeletonHtml();
   const savedTemplates = await Api.templates().catch(() => []);
   const templateOptions = [
-    { key: 'live', label: 'Copie de ServeurCreator (a jour)' },
+    { key: 'live', label: 'ServeurCreator (a jour)' },
     ...savedTemplates.map((t) => ({ key: `live:${t.id}`, label: t.name })),
   ];
 
   app.innerHTML = `
-    <div class="inner wide">
+    <div class="inner wide fill">
       ${sectionHtml(`Generer "${escapeHtml(guildName)}"`, `
         <p class="dp-panel-title">🪄 Generer "${escapeHtml(guildName)}"</p>
         <p class="muted">Choisis un template : sa structure (roles, salons, permissions, textes) sera recreee en direct sur ce serveur.</p>

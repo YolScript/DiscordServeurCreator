@@ -1,7 +1,7 @@
 const { buildLiveTemplate, SOURCE_GUILD_ID } = require('./liveTemplate');
 const templateRegistryStore = require('../../../kv/templateRegistryStore');
 
-const DEFAULT_TEMPLATE_CHOICE = { key: 'live', label: 'Copie de ServeurCreator (a jour)' };
+const DEFAULT_TEMPLATE_CHOICE = { key: 'live', label: 'ServeurCreator (a jour)' };
 
 // Liste dynamique : le choix par defaut (ServeurCreator) + tous les
 // templates enregistres via le dashboard (n'importe quel serveur configure
