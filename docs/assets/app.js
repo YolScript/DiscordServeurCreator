@@ -5252,10 +5252,12 @@ async function renderMemberLookupPage(id, container = app) {
     if (existing?.classList.contains('member-warns-detail')) { existing.remove(); return; }
     container.querySelectorAll('.member-warns-detail').forEach((el) => el.remove());
     const targetUserId = warnsBtn.dataset.warnsUser;
-    // Casier unifie (roadmap n°149) : warns + note interne staff (n°148).
-    const [warns, note] = await Promise.all([
+    // Casier unifie (roadmap n°149) : warns + note interne (n°148) +
+    // inventaire boutique (n°156).
+    const [warns, note, inventory] = await Promise.all([
       Api.memberWarns(id, targetUserId).catch(() => []),
       Api.memberNote(id, targetUserId).catch(() => ({ text: '' })),
+      Api.memberInventory(id, targetUserId).catch(() => []),
     ]);
     const rows = warns.slice().reverse().map((w) => `
       <div class="member-warn-row">
@@ -5265,6 +5267,9 @@ async function renderMemberLookupPage(id, container = app) {
     row.insertAdjacentHTML('afterend', `
       <div class="member-warns-detail">
         ${rows || '<p class="muted" style="margin:0;">Aucune sanction enregistree.</p>'}
+        ${inventory.length ? `
+          <label style="margin-top:8px; font-size:0.76rem;">🎒 Inventaire (${inventory.length} achat(s))</label>
+          <div style="display:flex; flex-wrap:wrap; gap:3px;">${inventory.slice().reverse().slice(0, 12).map((it) => `<span class="dp-chip" title="Achete le ${new Date(it.boughtAt).toLocaleString('fr-FR')} pour ${it.price} pieces">${escapeHtml(it.name)}</span>`).join('')}</div>` : ''}
         <label style="margin-top:8px; font-size:0.76rem;">📝 Note interne (staff uniquement)${note.author ? ` <span class="muted">— ${escapeHtml(note.author)}, ${new Date(note.updatedAt).toLocaleString('fr-FR')}</span>` : ''}</label>
         <textarea class="member-note-text" maxlength="2000" placeholder="Contexte, historique, points d'attention..." style="min-height:56px;">${escapeHtml(note.text || '')}</textarea>
         <button type="button" class="btn secondary member-note-save" data-note-user="${targetUserId}" style="align-self:flex-start;">Enregistrer la note</button>

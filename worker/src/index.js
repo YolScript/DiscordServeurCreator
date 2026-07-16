@@ -943,6 +943,13 @@ async function router(request, env) {
       return json(warns, env);
     }
 
+    // Inventaire des achats boutique d'un membre (roadmap n°156), ecrit par
+    // le bot a chaque achat.
+    if (sub === 'members' && parts[5] === 'inventory' && parts.length === 6 && method === 'GET') {
+      await requireGuildAccess(env, request, guildId);
+      return json((await env.GUILD_KV.get(`guild:${guildId}:inventory:${parts[4]}`, 'json')) || [], env);
+    }
+
     // Note interne staff par membre (roadmap n°148) : visible uniquement
     // dans le dashboard, jamais cote Discord.
     if (sub === 'members' && parts[5] === 'note' && parts.length === 6) {

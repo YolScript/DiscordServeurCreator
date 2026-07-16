@@ -55,6 +55,7 @@ window.Api = (function api() {
     timeoutMember: (guildId, userId, minutes) => request(`/api/guilds/${guildId}/members/${userId}/timeout`, { method: 'POST', body: JSON.stringify({ minutes }) }),
     memberWarns: (guildId, userId) => request(`/api/guilds/${guildId}/members/${userId}/warns`),
     memberNote: (guildId, userId) => request(`/api/guilds/${guildId}/members/${userId}/note`),
+    memberInventory: (guildId, userId) => request(`/api/guilds/${guildId}/members/${userId}/inventory`),
     saveMemberNote: (guildId, userId, text) => request(`/api/guilds/${guildId}/members/${userId}/note`, { method: 'PUT', body: JSON.stringify({ text }) }),
     xp: (guildId) => request(`/api/guilds/${guildId}/xp`),
     suggestions: (guildId) => request(`/api/guilds/${guildId}/suggestions`),
