@@ -5605,6 +5605,50 @@ const EMBED_PRESETS = [
   { key: 'bienvenue', label: '👋 Bienvenue', embed: { title: '👋 Bienvenue sur {server} !', description: 'Nous sommes deja **{memberCount} membres**.\n- Lis le reglement\n- Recupere tes roles\n- Presente-toi quand tu veux !', color: 0x57f287 } },
   { key: 'giveaway', label: '🎉 Giveaway', embed: { title: '🎉 GIVEAWAY', description: '**Lot :** ...\n**Fin :** ...\n**Pour participer :** reagis avec 🎉', color: 0xfee75c, footer: { text: 'Bonne chance a tous !' } } },
   { key: 'patchnote', label: '🛠️ Patch note', embed: { title: '🛠️ Mise a jour du {date}', description: '**Nouveau**\n- ...\n\n**Corrige**\n- ...', color: 0x5865f2 } },
+  // Bibliotheque etendue (roadmap n°126).
+  {
+    key: 'faq',
+    label: '❓ FAQ',
+    embed: {
+      title: '❓ Questions frequentes',
+      color: 0x5b8def,
+      fields: [
+        { name: 'Comment obtenir mes roles ?', value: 'Rends-toi dans le salon des roles et clique sur les boutons.', inline: false },
+        { name: 'Comment contacter le staff ?', value: 'Ouvre un ticket dans le salon support.', inline: false },
+        { name: 'Comment monter de niveau ?', value: 'Participe aux discussions : chaque message et minute en vocal rapporte de l\'XP.', inline: false },
+      ],
+      footer: { text: 'Une autre question ? Ouvre un ticket !' },
+    },
+  },
+  {
+    key: 'evenement',
+    label: '🗓️ Evenement',
+    embed: {
+      title: '🗓️ Evenement communautaire',
+      description: '**Quoi :** ...\n**Quand :** ...\n**Ou :** salon vocal principal\n\nReagis avec ✅ pour t\'inscrire !',
+      color: 0x30a46c,
+      footer: { text: '{server} — on t\'attend !' },
+    },
+  },
+  {
+    key: 'partenariat',
+    label: '🤝 Partenariat',
+    embed: {
+      title: '🤝 Nouveau partenariat',
+      description: 'Nous sommes fiers de nous associer avec **...** !\n\n**Ce que ca apporte :**\n- ...\n- ...\n\nLien d\'invitation : ...',
+      color: 0xd9a03c,
+    },
+  },
+  {
+    key: 'recrutement',
+    label: '🧑‍💼 Recrutement staff',
+    embed: {
+      title: '🧑‍💼 On recrute !',
+      description: 'Le staff de **{server}** s\'agrandit.\n\n**Postes ouverts :** moderateur, animateur\n**Conditions :** actif, majeur, motive\n**Pour postuler :** ouvre un ticket avec le motif « candidature ».',
+      color: 0xc97a5c,
+      footer: { text: 'Candidatures ouvertes jusqu\'au ...' },
+    },
+  },
 ];
 
 // Variables dynamiques (n°004) : resolues dans l'apercu ET au moment de
