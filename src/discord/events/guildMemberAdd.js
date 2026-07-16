@@ -5,6 +5,7 @@ const antiRaid = require('../moderation/antiRaid');
 const inviteTracker = require('../engagement/inviteTracker');
 const webhookDispatcher = require('../automation/webhookDispatcher');
 const { applyPlaceholders } = require('../../shared/placeholders');
+const { generateWelcomeCard } = require('../engagement/welcomeCard');
 const logger = require('../../shared/logger');
 
 client.on(Events.GuildMemberAdd, async (member) => {
@@ -42,7 +43,19 @@ client.on(Events.GuildMemberAdd, async (member) => {
       .setFooter({ text: member.guild.name, iconURL: member.guild.iconURL() ?? undefined })
       .setTimestamp();
 
-    await channel.send({ embeds: [embed] });
+    // Carte de bienvenue en image (roadmap n°092) : jointe au message et
+    // affichee dans l'embed. En cas d'echec (avatar inaccessible, fonte...),
+    // le message part sans image, comme avant.
+    let files;
+    try {
+      const card = await generateWelcomeCard(member);
+      files = [{ attachment: card, name: 'bienvenue.png' }];
+      embed.setImage('attachment://bienvenue.png');
+    } catch (err) {
+      logger.error('welcomeCard.generate', err);
+    }
+
+    await channel.send({ embeds: [embed], ...(files ? { files } : {}) });
   } catch (err) {
     logger.error('guildMemberAdd', err);
   }
