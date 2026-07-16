@@ -41,9 +41,41 @@ function checkSpam(guildId, userId, modConfig) {
   return timestamps.length > modConfig.spamMessageThreshold;
 }
 
-async function takeAction(message, guildConfig, reason) {
+// Slowmode automatique (roadmap n°080) : quand un salon depasse N messages
+// (tous auteurs confondus) sur 10 s, on active un mode lent temporaire puis
+// on le retire une fois le calme revenu. En memoire process uniquement.
+const channelWindows = new Map();
+const activeSlowmodes = new Map();
+
+async function maybeAutoSlowmode(message, modConfig) {
+  if (!modConfig.autoSlowmodeEnabled) return;
+  const channel = message.channel;
+  if (!channel?.setRateLimitPerUser || channel.rateLimitPerUser > 0) return;
+  if (activeSlowmodes.has(channel.id)) return;
+
+  const now = Date.now();
+  const stamps = (channelWindows.get(channel.id) ?? []).filter((t) => now - t < 10000);
+  stamps.push(now);
+  channelWindows.set(channel.id, stamps);
+  if (stamps.length <= (modConfig.autoSlowmodeMsgPer10s ?? 20)) return;
+
+  const seconds = modConfig.autoSlowmodeSeconds ?? 5;
+  const durationMs = (modConfig.autoSlowmodeDurationMin ?? 5) * 60000;
+  await channel.setRateLimitPerUser(seconds, 'Slowmode automatique (pic de messages)').catch(() => { activeSlowmodes.delete(channel.id); });
+  activeSlowmodes.set(channel.id, setTimeout(async () => {
+    activeSlowmodes.delete(channel.id);
+    await channel.setRateLimitPerUser(0, 'Fin du slowmode automatique').catch(() => {});
+  }, durationMs));
+  await postModLog(message.guild, {
+    title: 'Slowmode automatique',
+    description: `Mode lent ${seconds} s active dans <#${channel.id}> pendant ${Math.round(durationMs / 60000)} min (pic d'activite).`,
+    color: 0xd3a13a,
+  });
+}
+
+async function takeAction(message, guildConfig, reason, modConfig) {
   await message.delete().catch(() => {});
-  await warnStore.add(message.guild.id, message.author.id, {
+  const warns = await warnStore.add(message.guild.id, message.author.id, {
     reason, moderatorId: message.client.user.id, source: 'automod',
   });
   await postModLog(message.guild, {
@@ -53,6 +85,24 @@ async function takeAction(message, guildConfig, reason) {
     fields: [{ name: 'Raison', value: reason }],
   });
   await message.author.send(`Ton message a ete supprime sur **${message.guild.name}** : ${reason}`).catch(() => {});
+
+  // Escalade progressive (roadmap n°073/074) : au-dela de N infractions
+  // automod dans la derniere heure, timeout automatique.
+  const threshold = modConfig?.autoTimeoutAfterWarns ?? 0;
+  if (threshold > 0) {
+    const oneHourAgo = Date.now() - 3600000;
+    const recent = warns.filter((w) => w.source === 'automod' && w.createdAt > oneHourAgo);
+    if (recent.length >= threshold && message.member?.moderatable) {
+      const minutes = modConfig.autoTimeoutMinutes ?? 10;
+      await message.member.timeout(minutes * 60000, `Automod : ${recent.length} infractions en 1 h`).catch(() => {});
+      await postModLog(message.guild, {
+        title: 'Timeout automatique',
+        description: `<@${message.author.id}> reduit au silence ${minutes} min (${recent.length} infractions automod en 1 h).`,
+        color: 0xe5484d,
+      });
+      await message.author.send(`Tu es reduit au silence ${minutes} min sur **${message.guild.name}** (infractions repetees).`).catch(() => {});
+    }
+  }
 }
 
 async function handleMessageCreate(message) {
@@ -80,24 +130,26 @@ async function handleMessageCreate(message) {
     if (!modConfig.autoModEnabled || isStaff(message.member, guildConfig)) return;
 
     if (modConfig.blockInvites && INVITE_REGEX.test(content)) {
-      await takeAction(message, guildConfig, 'lien d\'invitation Discord non autorise');
+      await takeAction(message, guildConfig, 'lien d\'invitation Discord non autorise', modConfig);
       return;
     }
     if (modConfig.blockLinks) {
       const disallowed = disallowedHostnames(content, modConfig.linkWhitelist || []);
       if (disallowed.length) {
-        await takeAction(message, guildConfig, `lien externe non autorise (${disallowed[0]})`);
+        await takeAction(message, guildConfig, `lien externe non autorise (${disallowed[0]})`, modConfig);
         return;
       }
     }
     const bannedHit = modConfig.bannedWords.find((w) => matchesBannedWord(content, w));
     if (bannedHit) {
-      await takeAction(message, guildConfig, `mot interdit ("${bannedHit}")`);
+      await takeAction(message, guildConfig, `mot interdit ("${bannedHit}")`, modConfig);
       return;
     }
     if (checkSpam(message.guild.id, message.author.id, modConfig)) {
-      await takeAction(message, guildConfig, 'spam (trop de messages en peu de temps)');
+      await takeAction(message, guildConfig, 'spam (trop de messages en peu de temps)', modConfig);
+      return;
     }
+    await maybeAutoSlowmode(message, modConfig);
   } catch (err) {
     logger.error('autoMod', err);
   }

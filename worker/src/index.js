@@ -541,6 +541,28 @@ async function router(request, env) {
       })), env);
     }
 
+    // Timeout d'un membre depuis le dashboard (roadmap n°075).
+    // minutes = 0 leve le timeout en cours.
+    if (sub === 'members' && parts[5] === 'timeout' && parts.length === 6 && method === 'POST') {
+      const session = await requireGuildAccess(env, request, guildId);
+      const targetId = parts[4];
+      const { minutes } = await readJson(request);
+      const mins = Number(minutes);
+      if (!Number.isFinite(mins) || mins < 0 || mins > 40320) throw new HttpError(400, 'Duree invalide (0 a 40320 minutes).');
+      const until = mins === 0 ? null : new Date(Date.now() + mins * 60000).toISOString();
+      const res = await botFetch(env, `/guilds/${guildId}/members/${targetId}`, {
+        method: 'PATCH',
+        body: JSON.stringify({ communication_disabled_until: until }),
+        headers: { 'X-Audit-Log-Reason': `Dashboard : ${session.username}` },
+      });
+      if (!res.ok) throw new HttpError(res.status === 403 ? 403 : 500, res.status === 403 ? 'Le bot ne peut pas timeout ce membre (role trop haut ?).' : 'Echec du timeout.');
+      await logAudit(env, guildId, {
+        title: mins === 0 ? 'Timeout leve' : 'Timeout applique',
+        description: `${session.username} ${mins === 0 ? 'a leve le timeout de' : `a reduit au silence ${mins} min`} <@${targetId}>.`,
+      });
+      return json({ ok: true, until }, env);
+    }
+
     if (sub === 'config' && parts.length === 4) {
       await requireGuildAccess(env, request, guildId);
       if (method === 'GET') {

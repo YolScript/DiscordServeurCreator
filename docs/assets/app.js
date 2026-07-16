@@ -3125,6 +3125,13 @@ async function renderAutomationsPage(id, container = app) {
         <label class="dp-toggle-row" style="margin-top:6px;"><span>Anti-raid actif</span><input type="checkbox" id="am-antiraid" ${modConfig.antiRaidEnabled ? 'checked' : ''} /></label>
         <label for="am-antiraid-threshold">Seuil anti-raid (arrivees rapprochees)</label>
         <input type="number" id="am-antiraid-threshold" value="${modConfig.antiRaidJoinThreshold}" min="1" />
+        <label for="am-auto-timeout">Timeout automatique apres N infractions en 1 h (0 = jamais)</label>
+        <input type="number" id="am-auto-timeout" value="${modConfig.autoTimeoutAfterWarns ?? 3}" min="0" />
+        <label for="am-auto-timeout-min">Duree du timeout automatique (minutes)</label>
+        <input type="number" id="am-auto-timeout-min" value="${modConfig.autoTimeoutMinutes ?? 10}" min="1" />
+        <label class="dp-toggle-row" style="margin-top:6px;"><span>Slowmode automatique en cas de pic de messages</span><input type="checkbox" id="am-auto-slowmode" ${modConfig.autoSlowmodeEnabled ? 'checked' : ''} /></label>
+        <label for="am-slowmode-threshold">Seuil du slowmode (messages par 10 s dans un salon)</label>
+        <input type="number" id="am-slowmode-threshold" value="${modConfig.autoSlowmodeMsgPer10s ?? 20}" min="5" />
         <button class="btn" id="save-modconfig" style="margin-top:12px;">Enregistrer</button>
       `, { id: 'automod' })}
 
@@ -3379,6 +3386,10 @@ async function renderAutomationsPage(id, container = app) {
         linkWhitelist: document.getElementById('am-link-whitelist').value.split(',').map((w) => w.trim()).filter(Boolean),
         antiRaidEnabled: document.getElementById('am-antiraid').checked,
         antiRaidJoinThreshold: Number(document.getElementById('am-antiraid-threshold').value) || 8,
+        autoTimeoutAfterWarns: Math.max(0, Number(document.getElementById('am-auto-timeout').value) || 0),
+        autoTimeoutMinutes: Math.max(1, Number(document.getElementById('am-auto-timeout-min').value) || 10),
+        autoSlowmodeEnabled: document.getElementById('am-auto-slowmode').checked,
+        autoSlowmodeMsgPer10s: Math.max(5, Number(document.getElementById('am-slowmode-threshold').value) || 20),
       });
       showToast('Auto-moderation enregistree.');
     } catch (err) {
@@ -3740,6 +3751,9 @@ async function renderMemberLookupPage(id, container = app) {
           </div>
         </div>
         <div class="member-lookup-roles">${roleChips}</div>
+        <div class="member-lookup-actions">
+          <button type="button" class="member-timeout-btn" data-timeout-user="${m.userId}" data-timeout-name="${escapeHtml(m.displayName || m.userId)}" title="Reduire au silence temporairement" aria-label="Timeout de ${escapeHtml(m.displayName || m.userId)}">🔇</button>
+        </div>
       </div>`;
   };
 
@@ -3759,6 +3773,26 @@ async function renderMemberLookupPage(id, container = app) {
       ? sorted.filter((m) => (m.displayName || '').toLowerCase().includes(q) || m.userId.includes(q))
       : sorted;
     document.getElementById('member-lookup-list').innerHTML = filtered.map((m) => rowHtml(m, e.target.value.trim())).join('') || '<p class="muted">Aucun resultat.</p>';
+  });
+
+  // Timeout depuis le dashboard (roadmap n°075) : delegation sur la liste
+  // (les lignes sont re-rendues a chaque frappe de recherche).
+  container.querySelector('#member-lookup-list').closest('.section-panel, .inner')?.addEventListener('click', async (e) => {
+    const btn = e.target.closest('.member-timeout-btn');
+    if (!btn) return;
+    const answer = window.prompt(
+      `Timeout de ${btn.dataset.timeoutName} — duree en minutes ?\n(10 = 10 min, 60 = 1 h, 1440 = 24 h, 0 = lever le timeout)`,
+      '10',
+    );
+    if (answer === null) return;
+    const minutes = Number(answer);
+    if (!Number.isFinite(minutes) || minutes < 0) { showToast('Duree invalide.', 'error'); return; }
+    try {
+      await Api.timeoutMember(id, btn.dataset.timeoutUser, minutes);
+      showToast(minutes === 0 ? 'Timeout leve.' : `${btn.dataset.timeoutName} reduit au silence ${minutes} min.`);
+    } catch (err) {
+      showToast(err.message, 'error');
+    }
   });
 }
 

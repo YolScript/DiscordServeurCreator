@@ -14,6 +14,16 @@ const DEFAULTS = {
   antiRaidJoinThreshold: 8,
   antiRaidIntervalMs: 10000,
   linkWhitelist: [],
+  // Escalade progressive (roadmap n°073/074) : timeout automatique apres
+  // N infractions automod dans l'heure. 0 = desactive.
+  autoTimeoutAfterWarns: 3,
+  autoTimeoutMinutes: 10,
+  // Slowmode automatique (roadmap n°080) : mode lent temporaire quand un
+  // salon s'emballe. Desactive par defaut.
+  autoSlowmodeEnabled: false,
+  autoSlowmodeMsgPer10s: 20,
+  autoSlowmodeSeconds: 5,
+  autoSlowmodeDurationMin: 5,
 };
 
 async function find(guildId) {
