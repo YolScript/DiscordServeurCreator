@@ -1317,7 +1317,10 @@ button.embed-json-jump { background: none; border: none; padding: 0; font-family
   .dp-drawer-btn.left { left: 12px; }
   .dp-drawer-btn.right { right: 12px; }
   .dp-copy-id-btn, .dp-category-settings, .dp-role-settings, .dp-category-sort,
-  .embed-field-remove, .embed-field-handle { opacity: 1; min-width: 34px; min-height: 34px; }
+  .embed-field-remove, .embed-field-handle, .embed-field-duplicate,
+  .member-warns-btn, .member-timeout-btn, .dp-chat-copy, .embed-md-btn,
+  .dp-fav-star, .embed-var-chip { opacity: 1; min-width: 34px; min-height: 34px; }
+  .dp-ai-suggestion, .dp-drawer-btn { min-height: 44px; }
   .dp-pin-btn { display: none; }
 }
 .embed-char-total {

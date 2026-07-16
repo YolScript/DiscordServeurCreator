@@ -46,6 +46,7 @@ import { buildCalendarIcs } from './calendar.js';
 import {
   twitchLoginRedirect, handleTwitchCallback, syncTwitchSubs, getTwitchSubs, disconnectTwitch, syncAllTwitchSubs,
 } from './twitch.js';
+import { getTrash, pushTrash, removeTrash } from './trash.js';
 
 // Serveur de reference dont la structure est lue en direct pour le template
 // "live" (miroir de SOURCE_GUILD_ID dans src/discord/guildSetup/templates/liveTemplate.js).
@@ -689,9 +690,24 @@ async function router(request, env) {
     if (sub === 'roles' && parts.length === 5 && method === 'DELETE') {
       const session = await requireGuildAccess(env, request, guildId);
       const roleId = parts[4];
+      // Corbeille (roadmap n°138) : photographie AVANT suppression.
+      const roleSnapshot = (await botFetchJson(env, `/guilds/${guildId}/roles`).catch(() => [])).find((r) => r.id === roleId);
+      if (roleSnapshot) {
+        await pushTrash(env, guildId, {
+          kind: 'role',
+          name: roleSnapshot.name,
+          data: {
+            name: roleSnapshot.name,
+            color: roleSnapshot.color,
+            permissions: roleSnapshot.permissions,
+            hoist: roleSnapshot.hoist,
+            mentionable: roleSnapshot.mentionable,
+          },
+        });
+      }
       const res = await botFetch(env, `/guilds/${guildId}/roles/${roleId}`, { method: 'DELETE' });
       if (!res.ok) throw new HttpError(res.status === 404 ? 404 : 502, "Impossible de supprimer ce role.");
-      await logAudit(env, guildId, { title: 'Role supprime', description: `${session.username} a supprime un role (${roleId}).` });
+      await logAudit(env, guildId, { title: 'Role supprime', description: `${session.username} a supprime un role (${roleId}). Restaurable 24h dans la corbeille.` });
       return json({ ok: true }, env);
     }
 
@@ -1145,10 +1161,53 @@ async function router(request, env) {
         return json(channel, env);
       }
       if (method === 'DELETE') {
+        // Corbeille (roadmap n°138) : photographie AVANT suppression.
+        const snapshot = await botFetchJson(env, `/channels/${channelId}`).catch(() => null);
+        if (snapshot) {
+          await pushTrash(env, guildId, {
+            kind: snapshot.type === 4 ? 'category' : 'channel',
+            name: snapshot.name,
+            data: {
+              name: snapshot.name,
+              type: snapshot.type,
+              topic: snapshot.topic || undefined,
+              nsfw: snapshot.nsfw || undefined,
+              rate_limit_per_user: snapshot.rate_limit_per_user || undefined,
+              parent_id: snapshot.parent_id || undefined,
+              permission_overwrites: snapshot.permission_overwrites || [],
+              user_limit: snapshot.user_limit || undefined,
+              bitrate: snapshot.bitrate || undefined,
+            },
+          });
+        }
         await botFetch(env, `/channels/${channelId}`, { method: 'DELETE' });
-        await logAudit(env, guildId, { title: 'Salon supprime', description: `${session.username} a supprime un salon (${channelId}).` });
+        await logAudit(env, guildId, { title: 'Salon supprime', description: `${session.username} a supprime un salon (${channelId}). Restaurable 24h dans la corbeille.` });
         return json({ ok: true }, env);
       }
+    }
+
+    // Corbeille (roadmap n°138) : liste + restauration des elements
+    // supprimes il y a moins de 24h.
+    if (sub === 'trash' && parts.length === 4 && method === 'GET') {
+      await requireGuildAccess(env, request, guildId);
+      return json(await getTrash(env, guildId), env);
+    }
+    if (sub === 'trash' && parts[5] === 'restore' && parts.length === 6 && method === 'POST') {
+      const session = await requireGuildAccess(env, request, guildId);
+      const entry = (await getTrash(env, guildId)).find((t) => t.id === parts[4]);
+      if (!entry) throw new HttpError(404, 'Element introuvable dans la corbeille (expire ?).');
+      let restored;
+      if (entry.kind === 'role') {
+        restored = await botFetchJson(env, `/guilds/${guildId}/roles`, { method: 'POST', body: JSON.stringify(entry.data) });
+      } else {
+        // La categorie parente peut avoir disparu depuis : premier essai avec,
+        // second sans si Discord refuse.
+        restored = await botFetchJson(env, `/guilds/${guildId}/channels`, { method: 'POST', body: JSON.stringify(entry.data) })
+          .catch(() => botFetchJson(env, `/guilds/${guildId}/channels`, { method: 'POST', body: JSON.stringify({ ...entry.data, parent_id: undefined }) }));
+      }
+      await removeTrash(env, guildId, entry.id);
+      await logAudit(env, guildId, { title: 'Restauration depuis la corbeille', description: `${session.username} a restaure ${entry.kind === 'role' ? 'le role' : 'le salon'} "${entry.name}".` });
+      return json({ ok: true, restoredId: restored.id }, env);
     }
 
     if (sub === 'roles' && parts[5] === 'reset-default' && method === 'POST') {

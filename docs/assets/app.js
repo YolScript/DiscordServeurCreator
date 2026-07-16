@@ -4370,7 +4370,21 @@ async function renderAutomationsPage(id, container = app) {
 
 async function renderSecurityPage(id, container = app) {
   container.innerHTML = skeletonHtml();
-  const snapshots = await Api.securitySnapshots(id);
+  const [snapshots, trashItems] = await Promise.all([
+    Api.securitySnapshots(id),
+    Api.trash(id).catch(() => []),
+  ]);
+
+  // Corbeille (roadmap n°138) : elements supprimes restaurables 24h.
+  const trashRows = trashItems.slice().reverse().map((t) => {
+    const icon = t.kind === 'role' ? '🏷️' : t.kind === 'category' ? '📁' : '#️⃣';
+    const remaining = Math.max(1, Math.round((24 * 3600000 - (Date.now() - t.deletedAt)) / 3600000));
+    return `
+      <div class="row" style="justify-content:space-between; margin-bottom:6px;">
+        <span>${icon} ${escapeHtml(t.name)} <span class="muted" style="font-size:0.76rem;">— supprime ${new Date(t.deletedAt).toLocaleString('fr-FR', { day: '2-digit', month: '2-digit', hour: '2-digit', minute: '2-digit' })}, expire dans ~${remaining}h</span></span>
+        <button class="btn secondary trash-restore" data-trash-id="${t.id}">♻️ Restaurer</button>
+      </div>`;
+  }).join('') || '<p class="muted">Corbeille vide. Les salons et roles supprimes via le dashboard restent restaurables ici pendant 24h.</p>';
 
   const snapshotRows = snapshots.map((s, idx) => `
     <div class="row" data-idx="${idx}" style="justify-content:space-between; margin-bottom:6px;">
@@ -4400,6 +4414,11 @@ async function renderSecurityPage(id, container = app) {
         <div id="snapshots-list">${snapshotRows}</div>
       `, { id: 'sec-snapshots' })}
 
+      ${sectionHtml('Corbeille (24h)', `
+        <p class="muted">Tout salon, categorie ou role supprime depuis le dashboard atterrit ici et peut etre recree a l'identique (nom, reglages, permissions — nouvel identifiant Discord).</p>
+        <div id="trash-list">${trashRows}</div>
+      `, { id: 'sec-trash' })}
+
       ${sectionHtml('Lockdown', `
         <p class="muted">Verrouille immediatement le serveur (verification maximale : email verifie + compte Discord de plus de 10 minutes requis pour interagir). Utile en cas de raid en cours.</p>
         <div class="row">
@@ -4409,6 +4428,21 @@ async function renderSecurityPage(id, container = app) {
       `, { id: 'sec-lockdown' })}
     </div>
   `;
+
+  // Corbeille (roadmap n°138) : restauration en un clic.
+  container.querySelectorAll('.trash-restore').forEach((btn) => {
+    btn.addEventListener('click', async () => {
+      btn.disabled = true;
+      try {
+        await Api.restoreTrash(id, btn.dataset.trashId);
+        showToast('Element restaure sur le serveur.');
+        await renderSecurityPage(id, container);
+      } catch (err) {
+        showToast(err.message, 'error');
+        btn.disabled = false;
+      }
+    });
+  });
 
   document.getElementById('export-structure').addEventListener('click', async () => {
     try {
