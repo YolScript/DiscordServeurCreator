@@ -4160,7 +4160,9 @@ async function renderAutomationsPage(id, container = app) {
       ? `donner le role ${escapeHtml(roles.find((ro) => ro.id === r.action.roleId)?.name || '?')}`
       : r.action?.type === 'react'
         ? `reagir ${escapeHtml(r.action.emoji || '')}`
-        : `envoyer un message dans #${escapeHtml(channels.find((c) => c.id === r.action?.channelId)?.name || '?')}`;
+        : r.action?.type === 'reply'
+          ? 'repondre au message'
+          : `envoyer un message dans #${escapeHtml(channels.find((c) => c.id === r.action?.channelId)?.name || '?')}`;
     return `
           <div class="row" style="justify-content:space-between; margin-bottom:6px;">
             <span style="font-size:0.85rem;">⚡ Si <strong>${trigLabel}</strong> → ${actLabel}</span>
@@ -4188,6 +4190,7 @@ async function renderAutomationsPage(id, container = app) {
             <select id="rule-action">
               <option value="add_role">Donner un role</option>
               <option value="send_message">Envoyer un message</option>
+              <option value="reply">Repondre au message (repondeur)</option>
               <option value="react">Reagir avec un emoji</option>
             </select>
           </div>
@@ -4669,7 +4672,7 @@ async function renderAutomationsPage(id, container = app) {
     document.getElementById('rule-trigchan-wrap').style.display = isKeyword ? '' : 'none';
     document.getElementById('rule-role-wrap').style.display = action === 'add_role' ? '' : 'none';
     document.getElementById('rule-chan-wrap').style.display = action === 'send_message' ? '' : 'none';
-    document.getElementById('rule-msg-wrap').style.display = action === 'send_message' ? '' : 'none';
+    document.getElementById('rule-msg-wrap').style.display = (action === 'send_message' || action === 'reply') ? '' : 'none';
     document.getElementById('rule-emoji-wrap').style.display = action === 'react' ? '' : 'none';
   };
   ruleTriggerSel.addEventListener('change', refreshRuleForm);
@@ -4688,14 +4691,14 @@ async function renderAutomationsPage(id, container = app) {
       const trigChan = document.getElementById('rule-trigchan').value;
       if (trigChan) trigger.channelId = trigChan;
     }
-    if (actionType === 'react' && triggerType !== 'keyword') {
-      showToast('« Reagir » ne marche qu\'avec un declencheur mot-cle.', 'error');
+    if ((actionType === 'react' || actionType === 'reply') && triggerType !== 'keyword') {
+      showToast('« Reagir » et « Repondre » ne marchent qu\'avec un declencheur mot-cle.', 'error');
       return;
     }
     const action = { type: actionType };
     if (actionType === 'add_role') action.roleId = document.getElementById('rule-role').value;
-    if (actionType === 'send_message') {
-      action.channelId = document.getElementById('rule-chan').value;
+    if (actionType === 'send_message' || actionType === 'reply') {
+      if (actionType === 'send_message') action.channelId = document.getElementById('rule-chan').value;
       action.message = document.getElementById('rule-msg').value.trim();
       if (!action.message) { showToast('Message requis.', 'error'); return; }
     }

@@ -40,6 +40,9 @@ async function applyAction(rule, { guild, member, message }) {
     if (channel) await channel.send(renderText(action.message, member)).catch(() => {});
   } else if (action.type === 'react' && action.emoji && message) {
     await message.react(action.emoji).catch(() => {});
+  } else if (action.type === 'reply' && action.message && message && member) {
+    // Repondeur automatique (roadmap n°199) : repond au message declencheur.
+    await message.reply(renderText(action.message, member)).catch(() => {});
   }
 }
 
