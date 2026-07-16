@@ -3452,6 +3452,27 @@ async function renderAutomationsPage(id, container = app) {
           <select id="new-level-role" aria-label="Role attribue a ce niveau">${roleOptions()}</select>
           <button class="btn secondary" id="add-level-role">Ajouter</button>
         </div>
+        <h2 style="margin-top:18px; font-size:0.85rem;">⚡ Vitesse de progression</h2>
+        <label for="xp-rate">Taux d'XP global (s'applique aux messages et au vocal)</label>
+        <select id="xp-rate">
+          ${[['0.5', 'x0.5 — progression lente'], ['1', 'x1 — normal'], ['1.5', 'x1.5 — rapide'], ['2', 'x2 — tres rapide'], ['3', 'x3 — evenement special']]
+    .map(([v, l]) => `<option value="${v}"${String(config?.xpRate || 1) === v ? ' selected' : ''}>${l}</option>`).join('')}
+        </select>
+        <label for="xp-boost-channel">Salon booste (XP multipliee dans ce salon uniquement)</label>
+        <div class="row" style="gap:8px; flex-wrap:wrap;">
+          <select id="xp-boost-channel" style="flex:2; min-width:150px;">${channels.filter((c) => c.type === 0).map((c) => `<option value="${c.id}">#${escapeHtml(c.name)}</option>`).join('')}</select>
+          <select id="xp-boost-mult" aria-label="Multiplicateur" style="flex:1; min-width:90px;">
+            <option value="">Aucun boost</option>
+            <option value="1.5">x1.5</option>
+            <option value="2">x2</option>
+            <option value="3">x3</option>
+          </select>
+        </div>
+        <div id="xp-boosts-list" class="muted" style="font-size:0.8rem; margin-top:6px;">
+          ${Object.entries(config?.xpChannelBoosts || {}).map(([cid, m]) => `• #${escapeHtml(channels.find((c) => c.id === cid)?.name || cid)} : x${m}`).join('<br>') || 'Aucun salon booste.'}
+        </div>
+        <button class="btn" id="save-xp-config" style="margin-top:10px;">Enregistrer la vitesse d'XP</button>
+        <p class="muted" style="font-size:0.76rem; margin-top:6px;">Le bot applique les changements sous 5 minutes.</p>
       `, { id: 'niveaux' })}
 
       ${sectionHtml('Parrainage', `
@@ -3702,6 +3723,26 @@ async function renderAutomationsPage(id, container = app) {
         autoSlowmodeMsgPer10s: Math.max(5, Number(document.getElementById('am-slowmode-threshold').value) || 20),
       });
       showToast('Auto-moderation enregistree.');
+    } catch (err) {
+      showToast(err.message, 'error');
+    }
+  });
+
+  // Courbe d'XP (roadmap n°082) : taux global + boost par salon. Le select
+  // multiplicateur vide retire le boost du salon choisi.
+  document.getElementById('save-xp-config').addEventListener('click', async () => {
+    const boosts = { ...(config?.xpChannelBoosts || {}) };
+    const boostChannel = document.getElementById('xp-boost-channel').value;
+    const boostMult = document.getElementById('xp-boost-mult').value;
+    if (boostMult) boosts[boostChannel] = Number(boostMult);
+    else delete boosts[boostChannel];
+    try {
+      await Api.updateConfig(id, {
+        xpRate: Number(document.getElementById('xp-rate').value) || 1,
+        xpChannelBoosts: boosts,
+      });
+      showToast("Vitesse d'XP enregistree.");
+      await renderAutomationsPage(id, container);
     } catch (err) {
       showToast(err.message, 'error');
     }

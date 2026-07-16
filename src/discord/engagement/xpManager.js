@@ -1,11 +1,29 @@
 const xpStore = require('../../kv/xpStore');
 const levelRoleStore = require('../../kv/levelRoleStore');
+const guildConfigStore = require('../../kv/guildConfigStore');
 const { checkAndAwardBadges } = require('./badgeManager');
 const logger = require('../../shared/logger');
 
 const XP_PER_MESSAGE = 15;
 const MESSAGE_COOLDOWN_MS = 60_000;
 const XP_PER_VOICE_TICK = 10;
+
+// Courbe d'XP configurable (roadmap n°082) : xpRate global (x0.5 a x3) et
+// multiplicateurs par salon (config.xpChannelBoosts = { channelId: mult }).
+// Cache memoire 5 min pour ne pas relire la config a chaque message.
+const xpConfigCache = new Map(); // guildId -> { rate, boosts, expires }
+async function getXpConfig(guildId) {
+  const cached = xpConfigCache.get(guildId);
+  if (cached && cached.expires > Date.now()) return cached;
+  const config = await guildConfigStore.find(guildId).catch(() => null);
+  const entry = {
+    rate: Math.min(3, Math.max(0.5, Number(config?.xpRate) || 1)),
+    boosts: config?.xpChannelBoosts || {},
+    expires: Date.now() + 5 * 60_000,
+  };
+  xpConfigCache.set(guildId, entry);
+  return entry;
+}
 
 const messageCooldowns = new Map(); // `${guildId}:${userId}` -> timestamp
 
@@ -70,8 +88,10 @@ async function awardMessageXp(message) {
   messageCooldowns.set(cooldownKey, now + MESSAGE_COOLDOWN_MS);
 
   try {
+    const { rate, boosts } = await getXpConfig(message.guild.id);
+    const boost = Math.min(5, Math.max(0.5, Number(boosts[message.channel.id]) || 1));
     const data = await getMemberBuffered(message.guild.id, message.author.id);
-    data.xp += XP_PER_MESSAGE;
+    data.xp += Math.round(XP_PER_MESSAGE * rate * boost);
     data.messageCount += 1;
     const newLevel = levelFromXp(data.xp);
     const leveledUp = newLevel > data.level;
@@ -97,8 +117,9 @@ async function tickVoiceXp(client) {
         if (member.user.bot) continue;
         if (member.voice.selfDeaf || member.voice.deaf) continue;
         try {
+          const { rate } = await getXpConfig(guild.id);
           const data = await getMemberBuffered(guild.id, member.id);
-          data.xp += XP_PER_VOICE_TICK;
+          data.xp += Math.round(XP_PER_VOICE_TICK * rate);
           data.voiceMinutes += 5;
           const newLevel = levelFromXp(data.xp);
           const leveledUp = newLevel > data.level;
