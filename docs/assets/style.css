@@ -850,7 +850,8 @@ input::placeholder, textarea::placeholder { color: var(--text-faint); }
 .dp-panel-title { color: var(--text); font-size: 1.05rem; font-weight: 700; margin-bottom: 16px; display: flex; align-items: center; gap: 8px; }
 .dp-panel input[type=text] { background: var(--bg-input); border: 1px solid var(--border-strong); color: var(--text); }
 .dp-panel label { color: var(--text-muted); }
-.dp-toggle-row { display: flex; align-items: center; justify-content: space-between; background: var(--bg-elevated); border-radius: 5px; padding: 12px 14px; margin-top: 10px; }
+.dp-toggle-row { display: flex; align-items: center; justify-content: space-between; background: var(--bg-elevated); border-radius: 5px; padding: 12px 14px; margin-top: 10px; cursor: pointer; }
+.dp-toggle-row input[type="checkbox"] { cursor: pointer; }
 .dp-perm-checklist {
   display: grid; grid-template-columns: 1fr 1fr; gap: 0 12px;
   max-height: 340px; overflow-y: auto; padding-right: 4px;

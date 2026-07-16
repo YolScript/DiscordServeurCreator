@@ -1221,10 +1221,10 @@ function contextualChannelSettingsHtml(channelId, config) {
         <p class="dp-block-title">📜 Reglement</p>
         <label>Texte du reglement</label>
         <textarea id="dp-ctx-reglement">${escapeHtml(config?.reglementText)}</textarea>
-        <div class="dp-toggle-row" style="margin-top:8px;">
+        <label class="dp-toggle-row" style="margin-top:8px;">
           <span>Verification anti-bot avant validation</span>
           <input type="checkbox" id="dp-ctx-captcha" ${config?.captchaEnabled === false ? '' : 'checked'} />
-        </div>
+        </label>
         <label style="margin-top:10px;">Type de captcha</label>
         <select id="dp-ctx-captcha-type">
           <option value="emoji" ${config?.captchaType === 'image' ? '' : 'selected'}>Emoji (clique sur le bon symbole)</option>
@@ -1258,14 +1258,14 @@ function specialChannelToggleHtml(channelId, type, config) {
   return `
     <div class="dp-block">
       <p class="dp-block-title">🔧 Role special de ce salon</p>
-      <div class="dp-toggle-row">
+      <label class="dp-toggle-row">
         <span>Salon Reglement</span>
         <input type="checkbox" id="dp-set-rules" ${isRules ? 'checked' : ''} />
-      </div>
-      <div class="dp-toggle-row" style="margin-top:8px;">
+      </label>
+      <label class="dp-toggle-row" style="margin-top:8px;">
         <span>Salon Bienvenue / Depart</span>
         <input type="checkbox" id="dp-set-arrival" ${isArrival ? 'checked' : ''} />
-      </div>
+      </label>
     </div>`;
 }
 
@@ -1331,10 +1331,10 @@ function channelActionDetailHtml(key, ctx) {
     return `
       <div class="dp-block">
         <p class="dp-block-title">📜 Salon Reglement</p>
-        <div class="dp-toggle-row">
+        <label class="dp-toggle-row">
           <span>Ce salon sert de salon Reglement</span>
           <input type="checkbox" id="dp-set-rules" ${config?.rulesChannelId === channelId ? 'checked' : ''} />
-        </div>
+        </label>
       </div>
       ${contextualChannelSettingsHtml(channelId, config)}`;
   }
@@ -1342,10 +1342,10 @@ function channelActionDetailHtml(key, ctx) {
     return `
       <div class="dp-block">
         <p class="dp-block-title">👋 Salon Bienvenue / Depart</p>
-        <div class="dp-toggle-row">
+        <label class="dp-toggle-row">
           <span>Ce salon recoit les messages de bienvenue/depart</span>
           <input type="checkbox" id="dp-set-arrival" ${config?.arrivalDepartureChannelId === channelId ? 'checked' : ''} />
-        </div>
+        </label>
       </div>
       ${contextualChannelSettingsHtml(channelId, config)}`;
   }
@@ -1388,10 +1388,10 @@ function channelActionDetailHtml(key, ctx) {
     return `
       <div class="dp-block">
         <p class="dp-block-title">👁️ Visibilite</p>
-        <div class="dp-toggle-row">
+        <label class="dp-toggle-row">
           <span>Visible pour "Reglement valide"</span>
           <input type="checkbox" id="dp-visible-toggle" ${currentlyVisible !== false ? 'checked' : ''} />
-        </div>
+        </label>
       </div>`;
   }
   if (key === 'embed') {
@@ -1415,10 +1415,10 @@ function channelActionDetailHtml(key, ctx) {
     return `
       <div class="dp-block">
         <p class="dp-block-title">🛡️ Service staff</p>
-        <div class="dp-toggle-row">
+        <label class="dp-toggle-row">
           <span>Cache sauf staff actuellement en service</span>
           <input type="checkbox" id="dp-service-toggle" ${isServiceHidden ? 'checked' : ''} />
-        </div>
+        </label>
         <p class="muted" style="margin-top:10px;">Un membre du staff rejoint le vocal SERVICE STAFF pour activer son statut "en service". Gere la liste des roles consideres comme staff depuis Automatisations &gt; Service.</p>
       </div>`;
   }
@@ -1596,10 +1596,10 @@ function categoryActionDetailHtml(key, ctx) {
     return `
       <div class="dp-block">
         <p class="dp-block-title">🛡️ Service staff</p>
-        <div class="dp-toggle-row">
+        <label class="dp-toggle-row">
           <span>Cachee sauf staff actuellement en service</span>
           <input type="checkbox" id="dp-cat-service-toggle" ${isServiceHidden ? 'checked' : ''} />
-        </div>
+        </label>
         <p class="muted" style="margin-top:10px;">S'applique a toute la categorie (tous les salons qu'elle contient).</p>
       </div>`;
   }
@@ -2670,16 +2670,16 @@ async function renderAutomationsPage(id, container = app) {
       `, { id: 'economie' })}
 
       ${sectionHtml('Auto-moderation', `
-        <div class="dp-toggle-row"><span>Auto-moderation active</span><input type="checkbox" id="am-enabled" ${modConfig.autoModEnabled ? 'checked' : ''} /></div>
-        <div class="dp-toggle-row" style="margin-top:6px;"><span>Bloquer les liens d'invitation Discord</span><input type="checkbox" id="am-invites" ${modConfig.blockInvites ? 'checked' : ''} /></div>
-        <div class="dp-toggle-row" style="margin-top:6px;"><span>Bloquer tous les liens</span><input type="checkbox" id="am-links" ${modConfig.blockLinks ? 'checked' : ''} /></div>
+        <label class="dp-toggle-row"><span>Auto-moderation active</span><input type="checkbox" id="am-enabled" ${modConfig.autoModEnabled ? 'checked' : ''} /></label>
+        <label class="dp-toggle-row" style="margin-top:6px;"><span>Bloquer les liens d'invitation Discord</span><input type="checkbox" id="am-invites" ${modConfig.blockInvites ? 'checked' : ''} /></label>
+        <label class="dp-toggle-row" style="margin-top:6px;"><span>Bloquer tous les liens</span><input type="checkbox" id="am-links" ${modConfig.blockLinks ? 'checked' : ''} /></label>
         <label>Seuil anti-spam (messages)</label>
         <input type="number" id="am-spam-threshold" value="${modConfig.spamMessageThreshold}" min="1" />
         <label>Mots bannis (separes par des virgules, prefixe "re:" pour une regex)</label>
         <textarea id="am-banned-words">${escapeHtml((modConfig.bannedWords || []).join(', '))}</textarea>
         <label>Domaines autorises meme si "Bloquer tous les liens" est actif (separes par des virgules)</label>
         <textarea id="am-link-whitelist" placeholder="youtube.com, twitch.tv">${escapeHtml((modConfig.linkWhitelist || []).join(', '))}</textarea>
-        <div class="dp-toggle-row" style="margin-top:6px;"><span>Anti-raid actif</span><input type="checkbox" id="am-antiraid" ${modConfig.antiRaidEnabled ? 'checked' : ''} /></div>
+        <label class="dp-toggle-row" style="margin-top:6px;"><span>Anti-raid actif</span><input type="checkbox" id="am-antiraid" ${modConfig.antiRaidEnabled ? 'checked' : ''} /></label>
         <label>Seuil anti-raid (arrivees rapprochees)</label>
         <input type="number" id="am-antiraid-threshold" value="${modConfig.antiRaidJoinThreshold}" min="1" />
         <button class="btn" id="save-modconfig" style="margin-top:12px;">Enregistrer</button>
@@ -2728,10 +2728,10 @@ async function renderAutomationsPage(id, container = app) {
           <textarea id="new-scheduled-message"></textarea>
           <label>Date et heure</label>
           <input type="datetime-local" id="new-scheduled-date" />
-          <div class="dp-toggle-row" style="margin-top:10px;">
+          <label class="dp-toggle-row" style="margin-top:10px;">
             <span>Repeter tous les jours a cette heure</span>
             <input type="checkbox" id="new-scheduled-daily" />
-          </div>
+          </label>
           <button class="btn secondary" id="add-scheduled" style="margin-top:8px;">Programmer</button>
         </div>
       `, { id: 'annonces' })}
@@ -2760,10 +2760,10 @@ async function renderAutomationsPage(id, container = app) {
           `).join('') || '<p class="muted">Aucun salon.</p>'}
         </div>
 
-        <div class="dp-toggle-row" style="margin-top:10px;">
+        <label class="dp-toggle-row" style="margin-top:10px;">
           <span>Tickets visibles uniquement par le staff actuellement en service</span>
           <input type="checkbox" id="tickets-on-duty-only" ${config?.ticketsStaffOnDutyOnly === false ? '' : 'checked'} />
-        </div>
+        </label>
         <p class="muted" style="margin-top:8px;">Enregistrer applique immediatement les permissions choisies (SERVICE STAFF + categories/salons coches). La visibilite se met ensuite a jour automatiquement a chaque bascule de service.</p>
         <button class="btn" id="save-service-config" style="margin-top:8px;">Enregistrer et appliquer</button>
       `, { id: 'service' })}
@@ -3530,10 +3530,10 @@ async function renderEmbedBuilderPage(id, container = app) {
             <input type="text" id="embed-footer-text" maxlength="2048" placeholder="Texte du pied de page" data-charcount />
             <label>Icone (URL)</label>
             <input type="text" id="embed-footer-icon" placeholder="https://..." />
-            <div class="dp-toggle-row" style="margin-top:10px;">
+            <label class="dp-toggle-row" style="margin-top:10px;">
               <span>Inclure la date/heure actuelles</span>
               <input type="checkbox" id="embed-timestamp" />
-            </div>
+            </label>
 
             <div class="dp-subsection-divider"></div>
             <p class="dp-block-title">💾 Modeles enregistres</p>
@@ -3561,17 +3561,17 @@ async function renderEmbedBuilderPage(id, container = app) {
           <button class="btn" id="embed-post-btn" style="margin-top:10px; width:100%;">🚀 Poster dans Discord</button>
           <button class="btn secondary" id="embed-save-template-btn" style="margin-top:8px; width:100%;">💾 Enregistrer comme modele</button>
 
-          <div class="dp-toggle-row" style="margin-top:14px;">
+          <label class="dp-toggle-row" style="margin-top:14px;">
             <span>Programmer l'envoi</span>
             <input type="checkbox" id="embed-schedule-toggle" />
-          </div>
+          </label>
           <div id="embed-schedule-fields" style="display:none; margin-top:8px;">
             <label>Date et heure</label>
             <input type="datetime-local" id="embed-schedule-date" />
-            <div class="dp-toggle-row" style="margin-top:8px;">
+            <label class="dp-toggle-row" style="margin-top:8px;">
               <span>Repeter tous les jours a cette heure</span>
               <input type="checkbox" id="embed-schedule-daily" />
-            </div>
+            </label>
             <button class="btn" id="embed-schedule-btn" style="margin-top:8px; width:100%;">🗓️ Programmer</button>
           </div>
         </div>
