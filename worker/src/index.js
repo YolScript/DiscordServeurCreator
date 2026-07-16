@@ -941,6 +941,24 @@ async function router(request, env) {
       return json(warns, env);
     }
 
+    // Note interne staff par membre (roadmap n°148) : visible uniquement
+    // dans le dashboard, jamais cote Discord.
+    if (sub === 'members' && parts[5] === 'note' && parts.length === 6) {
+      const session = await requireGuildAccess(env, request, guildId);
+      const noteKey = `guild:${guildId}:note:${parts[4]}`;
+      if (method === 'GET') return json((await env.GUILD_KV.get(noteKey, 'json')) || { text: '' }, env);
+      if (method === 'PUT') {
+        const { text } = await readJson(request);
+        if (typeof text !== 'string' || text.length > 2000) throw new HttpError(400, 'text requis (2000 caracteres max).');
+        if (text.trim()) {
+          await env.GUILD_KV.put(noteKey, JSON.stringify({ text: text.trim(), author: session.username, updatedAt: Date.now() }));
+        } else {
+          await env.GUILD_KV.delete(noteKey);
+        }
+        return json({ ok: true }, env);
+      }
+    }
+
     // Attribution/retrait d'un role a un membre depuis le dashboard
     // (createur de salons & roles) : PUT/DELETE natifs de l'API Discord.
     if (sub === 'members' && parts[5] === 'roles' && parts.length === 7 && (method === 'PUT' || method === 'DELETE')) {

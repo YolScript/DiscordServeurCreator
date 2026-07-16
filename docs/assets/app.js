@@ -4912,13 +4912,33 @@ async function renderMemberLookupPage(id, container = app) {
     const existing = row.nextElementSibling;
     if (existing?.classList.contains('member-warns-detail')) { existing.remove(); return; }
     container.querySelectorAll('.member-warns-detail').forEach((el) => el.remove());
-    const warns = await Api.memberWarns(id, warnsBtn.dataset.warnsUser).catch(() => []);
+    const targetUserId = warnsBtn.dataset.warnsUser;
+    // Casier unifie (roadmap n°149) : warns + note interne staff (n°148).
+    const [warns, note] = await Promise.all([
+      Api.memberWarns(id, targetUserId).catch(() => []),
+      Api.memberNote(id, targetUserId).catch(() => ({ text: '' })),
+    ]);
     const rows = warns.slice().reverse().map((w) => `
       <div class="member-warn-row">
         <span>${escapeHtml(w.reason || 'Sans raison')}</span>
         <span class="muted">${w.source === 'automod' ? '🤖 automod' : '👮 manuel'} — ${new Date(w.createdAt).toLocaleString('fr-FR')}</span>
       </div>`).join('');
-    row.insertAdjacentHTML('afterend', `<div class="member-warns-detail">${rows || '<p class="muted" style="margin:0;">Aucune sanction enregistree.</p>'}</div>`);
+    row.insertAdjacentHTML('afterend', `
+      <div class="member-warns-detail">
+        ${rows || '<p class="muted" style="margin:0;">Aucune sanction enregistree.</p>'}
+        <label style="margin-top:8px; font-size:0.76rem;">📝 Note interne (staff uniquement)${note.author ? ` <span class="muted">— ${escapeHtml(note.author)}, ${new Date(note.updatedAt).toLocaleString('fr-FR')}</span>` : ''}</label>
+        <textarea class="member-note-text" maxlength="2000" placeholder="Contexte, historique, points d'attention..." style="min-height:56px;">${escapeHtml(note.text || '')}</textarea>
+        <button type="button" class="btn secondary member-note-save" data-note-user="${targetUserId}" style="align-self:flex-start;">Enregistrer la note</button>
+      </div>`);
+    row.nextElementSibling.querySelector('.member-note-save').addEventListener('click', async (ev) => {
+      const detail = ev.currentTarget.closest('.member-warns-detail');
+      try {
+        await Api.saveMemberNote(id, targetUserId, detail.querySelector('.member-note-text').value);
+        showToast('Note enregistree.');
+      } catch (err) {
+        showToast(err.message, 'error');
+      }
+    });
   });
 }
 
