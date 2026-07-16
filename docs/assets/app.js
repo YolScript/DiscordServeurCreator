@@ -998,8 +998,15 @@ function wireAiHome(guildId, channels, rolesSorted) {
 
 async function renderPreviewPage(id) {
   app.classList.add('preview-fullbleed');
-  app.innerHTML = skeletonHtml();
-  const guild = allGuilds.find((g) => g.guildId === id);
+  // Cache local (roadmap n°050, stale-while-revalidate) : la derniere
+  // structure connue s'affiche immediatement, les donnees fraiches
+  // remplacent le rendu des qu'elles arrivent.
+  const cacheKey = `previewCache:${id}`;
+  let cached = null;
+  try { cached = JSON.parse(localStorage.getItem(cacheKey) || 'null'); } catch { cached = null; }
+  if (cached?.channels) renderPreviewContent(id, cached);
+  else app.innerHTML = skeletonHtml();
+
   // Sans ce catch, un echec reseau (backend qui se reveille, coupure) laissait
   // la page bloquee sur le skeleton sans message ni moyen de reessayer.
   let channels, config, roles, members;
@@ -1011,6 +1018,10 @@ async function renderPreviewPage(id) {
       Api.members(id).catch(() => []),
     ]);
   } catch (err) {
+    if (cached?.channels) {
+      showToast('Rafraichissement impossible : dernieres donnees connues affichees.', 'error');
+      return;
+    }
     app.innerHTML = `
       <div class="inner">
         <div class="inline-banner error" style="margin-bottom:12px;">
@@ -1022,6 +1033,13 @@ async function renderPreviewPage(id) {
     document.getElementById('preview-retry-btn').addEventListener('click', () => renderPreviewPage(id));
     return;
   }
+  const fresh = { channels, config, roles, members };
+  try { localStorage.setItem(cacheKey, JSON.stringify(fresh)); } catch { /* stockage plein : cache saute */ }
+  renderPreviewContent(id, fresh);
+}
+
+function renderPreviewContent(id, { channels, config, roles, members }) {
+  const guild = allGuilds.find((g) => g.guildId === id);
   const rolesSorted = [...roles].sort((a, b) => b.position - a.position);
 
   // Contexte de la palette Ctrl+K (n°012) + reset de la pile de modules (n°028).
@@ -1093,6 +1111,8 @@ async function renderPreviewPage(id) {
           </div>
           <div class="dp-roles-list">${rolesSorted.map((r) => roleRowHtml(r, members)).join('')}</div>
         </div>
+        <button type="button" class="dp-drawer-btn left" id="dp-drawer-left" aria-label="Ouvrir le panneau des salons">☰</button>
+        <button type="button" class="dp-drawer-btn right" id="dp-drawer-right" aria-label="Ouvrir le panneau des roles">🏷️</button>
       </div>
     </div>
   `;
@@ -1352,6 +1372,25 @@ async function renderPreviewPage(id) {
   };
   pinInit('dp-pin-left', '.dp-sidebar', 'dsc-pin-left');
   pinInit('dp-pin-right', '.dp-roles-panel', 'dsc-pin-right');
+
+  // Tiroirs tactiles (roadmap n°044) : sur mobile le survol n'existe pas,
+  // deux boutons flottants ouvrent/ferment les panneaux lateraux.
+  const wireDrawer = (btnId, panelSel) => {
+    const btn = document.getElementById(btnId);
+    const panel = app.querySelector(panelSel);
+    if (!btn || !panel) return;
+    btn.addEventListener('click', (e) => {
+      e.stopPropagation();
+      const open = !panel.classList.contains('touch-open');
+      app.querySelectorAll('.dp-sidebar, .dp-roles-panel').forEach((p) => p.classList.remove('touch-open'));
+      if (open) panel.classList.add('touch-open');
+    });
+  };
+  wireDrawer('dp-drawer-left', '.dp-sidebar');
+  wireDrawer('dp-drawer-right', '.dp-roles-panel');
+  document.getElementById('dp-main')?.addEventListener('click', () => {
+    app.querySelectorAll('.touch-open').forEach((p) => p.classList.remove('touch-open'));
+  });
 
   async function applyRoleColor(roleId, colorHex, scope) {
     try {
@@ -3700,23 +3739,43 @@ async function renderAuditLogPage(id, container = app) {
     </div>
   `;
 
+  // Filtres combinables (roadmap n°029) : texte + type d'action + periode.
+  const actionTitles = [...new Set(logs.map((l) => l.title))].sort((a, b) => a.localeCompare(b, 'fr'));
   container.innerHTML = `
     <div class="inner">
       ${sectionHtml("Logs d'audit", `
         <p class="muted">Historique des actions de moderation et de configuration (200 dernieres).</p>
-        <input type="text" id="audit-search" placeholder="Rechercher (titre, auteur, action...)" aria-label="Rechercher dans les logs d'audit" style="margin-bottom:10px;" />
+        <div class="row" style="gap:8px; flex-wrap:wrap; margin-bottom:10px;">
+          <input type="text" id="audit-search" placeholder="Rechercher (titre, auteur, action...)" aria-label="Rechercher dans les logs d'audit" style="flex:2; min-width:180px; margin:0;" />
+          <select id="audit-action" aria-label="Filtrer par type d'action" style="flex:1; min-width:150px;">
+            <option value="">Toutes les actions</option>
+            ${actionTitles.map((t) => `<option value="${escapeHtml(t)}">${escapeHtml(t)}</option>`).join('')}
+          </select>
+          <select id="audit-period" aria-label="Filtrer par periode" style="flex:none; width:150px;">
+            <option value="0">Toute la periode</option>
+            <option value="86400000">Dernieres 24 h</option>
+            <option value="604800000">7 derniers jours</option>
+            <option value="2592000000">30 derniers jours</option>
+          </select>
+        </div>
         <div class="audit-log-list" id="audit-log-list">${logs.map(rowHtml).join('') || '<p class="muted">Aucune action enregistree pour le moment.</p>'}</div>
       `, { alwaysOpen: true })}
     </div>
   `;
 
-  document.getElementById('audit-search').addEventListener('input', (e) => {
-    const q = e.target.value.trim().toLowerCase();
-    const filtered = q
-      ? logs.filter((l) => `${l.title} ${l.description}`.toLowerCase().includes(q))
-      : logs;
+  const applyAuditFilters = () => {
+    const q = document.getElementById('audit-search').value.trim().toLowerCase();
+    const action = document.getElementById('audit-action').value;
+    const periodMs = Number(document.getElementById('audit-period').value);
+    const cutoff = periodMs ? Date.now() - periodMs : 0;
+    const filtered = logs.filter((l) => (!q || `${l.title} ${l.description}`.toLowerCase().includes(q))
+      && (!action || l.title === action)
+      && (!cutoff || l.timestamp >= cutoff));
     document.getElementById('audit-log-list').innerHTML = filtered.map(rowHtml).join('') || '<p class="muted">Aucun resultat.</p>';
-  });
+  };
+  document.getElementById('audit-search').addEventListener('input', applyAuditFilters);
+  document.getElementById('audit-action').addEventListener('change', applyAuditFilters);
+  document.getElementById('audit-period').addEventListener('change', applyAuditFilters);
 }
 
 /* ---------- Page: recherche de membres ---------- */

@@ -1292,12 +1292,48 @@ button.embed-json-jump { background: none; border: none; padding: 0; font-family
   color: var(--text-faint); cursor: pointer; text-decoration: none;
 }
 .dp-breadcrumb button:hover { color: var(--accent); text-decoration: underline; }
+
+/* Tiroirs tactiles (n°044) : sur ecran sans survol ou etroit, les panneaux
+   lateraux deviennent des tiroirs ouverts par boutons flottants, et les
+   petites cibles passent a ~44px (n°045). */
+.dp-drawer-btn { display: none; }
+@media (hover: none), (max-width: 700px) {
+  .dp-sidebar, .dp-roles-panel { transition: transform 0.2s ease; }
+  .dp-sidebar { transform: translateX(-100%); }
+  .dp-roles-panel { transform: translateX(100%); }
+  .dp-sidebar::after, .dp-roles-panel::after { display: none; }
+  .dp-sidebar.pinned, .dp-roles-panel.pinned { position: absolute; box-shadow: 6px 0 18px -6px rgba(0,0,0,0.55); }
+  .dp-sidebar.pinned { transform: translateX(-100%); }
+  .dp-roles-panel.pinned { transform: translateX(100%); }
+  .dp-sidebar.touch-open, .dp-sidebar.pinned.touch-open { transform: translateX(0); }
+  .dp-roles-panel.touch-open, .dp-roles-panel.pinned.touch-open { transform: translateX(0); }
+  .dp-drawer-btn {
+    display: flex; position: absolute; bottom: 76px; z-index: 45;
+    width: 44px; height: 44px; align-items: center; justify-content: center;
+    border-radius: 50%; border: 1px solid var(--border-strong); background: var(--bg-elevated);
+    color: var(--text); font-size: 1.05rem; cursor: pointer;
+    box-shadow: 0 6px 18px -6px rgba(0,0,0,0.5);
+  }
+  .dp-drawer-btn.left { left: 12px; }
+  .dp-drawer-btn.right { right: 12px; }
+  .dp-copy-id-btn, .dp-category-settings, .dp-role-settings, .dp-category-sort,
+  .embed-field-remove, .embed-field-handle { opacity: 1; min-width: 34px; min-height: 34px; }
+  .dp-pin-btn { display: none; }
+}
 .embed-char-total {
   margin: 6px 0 0; text-align: right; font-size: 0.76rem; color: var(--text-faint);
   font-variant-numeric: tabular-nums;
 }
 .embed-char-total.over { color: var(--danger); font-weight: 600; }
 #embed-json.drag-over { border-color: var(--accent); box-shadow: 0 0 0 3px var(--accent-soft); }
+.member-lookup-actions { flex: none; }
+.member-timeout-btn {
+  background: none; border: none; cursor: pointer; font-size: 0.9rem;
+  padding: 4px 6px; border-radius: 4px; opacity: 0.4;
+  transition: opacity 0.12s ease, background 0.12s ease;
+}
+.member-lookup-row:hover .member-timeout-btn, .member-timeout-btn:focus-visible { opacity: 1; }
+.member-timeout-btn:hover { background: var(--danger-soft); }
 input[type=text].drag-over, textarea.drag-over { border-color: var(--accent); box-shadow: 0 0 0 3px var(--accent-soft); }
 
 .embed-field-row {
