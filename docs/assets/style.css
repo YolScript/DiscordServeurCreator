@@ -1316,6 +1316,12 @@ button.embed-json-jump { background: none; border: none; padding: 0; font-family
   }
   .dp-drawer-btn.left { left: 12px; }
   .dp-drawer-btn.right { right: 12px; }
+  /* Bouton flottant de creation rapide (n°122), au pouce, bas centre. */
+  .dp-drawer-btn.fab-create {
+    left: 50%; transform: translateX(-50%);
+    background: var(--accent); color: #fff; border-color: var(--accent);
+    font-size: 1.3rem;
+  }
   .dp-copy-id-btn, .dp-category-settings, .dp-role-settings, .dp-category-sort,
   .embed-field-remove, .embed-field-handle, .embed-field-duplicate,
   .member-warns-btn, .member-timeout-btn, .dp-chat-copy, .embed-md-btn,

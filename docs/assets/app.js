@@ -1436,6 +1436,7 @@ function renderPreviewContent(id, { channels, config, roles, members }) {
           <div class="dp-roles-list">${rolesSorted.map((r) => roleRowHtml(r, members)).join('')}</div>
         </div>
         <button type="button" class="dp-drawer-btn left" id="dp-drawer-left" aria-label="Ouvrir le panneau des salons">☰</button>
+        <button type="button" class="dp-drawer-btn fab-create" id="dp-fab-create" aria-label="Creer un salon rapidement">➕</button>
         <button type="button" class="dp-drawer-btn right" id="dp-drawer-right" aria-label="Ouvrir le panneau des roles">🏷️</button>
       </div>
     </div>
@@ -1817,6 +1818,50 @@ function renderPreviewContent(id, { channels, config, roles, members }) {
   document.getElementById('dp-main')?.addEventListener('click', () => {
     app.querySelectorAll('.touch-open').forEach((p) => p.classList.remove('touch-open'));
   });
+
+  // Bouton flottant de creation rapide (roadmap n°122) : ouvre le tiroir
+  // salons et met en evidence le premier « + Ajouter un salon ».
+  document.getElementById('dp-fab-create')?.addEventListener('click', (e) => {
+    e.stopPropagation();
+    app.querySelector('.dp-roles-panel')?.classList.remove('touch-open');
+    app.querySelector('.dp-sidebar')?.classList.add('touch-open');
+    const addBtn = app.querySelector('.dp-add-channel');
+    if (addBtn) {
+      addBtn.scrollIntoView({ behavior: 'smooth', block: 'center' });
+      addBtn.classList.add('flash-highlight');
+      setTimeout(() => addBtn.classList.remove('flash-highlight'), 2400);
+    }
+  });
+
+  // Gestes swipe (roadmap n°121) : glisser depuis le bord gauche ouvre le
+  // tiroir salons, depuis le bord droit le tiroir roles ; glisser vers le
+  // bord ferme le tiroir ouvert. Seuil 60px, tolerance verticale 50px.
+  const previewEl = app.querySelector('.discord-preview');
+  if (previewEl) {
+    let touchStart = null;
+    previewEl.addEventListener('touchstart', (e) => {
+      if (e.touches.length !== 1) { touchStart = null; return; }
+      touchStart = { x: e.touches[0].clientX, y: e.touches[0].clientY };
+    }, { passive: true });
+    previewEl.addEventListener('touchend', (e) => {
+      if (!touchStart) return;
+      const dx = e.changedTouches[0].clientX - touchStart.x;
+      const dy = Math.abs(e.changedTouches[0].clientY - touchStart.y);
+      const startX = touchStart.x;
+      touchStart = null;
+      if (dy > 50 || Math.abs(dx) < 60) return;
+      const width = window.innerWidth;
+      const leftPanel = app.querySelector('.dp-sidebar');
+      const rightPanel = app.querySelector('.dp-roles-panel');
+      if (dx > 0) {
+        if (rightPanel?.classList.contains('touch-open')) rightPanel.classList.remove('touch-open');
+        else if (startX < 60) { rightPanel?.classList.remove('touch-open'); leftPanel?.classList.add('touch-open'); }
+      } else {
+        if (leftPanel?.classList.contains('touch-open')) leftPanel.classList.remove('touch-open');
+        else if (startX > width - 60) { leftPanel?.classList.remove('touch-open'); rightPanel?.classList.add('touch-open'); }
+      }
+    }, { passive: true });
+  }
 
   // Visite guidee au tout premier lancement (roadmap n°027).
   if (!localStorage.getItem('dsc-onboarded')) showOnboarding();
