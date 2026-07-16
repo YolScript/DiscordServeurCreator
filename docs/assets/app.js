@@ -717,7 +717,7 @@ async function renderPreviewPage(id) {
             <span class="caret">▾</span>
           </div>
           <div class="dp-sidebar-search">
-            <input type="text" id="dp-channel-search" placeholder="🔎 Filtrer les salons..." autocomplete="off" />
+            <input type="text" id="dp-channel-search" placeholder="🔎 Filtrer les salons..." aria-label="Filtrer les salons" autocomplete="off" />
           </div>
           <div class="dp-channel-list">
             ${uncategorized.map(channelRow).join('')}
@@ -730,7 +730,7 @@ async function renderPreviewPage(id) {
         <div class="dp-roles-panel">
           <div class="dp-roles-header${rolesSorted.length >= 230 ? ' near-limit' : ''}" title="${rolesSorted.length >= 230 ? 'Limite Discord : 250 roles par serveur' : ''}">Roles — ${rolesSorted.length}</div>
           <div class="dp-sidebar-search">
-            <input type="text" id="dp-role-search" placeholder="🔎 Filtrer les roles..." autocomplete="off" />
+            <input type="text" id="dp-role-search" placeholder="🔎 Filtrer les roles..." aria-label="Filtrer les roles" autocomplete="off" />
           </div>
           <div class="dp-roles-list">${rolesSorted.map((r) => roleRowHtml(r, members)).join('')}</div>
         </div>
@@ -3215,7 +3215,7 @@ async function renderAuditLogPage(id, container = app) {
     <div class="inner">
       ${sectionHtml("Logs d'audit", `
         <p class="muted">Historique des actions de moderation et de configuration (200 dernieres).</p>
-        <input type="text" id="audit-search" placeholder="Rechercher (titre, auteur, action...)" style="margin-bottom:10px;" />
+        <input type="text" id="audit-search" placeholder="Rechercher (titre, auteur, action...)" aria-label="Rechercher dans les logs d'audit" style="margin-bottom:10px;" />
         <div class="audit-log-list" id="audit-log-list">${logs.map(rowHtml).join('') || '<p class="muted">Aucune action enregistree pour le moment.</p>'}</div>
       `, { alwaysOpen: true })}
     </div>
