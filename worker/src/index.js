@@ -721,6 +721,7 @@ async function router(request, env) {
         avatar: m.user.avatar,
         roles: m.roles,
         bot: Boolean(m.user.bot),
+        joinedAt: m.joined_at,
       })), env);
     }
 

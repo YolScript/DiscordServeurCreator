@@ -6,10 +6,17 @@ const TICK_MS = 60 * 60 * 1000; // verifie le changement de jour toutes les heur
 
 const messageCounts = new Map(); // guildId -> messages depuis le dernier flush
 const hourCounts = new Map(); // guildId -> Array(24) (heures UTC) depuis le dernier flush
+const joinCounts = new Map(); // guildId -> arrivees depuis le dernier flush (retention n°163)
 const lastFlushDate = new Map(); // guildId -> 'YYYY-MM-DD'
 
 function todayKey() {
   return new Date().toISOString().slice(0, 10);
+}
+
+// Arrivees brutes par jour (roadmap n°163) : necessaires pour calculer une
+// vraie retention (le delta de memberCount ne donne que le net).
+function recordJoin(guildId) {
+  joinCounts.set(guildId, (joinCounts.get(guildId) || 0) + 1);
 }
 
 function recordMessage(guildId) {
@@ -28,15 +35,18 @@ async function tick() {
   const today = todayKey();
   for (const guild of client.guilds.cache.values()) {
     const messageCount = messageCounts.get(guild.id) || 0;
-    if (!messageCount && lastFlushDate.get(guild.id) === today) continue;
+    const joins = joinCounts.get(guild.id) || 0;
+    if (!messageCount && !joins && lastFlushDate.get(guild.id) === today) continue;
     try {
       await statsStore.add(guild.id, {
         date: today,
         memberCount: guild.memberCount,
         messageCount,
+        joins,
         hours: hourCounts.get(guild.id),
       });
       messageCounts.set(guild.id, 0);
+      joinCounts.set(guild.id, 0);
       hourCounts.delete(guild.id);
       lastFlushDate.set(guild.id, today);
     } catch (err) {
@@ -51,4 +61,4 @@ function start() {
   logger.info('Suivi des statistiques demarre');
 }
 
-module.exports = { start, recordMessage };
+module.exports = { start, recordMessage, recordJoin };

@@ -5570,6 +5570,33 @@ async function renderStatsPage(id, container = app) {
       </div>`
     : '<p class="muted">La repartition horaire se remplit a partir de maintenant (donnees collectees depuis la mise a jour du bot).</p>';
 
+  // Retention (roadmap n°163) : parmi les arrivees brutes d'une fenetre
+  // passee (collectees par le bot depuis cette mise a jour), combien de
+  // membres sont encore la (joined_at dans la fenetre).
+  const retentionHtml = (() => {
+    const dayMs = 86400000;
+    const now = Date.now();
+    const windowStats = (fromDays, toDays) => stats
+      .filter((s) => {
+        const t = new Date(`${s.date}T12:00:00Z`).getTime();
+        return t >= now - fromDays * dayMs && t < now - toDays * dayMs;
+      })
+      .reduce((acc, s) => acc + (s.joins || 0), 0);
+    const stillHere = (fromDays, toDays) => statMembers.filter((m) => {
+      if (!m.joinedAt || m.bot) return false;
+      const t = new Date(m.joinedAt).getTime();
+      return t >= now - fromDays * dayMs && t < now - toDays * dayMs;
+    }).length;
+    const block = (label, fromDays, toDays) => {
+      const joins = windowStats(fromDays, toDays);
+      const kept = stillHere(fromDays, toDays);
+      if (!joins) return `<div class="stats-top-row"><span class="stats-top-name">${label}</span><span class="muted">collecte en cours (donnees d'arrivees depuis la mise a jour du bot)</span></div>`;
+      const pct = Math.min(100, Math.round((kept / joins) * 100));
+      return `<div class="stats-top-row"><span class="stats-top-name">${label}</span><span class="stats-top-value">${pct}% (${kept}/${joins} restes)</span></div>`;
+    };
+    return block('Retention 7 jours', 14, 7) + block('Retention 30 jours', 60, 30);
+  })();
+
   // Top membres (n°031) + stats vocales (n°032) depuis les donnees XP.
   const nameById = new Map(statMembers.map((m) => [m.userId, m.displayName || m.userId]));
   const xpEntries = Object.entries(xpData);
@@ -5607,6 +5634,9 @@ async function renderStatsPage(id, container = app) {
             ${topVoice}
           </div>
         </div>
+        <h2 style="font-size:0.85rem; margin-top:16px;">🧲 Retention des nouveaux membres</h2>
+        <p class="muted" style="font-size:0.78rem;">Parmi les membres arrives dans la fenetre, combien sont encore la aujourd'hui.</p>
+        ${retentionHtml}
         <button type="button" class="btn secondary" id="stats-export-csv" style="margin-top:14px;">⬇️ Exporter en CSV</button>
       `, { id: 'stats-activity' })}
     </div>
