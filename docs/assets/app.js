@@ -3843,7 +3843,7 @@ function templatePreviewHtml(preview) {
         <div class="tplprev-channels">
           ${categories.length ? categories.map((c) => `
             <div class="tplprev-cat">${escapeHtml(c.name)}</div>
-            ${c.channels.map((ch) => `<div class="tplprev-chan">${ch.type === 'voice' ? '🔊' : '#'} ${escapeHtml(ch.name)}</div>`).join('')}
+            ${c.channels.map((ch) => `<div class="tplprev-chan"><span class="tplprev-chan-icon">${ch.type === 'voice' ? '🔊' : '#'}</span>${escapeHtml(ch.name)}</div>`).join('')}
           `).join('') : '<span class="muted">Aucun</span>'}
         </div>
       </div>

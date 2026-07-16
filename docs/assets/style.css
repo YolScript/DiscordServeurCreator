@@ -592,33 +592,52 @@ input::placeholder, textarea::placeholder { color: var(--text-faint); }
 .gen-layout { display: grid; grid-template-columns: minmax(0, 340px) minmax(360px, 1fr); gap: 20px; align-items: stretch; margin-top: 8px; }
 @media (max-width: 760px) { .gen-layout { grid-template-columns: 1fr; } }
 .gen-preview-mock {
-  background: var(--bg-elevated); border: 1px solid var(--border); border-radius: var(--radius);
+  background: #313338; border: 1px solid var(--border); border-radius: var(--radius);
   min-height: 620px; overflow: hidden; display: flex; flex-direction: column;
+  font-family: "gg sans", "Helvetica Neue", Helvetica, Arial, sans-serif;
 }
 .gen-preview-mock-placeholder {
   flex: 1; display: flex; align-items: center; justify-content: center; text-align: center; padding: 24px;
 }
 .tplprev-head {
-  display: flex; align-items: center; gap: 10px; padding: 12px 14px; border-bottom: 1px solid var(--border);
-  font-size: 0.9rem;
+  display: flex; align-items: center; gap: 10px; padding: 12px 16px; background: #2b2d31;
+  border-bottom: 1px solid rgba(0,0,0,0.24); box-shadow: 0 1px 0 rgba(0,0,0,0.1);
+  font-size: 0.95rem;
 }
 .tplprev-icon { width: 28px; height: 28px; border-radius: 50%; object-fit: cover; flex: none; }
 .tplprev-icon-fallback { display: flex; align-items: center; justify-content: center; background: var(--accent); font-size: 0.9rem; }
-.tplprev-body { flex: 1; display: grid; grid-template-columns: 1fr 1fr; gap: 0; }
-@media (max-width: 480px) { .tplprev-body { grid-template-columns: 1fr; } }
-.tplprev-roles-block { padding: 12px 14px; border-right: 1px solid var(--border); }
-.tplprev-channels-block { padding: 12px 14px; }
-.tplprev-subtitle { margin: 0 0 8px; font-size: 0.7rem; text-transform: uppercase; letter-spacing: 0.04em; color: var(--text-faint); }
-.tplprev-roles { display: flex; flex-wrap: wrap; gap: 6px; }
-.tplprev-role-chip {
-  font-size: 0.72rem; padding: 3px 8px; border-radius: 999px; background: color-mix(in srgb, var(--rc, var(--accent)) 22%, transparent);
-  color: var(--rc, var(--text)); border: 1px solid color-mix(in srgb, var(--rc, var(--accent)) 45%, transparent);
+.tplprev-head strong { color: #f2f3f5; font-weight: 600; }
+.tplprev-body { flex: 1; display: grid; grid-template-columns: 220px 1fr; gap: 0; min-height: 0; }
+@media (max-width: 560px) { .tplprev-body { grid-template-columns: 1fr; } }
+.tplprev-roles-block { padding: 14px 12px; background: #2b2d31; }
+.tplprev-channels-block { padding: 10px 8px; background: #2b2d31; }
+.tplprev-subtitle {
+  margin: 0 0 8px; padding: 0 6px; font-size: 0.68rem; font-weight: 700; text-transform: uppercase;
+  letter-spacing: 0.02em; color: #949ba4;
 }
-.tplprev-channels { max-height: 540px; overflow-y: auto; scrollbar-width: none; }
+.tplprev-roles { display: flex; flex-direction: column; gap: 1px; }
+.tplprev-role-chip {
+  display: flex; align-items: center; gap: 8px; font-size: 0.85rem; padding: 5px 6px; border-radius: 4px;
+  color: #dbdee1;
+}
+.tplprev-role-chip::before {
+  content: ''; width: 10px; height: 10px; border-radius: 50%; flex: none;
+  background: var(--rc, var(--accent)); box-shadow: 0 0 0 1px rgba(0,0,0,0.2);
+}
+.tplprev-channels { max-height: 540px; overflow-y: auto; scrollbar-width: none; padding: 0 4px; }
 .tplprev-channels::-webkit-scrollbar { display: none; }
-.tplprev-cat { font-size: 0.72rem; font-weight: 700; text-transform: uppercase; letter-spacing: 0.03em; color: var(--text-faint); margin: 10px 0 4px; }
-.tplprev-cat:first-child { margin-top: 0; }
-.tplprev-chan { font-size: 0.8rem; color: var(--text-muted); padding: 2px 0 2px 6px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.tplprev-cat {
+  display: flex; align-items: center; gap: 4px; font-size: 0.72rem; font-weight: 700; text-transform: uppercase;
+  letter-spacing: 0.02em; color: #949ba4; margin: 14px 4px 2px; cursor: default;
+}
+.tplprev-cat:first-child { margin-top: 6px; }
+.tplprev-cat::before { content: '▾'; font-size: 0.6rem; opacity: 0.8; }
+.tplprev-chan {
+  display: flex; align-items: center; gap: 6px; font-size: 0.88rem; color: #949ba4; font-weight: 500;
+  padding: 5px 6px 5px 10px; margin: 1px 2px; border-radius: 4px; overflow: hidden; text-overflow: ellipsis;
+  white-space: nowrap;
+}
+.tplprev-chan-icon { flex: none; font-size: 0.9rem; color: #80848e; width: 16px; text-align: center; }
 .dp-chat-avatar {
   width: 36px; height: 36px; border-radius: 50%; flex: none; display: flex; align-items: center; justify-content: center;
   background: #5865f2; font-size: 1.05rem;
