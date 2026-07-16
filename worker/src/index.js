@@ -872,6 +872,31 @@ async function router(request, env) {
       });
       return json({ ok: true }, env);
     }
+    // Retirage (roadmap n°161) : nouveau gagnant parmi les participants d'un
+    // giveaway deja clos, annonce dans le meme salon.
+    if (sub === 'giveaways' && parts[5] === 'reroll' && parts.length === 6 && method === 'POST') {
+      const session = await requireGuildAccess(env, request, guildId);
+      const kvKey = `guild:${guildId}:giveaways`;
+      const items = (await env.GUILD_KV.get(kvKey, 'json')) || [];
+      const giveaway = items.find((g) => g.id === parts[4]);
+      if (!giveaway) throw new HttpError(404, 'Giveaway introuvable.');
+      if (!giveaway.closed) throw new HttpError(400, 'Ce giveaway est encore en cours.');
+      const pool = (giveaway.entrants || []).filter((uid) => !(giveaway.winners || []).includes(uid));
+      const candidates = pool.length ? pool : (giveaway.entrants || []);
+      if (!candidates.length) throw new HttpError(400, 'Aucun participant a retirer.');
+      const winner = candidates[Math.floor(Math.random() * candidates.length)];
+      giveaway.winners = [...(giveaway.winners || []), winner];
+      await env.GUILD_KV.put(kvKey, JSON.stringify(items));
+      await botFetch(env, `/channels/${giveaway.channelId}/messages`, {
+        method: 'POST',
+        body: JSON.stringify({ content: `🔁 Retirage pour **${giveaway.prize}** : felicitations <@${winner}> !` }),
+      });
+      await logAudit(env, guildId, {
+        title: 'Giveaway retire',
+        description: `${session.username} a retire un gagnant pour "${giveaway.prize}".`,
+      });
+      return json({ ok: true, winner }, env);
+    }
 
     // Casier de sanctions (roadmap n°072) : lit les warns ecrits par le bot
     // (automod et manuels) dans le meme namespace KV.

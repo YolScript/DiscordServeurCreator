@@ -1557,6 +1557,13 @@ function renderPreviewContent(id, { channels, config, roles, members }) {
       e.preventDefault();
       toggle();
     });
+    // Renommage inline (roadmap n°118), meme geste que sur les salons.
+    if (row.dataset.role) {
+      summary.addEventListener('dblclick', (e) => {
+        e.stopPropagation();
+        inlineRename(row, '.dp-role-name', row.dataset.roleName, (newName) => Api.renameRole(id, row.dataset.role, newName));
+      });
+    }
   });
 
   app.querySelectorAll('.dp-role-settings').forEach((btn) => {
@@ -1842,7 +1849,52 @@ function renderPreviewContent(id, { channels, config, roles, members }) {
     });
   }
 
+  // Renommage inline au double-clic (roadmap n°118) : le nom devient un
+  // input, Entree valide, Echap/blur annule.
+  function inlineRename(el, nameSel, currentName, save) {
+    if (el.querySelector('.dp-inline-rename')) return;
+    const nameEl = el.querySelector(nameSel);
+    if (!nameEl) return;
+    const input = document.createElement('input');
+    input.type = 'text';
+    input.className = 'dp-inline-rename';
+    input.value = currentName;
+    input.maxLength = 100;
+    input.setAttribute('aria-label', `Nouveau nom pour ${currentName}`);
+    nameEl.replaceWith(input);
+    input.focus();
+    input.select();
+    let settled = false;
+    const finish = async (commit) => {
+      if (settled) return;
+      settled = true;
+      const newName = input.value.trim();
+      if (commit && newName && newName !== currentName) {
+        try {
+          await save(newName);
+          showToast('Renomme.');
+          await renderPreviewPage(id);
+          return;
+        } catch (err) {
+          showToast(err.message, 'error');
+        }
+      }
+      input.replaceWith(nameEl);
+    };
+    input.addEventListener('keydown', (ev) => {
+      ev.stopPropagation();
+      if (ev.key === 'Enter') finish(true);
+      else if (ev.key === 'Escape') finish(false);
+    });
+    input.addEventListener('click', (ev) => ev.stopPropagation());
+    input.addEventListener('blur', () => finish(false));
+  }
+
   app.querySelectorAll('.dp-channel[data-channel]').forEach((chEl) => {
+    chEl.addEventListener('dblclick', (e) => {
+      e.stopPropagation();
+      inlineRename(chEl, '.dp-channel-name', chEl.dataset.name, (newName) => Api.renameChannel(id, chEl.dataset.channel, newName));
+    });
     chEl.addEventListener('click', () => openChannel(chEl));
     chEl.addEventListener('keydown', async (e) => {
       if (e.key === 'Enter' || e.key === ' ') {
@@ -4898,6 +4950,7 @@ async function renderGiveawaysPage(id, container = app) {
           </div>
         </div>
         ${!g.closed ? `<button type="button" class="btn danger giveaway-end-btn" data-giveaway-id="${g.id}" data-giveaway-prize="${escapeHtml(g.prize)}">Terminer</button>` : ''}
+        ${g.closed && g.entrants?.length ? `<button type="button" class="btn secondary giveaway-reroll-btn" data-giveaway-id="${g.id}" title="Tirer un nouveau gagnant">🔁 Retirer</button>` : ''}
       </div>`;
   };
 
@@ -4976,6 +5029,21 @@ async function renderGiveawaysPage(id, container = app) {
         await renderGiveawaysPage(id, container);
       } catch (err) {
         showToast(err.message, 'error');
+      }
+    });
+  });
+
+  // Retirage (roadmap n°161) : nouveau gagnant annonce dans le salon.
+  container.querySelectorAll('.giveaway-reroll-btn').forEach((btn) => {
+    btn.addEventListener('click', async () => {
+      btn.disabled = true;
+      try {
+        await Api.rerollGiveaway(id, btn.dataset.giveawayId);
+        showToast('Nouveau gagnant tire et annonce !');
+        await renderGiveawaysPage(id, container);
+      } catch (err) {
+        showToast(err.message, 'error');
+        btn.disabled = false;
       }
     });
   });
