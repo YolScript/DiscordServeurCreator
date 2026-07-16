@@ -7609,11 +7609,14 @@ async function init() {
   // un serveur est ouvert.
   const tabbar = document.getElementById('mobile-tabbar');
   if (tabbar) {
-    // (hover: none) seul matche sur certains PC (ecran tactile, pilotes) :
-    // on exige un pointeur grossier EN PLUS, ou un ecran etroit.
-    const mobileQuery = window.matchMedia('(max-width: 700px), (hover: none) and (pointer: coarse)');
+    // Demande explicite du user : la barre ne s'affiche QUE sur telephone.
+    // Les media queries (hover/pointer) matchent sur certains PC tactiles,
+    // donc on se base sur l'appareil lui-meme (User-Agent) ou une fenetre
+    // vraiment etroite.
+    const isPhone = navigator.userAgentData?.mobile
+      ?? /Android|iPhone|iPad|iPod|Mobile/i.test(navigator.userAgent);
     const updateTabbar = () => {
-      tabbar.hidden = !mobileQuery.matches || !guildId;
+      tabbar.hidden = !(isPhone || window.innerWidth <= 700) || !guildId;
       document.body.classList.toggle('has-tabbar', !tabbar.hidden);
     };
     updateTabbar();
