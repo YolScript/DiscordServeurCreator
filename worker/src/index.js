@@ -45,6 +45,23 @@ import { runAiTurn, resumeAfterConfirmation } from './aiOrchestrator.js';
 // "live" (miroir de SOURCE_GUILD_ID dans src/discord/guildSetup/templates/liveTemplate.js).
 const LIVE_TEMPLATE_SOURCE_GUILD_ID = '1526242972989915307';
 
+// Salons/categories crees par d'autres bots invites sur le serveur de
+// reference (ex: FortniteParty) : n'ont aucun champ dans guildConfig, donc
+// invisibles via les exclusions par ID ci-dessous. Filtres par nom (miroir
+// de isThirdPartyName dans liveTemplate.js) pour ne jamais les montrer dans
+// l'apercu de template.
+const THIRD_PARTY_NAMES = new Set(['vocaux party', 'creer une party']);
+function normalizeChannelName(name) {
+  return (name || '')
+    .toLowerCase()
+    .replace(/[àâ]/g, 'a').replace(/[éèêë]/g, 'e').replace(/[îï]/g, 'i')
+    .replace(/[ôö]/g, 'o').replace(/[ùûü]/g, 'u').replace(/ç/g, 'c')
+    .replace(/[^a-z0-9]+/g, ' ').trim();
+}
+function isThirdPartyName(name) {
+  return THIRD_PARTY_NAMES.has(normalizeChannelName(name));
+}
+
 class HttpError extends Error {
   constructor(status, message) {
     super(message);
@@ -220,12 +237,13 @@ async function router(request, env) {
       ].filter(Boolean));
 
       const categories = allChannels
-        .filter((c) => c.type === 4 && !excludedCategoryIds.has(c.id))
+        .filter((c) => c.type === 4 && !excludedCategoryIds.has(c.id) && !isThirdPartyName(c.name))
         .sort((a, b) => a.position - b.position)
         .map((cat) => ({
           name: cat.name,
           channels: allChannels
-            .filter((c) => c.parent_id === cat.id && !excludedChannelIds.has(c.id) && (c.type === 0 || c.type === 2))
+            .filter((c) => c.parent_id === cat.id && !excludedChannelIds.has(c.id) && !isThirdPartyName(c.name)
+              && (c.type === 0 || c.type === 2))
             .sort((a, b) => a.position - b.position)
             .map((ch) => ({ name: ch.name, type: ch.type === 2 ? 'voice' : 'text' })),
         }));

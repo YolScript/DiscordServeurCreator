@@ -45,6 +45,22 @@ function excludedIds(sourceConfig) {
   };
 }
 
+// Salons/categories crees par d'autres bots invites sur le serveur de
+// reference (ex: FortniteParty) : n'ont aucun champ dans guildConfig, donc
+// invisibles pour excludedIds() ci-dessus. Filtres par nom pour ne jamais
+// les recopier dans un serveur genere.
+const THIRD_PARTY_NAMES = new Set(['vocaux party', 'creer une party']);
+function normalizeChannelName(name) {
+  return (name || '')
+    .toLowerCase()
+    .replace(/[àâ]/g, 'a').replace(/[éèêë]/g, 'e').replace(/[îï]/g, 'i')
+    .replace(/[ôö]/g, 'o').replace(/[ùûü]/g, 'u').replace(/ç/g, 'c')
+    .replace(/[^a-z0-9]+/g, ' ').trim();
+}
+function isThirdPartyName(name) {
+  return THIRD_PARTY_NAMES.has(normalizeChannelName(name));
+}
+
 // Traduit les permission overwrites source (qui referencent des IDs de role
 // du serveur de reference) vers le serveur nouvellement cree. Toute
 // permission overwrite qui reference un role non traduisible (role custom,
@@ -93,7 +109,7 @@ async function buildLiveTemplate(client, sourceGuildId = SOURCE_GUILD_ID, label)
   const { categories: excludedCategoryIds, channels: excludedChannelIds } = excludedIds(sourceConfig);
   const allChannels = await sourceGuild.channels.fetch();
   const categoryChannels = [...allChannels.values()]
-    .filter((c) => c && c.type === ChannelType.GuildCategory && !excludedCategoryIds.has(c.id))
+    .filter((c) => c && c.type === ChannelType.GuildCategory && !excludedCategoryIds.has(c.id) && !isThirdPartyName(c.name))
     .sort((a, b) => a.position - b.position);
 
   const categoryBlueprintSource = categoryChannels.map((cat) => ({
@@ -101,7 +117,7 @@ async function buildLiveTemplate(client, sourceGuildId = SOURCE_GUILD_ID, label)
     name: cat.name,
     sourceOverwrites: cat.permissionOverwrites?.cache ? [...cat.permissionOverwrites.cache.values()] : cat.permissionOverwrites,
     channels: [...allChannels.values()]
-      .filter((c) => c && c.parentId === cat.id && !excludedChannelIds.has(c.id)
+      .filter((c) => c && c.parentId === cat.id && !excludedChannelIds.has(c.id) && !isThirdPartyName(c.name)
         && (c.type === ChannelType.GuildText || c.type === ChannelType.GuildVoice))
       .sort((a, b) => a.position - b.position)
       .map((ch) => ({
