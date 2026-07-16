@@ -1173,13 +1173,36 @@ body.bg-video-off .bg-video, body.bg-video-off .bg-video-wrap video { display: n
    suffit a l'identifier une fois rendu specifique (voir les placeholders
    "https://..." differencies dans le JS). Uniquement dans ce formulaire,
    le reste du site garde ses labels visibles habituels. */
-.embed-builder-form label { position: absolute; width: 1px; height: 1px; overflow: hidden; clip: rect(0,0,0,0); white-space: nowrap; }
+.embed-builder-form label:not(.dp-toggle-row):not(.embed-field-inline) {
+  position: absolute; width: 1px; height: 1px; overflow: hidden; clip: rect(0,0,0,0); white-space: nowrap;
+}
 .embed-builder-form .dp-subsection-divider { margin: 10px 0 8px; }
 .embed-builder-form .dp-block-title { margin-bottom: 6px; }
 .embed-builder-form textarea { min-height: 60px; }
 .embed-builder-layout { display: flex; gap: 24px; align-items: flex-start; }
 .embed-builder-form { flex: 1; min-width: 320px; }
 .embed-builder-preview-wrap { width: 380px; flex: none; position: sticky; top: 0; }
+
+/* Champs courts groupes sur une ligne (titre+lien, auteur, images, footer) :
+   les labels etant deja masques visuellement, la grille + le placeholder
+   descriptif remplacent une pile verticale de ~15 lignes. */
+.embed-form-row { display: grid; grid-template-columns: 1fr 1fr; gap: 6px; }
+.embed-form-row.three { grid-template-columns: 1.1fr 1fr 1fr; }
+.embed-form-row > div { min-width: 0; }
+.embed-builder-form input[type=text], .embed-builder-form select { padding: 7px 10px; font-size: 0.84rem; }
+.embed-builder-form input[type=text], .embed-builder-form textarea, .embed-builder-form select { margin-bottom: 6px; }
+.embed-form-row input[type=text], .embed-field-row input[type=text], .embed-field-row textarea { margin-bottom: 0; }
+
+.embed-template-row { display: flex; align-items: center; gap: 6px; margin-bottom: 4px; }
+.embed-template-name { flex: 1; min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; font-size: 0.85rem; }
+.embed-template-row .btn { flex: none; font-size: 0.74rem; padding: 4px 9px; }
+
+button.embed-json-jump { background: none; border: none; padding: 0; font-family: inherit; cursor: pointer; }
+.embed-char-total {
+  margin: 6px 0 0; text-align: right; font-size: 0.76rem; color: var(--text-faint);
+  font-variant-numeric: tabular-nums;
+}
+.embed-char-total.over { color: var(--danger); font-weight: 600; }
 
 .embed-field-row {
   display: grid; grid-template-columns: auto 1fr auto; gap: 6px 8px; align-items: start;

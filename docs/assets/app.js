@@ -3538,7 +3538,7 @@ function embedPreviewHtml(embed) {
   const hex = intToHex(embed.color);
   const authorHtml = embed.author?.name ? `
     <div class="embed-preview-author">
-      ${embed.author.icon_url ? `<img src="${escapeHtml(embed.author.icon_url)}" alt="" />` : ''}
+      ${embed.author.icon_url ? `<img src="${escapeHtml(embed.author.icon_url)}" alt="" onerror="this.remove()" />` : ''}
       <span>${embed.author.url ? `<a href="${escapeHtml(embed.author.url)}" target="_blank" rel="noopener noreferrer">${escapeHtml(embed.author.name)}</a>` : escapeHtml(embed.author.name)}</span>
     </div>` : '';
   const titleHtml = embed.title ? `
@@ -3552,14 +3552,14 @@ function embedPreviewHtml(embed) {
           <div class="embed-preview-field-value">${renderMarkdownLite(f.value)}</div>
         </div>`).join('')}
     </div>` : '';
-  const imageHtml = embed.image?.url ? `<div class="embed-preview-image"><img src="${escapeHtml(embed.image.url)}" alt="" /></div>` : '';
-  const thumbHtml = embed.thumbnail?.url ? `<div class="embed-preview-thumb"><img src="${escapeHtml(embed.thumbnail.url)}" alt="" /></div>` : '';
+  const imageHtml = embed.image?.url ? `<div class="embed-preview-image"><img src="${escapeHtml(embed.image.url)}" alt="" onerror="this.parentElement.remove()" /></div>` : '';
+  const thumbHtml = embed.thumbnail?.url ? `<div class="embed-preview-thumb"><img src="${escapeHtml(embed.thumbnail.url)}" alt="" onerror="this.parentElement.remove()" /></div>` : '';
   const footerBits = [];
   if (embed.footer?.text) footerBits.push(escapeHtml(embed.footer.text));
   if (embed.timestamp) footerBits.push(new Date().toLocaleString('fr-FR', { day: '2-digit', month: '2-digit', year: 'numeric', hour: '2-digit', minute: '2-digit' }));
   const footerHtml = footerBits.length ? `
     <div class="embed-preview-footer">
-      ${embed.footer?.icon_url ? `<img src="${escapeHtml(embed.footer.icon_url)}" alt="" />` : ''}
+      ${embed.footer?.icon_url ? `<img src="${escapeHtml(embed.footer.icon_url)}" alt="" onerror="this.remove()" />` : ''}
       <span>${footerBits.join(' • ')}</span>
     </div>` : '';
 
@@ -3627,12 +3627,37 @@ function populateEmbedForm(root, embed = {}, content = '') {
   updateEmbedPreview(root);
 }
 
+// Total de caracteres comptes par Discord dans la limite globale de 6000
+// par message : titre, description, nom d'auteur, texte de pied de page et
+// nom/valeur de chaque champ, cumules sur tous les embeds.
+function embedCharCount(e) {
+  let n = (e.title || '').length + (e.description || '').length;
+  n += (e.author?.name || '').length + (e.footer?.text || '').length;
+  (e.fields || []).forEach((f) => { n += (f.name || '').length + (f.value || '').length; });
+  return n;
+}
+
 function updateEmbedPreview(root) {
   const { embed, content } = buildEmbedFromForm(root);
   const state = root.__mb;
   if (state) state.embeds[state.active] = embed;
   const embeds = state ? state.embeds : [embed];
   root.querySelector('#embed-preview-slot').innerHTML = messagePreviewHtml(content, embeds);
+
+  const total = embeds.reduce((n, e) => n + embedCharCount(e), 0);
+  const counter = root.querySelector('#embed-char-total');
+  if (counter) {
+    counter.textContent = total > 6000
+      ? `${total} / 6000 caracteres — limite Discord depassee`
+      : `${total} / 6000 caracteres`;
+    counter.classList.toggle('over', total > 6000);
+  }
+  const postBtn = root.querySelector('#embed-post-btn');
+  if (postBtn) {
+    const empty = !content && total === 0 && embeds.every((e) => !e.image && !e.thumbnail);
+    postBtn.disabled = empty || total > 6000;
+    postBtn.title = total > 6000 ? 'Limite de 6000 caracteres depassee' : (empty ? 'Rien a poster : le message est vide' : '');
+  }
 }
 
 function renderEmbedTabs(root) {
@@ -3740,12 +3765,10 @@ async function renderEmbedBuilderPage(id, container = app) {
   const channelOptions = textChannels.map((c) => `<option value="${c.id}">#${escapeHtml(c.name)}</option>`).join('');
 
   const templateRows = () => templates.map((t) => `
-    <div class="row" data-id="${t.id}" style="justify-content:space-between; margin-bottom:6px;">
-      <span>${escapeHtml(t.name)}</span>
-      <span class="row">
-        <button class="btn secondary embed-load-template" data-id="${t.id}">Charger</button>
-        <button class="btn danger embed-delete-template" data-id="${t.id}">Supprimer</button>
-      </span>
+    <div class="embed-template-row" data-id="${t.id}">
+      <span class="embed-template-name" title="${escapeHtml(t.name)}">${escapeHtml(t.name)}</span>
+      <button class="btn secondary embed-load-template" data-id="${t.id}">Charger</button>
+      <button class="btn danger embed-delete-template" data-id="${t.id}" title="Supprimer le modele" aria-label="Supprimer le modele ${escapeHtml(t.name)}">✕</button>
     </div>
   `).join('') || '<p class="muted">Aucun modele enregistre.</p>';
 
@@ -3756,7 +3779,10 @@ async function renderEmbedBuilderPage(id, container = app) {
           <div class="dp-block">
             <div class="row" style="justify-content:space-between; align-items:center;">
               <p class="dp-block-title" style="margin:0;">📨 Message</p>
-              <a href="#embed-json" class="embed-json-jump">🧾 Importer/exporter en JSON</a>
+              <span class="row" style="gap:12px;">
+                <button type="button" class="embed-json-jump" id="embed-clear-btn">🧹 Vider l'embed</button>
+                <a href="#embed-json" class="embed-json-jump">🧾 Importer/exporter en JSON</a>
+              </span>
             </div>
             <label for="embed-content">Texte au-dessus des embeds (optionnel)</label>
             <textarea id="embed-content" placeholder="Texte simple, en plus des embeds"></textarea>
@@ -3765,10 +3791,16 @@ async function renderEmbedBuilderPage(id, container = app) {
 
             <div class="dp-subsection-divider"></div>
             <p class="dp-block-title">📝 Contenu principal</p>
-            <label for="embed-title">Titre</label>
-            <input type="text" id="embed-title" maxlength="256" placeholder="Titre de l'embed" data-charcount />
-            <label for="embed-url">Lien du titre</label>
-            <input type="text" id="embed-url" placeholder="Lien du titre : https://..." />
+            <div class="embed-form-row">
+              <div>
+                <label for="embed-title">Titre</label>
+                <input type="text" id="embed-title" maxlength="256" placeholder="Titre de l'embed" data-charcount />
+              </div>
+              <div>
+                <label for="embed-url">Lien du titre</label>
+                <input type="text" id="embed-url" placeholder="Lien du titre : https://..." />
+              </div>
+            </div>
             <label for="embed-description">Description</label>
             <textarea id="embed-description" maxlength="4096" placeholder="Texte principal (markdown Discord supporte)" data-charcount></textarea>
             <label for="embed-color">Couleur</label>
@@ -3781,19 +3813,33 @@ async function renderEmbedBuilderPage(id, container = app) {
 
             <div class="dp-subsection-divider"></div>
             <p class="dp-block-title">👤 Auteur</p>
-            <label for="embed-author-name">Nom</label>
-            <input type="text" id="embed-author-name" maxlength="256" placeholder="Nom affiche en haut" data-charcount />
-            <label for="embed-author-url">Lien</label>
-            <input type="text" id="embed-author-url" placeholder="Lien de l'auteur : https://..." />
-            <label for="embed-author-icon">Icone (URL)</label>
-            <input type="text" id="embed-author-icon" placeholder="https://..." />
+            <div class="embed-form-row three">
+              <div>
+                <label for="embed-author-name">Nom</label>
+                <input type="text" id="embed-author-name" maxlength="256" placeholder="Nom affiche en haut" data-charcount />
+              </div>
+              <div>
+                <label for="embed-author-url">Lien</label>
+                <input type="text" id="embed-author-url" placeholder="Lien : https://..." />
+              </div>
+              <div>
+                <label for="embed-author-icon">Icone (URL)</label>
+                <input type="text" id="embed-author-icon" placeholder="Icone : https://..." />
+              </div>
+            </div>
 
             <div class="dp-subsection-divider"></div>
             <p class="dp-block-title">🖼️ Images</p>
-            <label for="embed-thumbnail">Miniature (petite image, en haut a droite)</label>
-            <input type="text" id="embed-thumbnail" placeholder="https://..." />
-            <label for="embed-image">Image (grande image, en bas)</label>
-            <input type="text" id="embed-image" placeholder="https://..." />
+            <div class="embed-form-row">
+              <div>
+                <label for="embed-thumbnail">Miniature (petite image, en haut a droite)</label>
+                <input type="text" id="embed-thumbnail" placeholder="Miniature (haut droite) : https://..." />
+              </div>
+              <div>
+                <label for="embed-image">Image (grande image, en bas)</label>
+                <input type="text" id="embed-image" placeholder="Grande image (bas) : https://..." />
+              </div>
+            </div>
 
             <div class="dp-subsection-divider"></div>
             <p class="dp-block-title">📋 Champs</p>
@@ -3802,11 +3848,17 @@ async function renderEmbedBuilderPage(id, container = app) {
 
             <div class="dp-subsection-divider"></div>
             <p class="dp-block-title">🔻 Pied de page</p>
-            <label for="embed-footer-text">Texte</label>
-            <input type="text" id="embed-footer-text" maxlength="2048" placeholder="Texte du pied de page" data-charcount />
-            <label for="embed-footer-icon">Icone (URL)</label>
-            <input type="text" id="embed-footer-icon" placeholder="https://..." />
-            <label class="dp-toggle-row" style="margin-top:10px;">
+            <div class="embed-form-row">
+              <div>
+                <label for="embed-footer-text">Texte</label>
+                <input type="text" id="embed-footer-text" maxlength="2048" placeholder="Texte du pied de page" data-charcount />
+              </div>
+              <div>
+                <label for="embed-footer-icon">Icone (URL)</label>
+                <input type="text" id="embed-footer-icon" placeholder="Icone : https://..." />
+              </div>
+            </div>
+            <label class="dp-toggle-row" style="margin-top:8px;">
               <span>Inclure la date/heure actuelles</span>
               <input type="checkbox" id="embed-timestamp" />
             </label>
@@ -3829,6 +3881,7 @@ async function renderEmbedBuilderPage(id, container = app) {
         <div class="embed-builder-preview-wrap">
           <p class="muted" style="margin-top:0;">Apercu en direct</p>
           <div id="embed-preview-slot"></div>
+          <p class="embed-char-total" id="embed-char-total" aria-live="polite"></p>
           <label style="margin-top:14px;" for="embed-target-channel">Salon de destination</label>
           <select id="embed-target-channel">${channelOptions}</select>
           <label style="margin-top:10px;" for="embed-target-message-id">ID du message a editer (optionnel — laisse vide pour poster un nouveau message)</label>
@@ -3872,6 +3925,11 @@ async function renderEmbedBuilderPage(id, container = app) {
       container.querySelector('#embed-color').value = btn.dataset.color;
       updateEmbedPreview(container);
     });
+  });
+
+  container.querySelector('#embed-clear-btn').addEventListener('click', () => {
+    if (!window.confirm("Vider l'embed affiche ? Le texte du message et les autres embeds sont conserves.")) return;
+    populateEmbedForm(container, {}, container.querySelector('#embed-content').value);
   });
   container.querySelector('#embed-target-message-id').addEventListener('input', (e) => {
     container.querySelector('#embed-post-btn').textContent = e.target.value.trim()
