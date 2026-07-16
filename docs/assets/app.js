@@ -1026,7 +1026,7 @@ async function renderPreviewPage(id) {
               <p class="dp-block-title">➕ Nouvelle categorie</p>
               <input type="text" id="dp-home-new-cat-name" placeholder="Nom de la categorie" maxlength="80" data-charcount />
               <div class="row" style="flex-wrap:wrap; gap:4px; margin-top:6px;">
-                ${CHANNEL_EMOJI_PICKS.slice(0, 12).map((e) => `<button type="button" class="btn secondary dp-home-new-cat-emoji-pick" data-emoji="${e}" style="font-size:0.95rem; padding:4px 8px;">${e}</button>`).join('')}
+                ${CHANNEL_EMOJI_PICKS.slice(0, 12).map((e) => `<button type="button" class="btn secondary dp-home-new-cat-emoji-pick" data-emoji="${e}" aria-label="Emoji ${e}" style="font-size:0.95rem; padding:4px 8px;">${e}</button>`).join('')}
               </div>
               <button class="btn" id="dp-home-create-cat-btn" style="margin-top:10px;">Creer</button>
             </div>`;
@@ -1056,7 +1056,7 @@ async function renderPreviewPage(id) {
                 <label>Nom du salon</label>
                 <input type="text" id="dp-home-new-channel-name" placeholder="Nom du salon" maxlength="80" data-charcount />
                 <div class="row" style="flex-wrap:wrap; gap:4px; margin-top:6px;">
-                  ${CHANNEL_EMOJI_PICKS.slice(0, 12).map((e) => `<button type="button" class="btn secondary dp-home-new-channel-emoji-pick" data-emoji="${e}" style="font-size:0.95rem; padding:4px 8px;">${e}</button>`).join('')}
+                  ${CHANNEL_EMOJI_PICKS.slice(0, 12).map((e) => `<button type="button" class="btn secondary dp-home-new-channel-emoji-pick" data-emoji="${e}" aria-label="Emoji ${e}" style="font-size:0.95rem; padding:4px 8px;">${e}</button>`).join('')}
                 </div>
               </div>
               <div>
@@ -1321,7 +1321,7 @@ function channelActionDetailHtml(key, ctx) {
       <div class="dp-block">
         <p class="dp-block-title">Prefixer le nom avec un emoji</p>
         <div class="row" style="flex-wrap:wrap; gap:6px; margin-bottom:10px;">
-          ${CHANNEL_EMOJI_PICKS.map((e) => `<button type="button" class="btn secondary dp-emoji-pick" data-emoji="${e}" style="font-size:1.05rem; padding:6px 10px;">${e}</button>`).join('')}
+          ${CHANNEL_EMOJI_PICKS.map((e) => `<button type="button" class="btn secondary dp-emoji-pick" data-emoji="${e}" aria-label="Emoji ${e}" style="font-size:1.05rem; padding:6px 10px;">${e}</button>`).join('')}
         </div>
         <input type="text" id="dp-emoji-name" value="${escapeHtml(name)}" />
         <button class="btn" id="dp-save-emoji" style="margin-top:10px;">Enregistrer</button>
@@ -1543,7 +1543,7 @@ function categoryActionDetailHtml(key, ctx) {
           <label>Nom du salon</label>
           <input type="text" id="dp-cat-new-channel-name" placeholder="Nom du salon" maxlength="80" data-charcount />
           <div class="row" style="flex-wrap:wrap; gap:4px; margin-top:6px;">
-            ${CHANNEL_EMOJI_PICKS.slice(0, 12).map((e) => `<button type="button" class="btn secondary dp-cat-new-channel-emoji-pick" data-emoji="${e}" style="font-size:0.95rem; padding:4px 8px;">${e}</button>`).join('')}
+            ${CHANNEL_EMOJI_PICKS.slice(0, 12).map((e) => `<button type="button" class="btn secondary dp-cat-new-channel-emoji-pick" data-emoji="${e}" aria-label="Emoji ${e}" style="font-size:0.95rem; padding:4px 8px;">${e}</button>`).join('')}
           </div>
         </div>
         <div>
@@ -1585,7 +1585,7 @@ function categoryActionDetailHtml(key, ctx) {
       <div class="dp-block">
         <p class="dp-block-title">Prefixer le nom avec un emoji</p>
         <div class="row" style="flex-wrap:wrap; gap:6px; margin-bottom:10px;">
-          ${CHANNEL_EMOJI_PICKS.map((e) => `<button type="button" class="btn secondary dp-cat-emoji-pick" data-emoji="${e}" style="font-size:1.05rem; padding:6px 10px;">${e}</button>`).join('')}
+          ${CHANNEL_EMOJI_PICKS.map((e) => `<button type="button" class="btn secondary dp-cat-emoji-pick" data-emoji="${e}" aria-label="Emoji ${e}" style="font-size:1.05rem; padding:6px 10px;">${e}</button>`).join('')}
         </div>
         <input type="text" id="dp-cat-emoji-name" value="${escapeHtml(name)}" />
         <button class="btn" id="dp-cat-save-emoji" style="margin-top:10px;">Enregistrer</button>
@@ -3409,7 +3409,10 @@ function updateEmbedPreview(root) {
 function renderEmbedTabs(root) {
   const state = root.__mb;
   const tabsHtml = state.embeds.map((_, i) => `
-    <button type="button" class="btn ${i === state.active ? '' : 'secondary'} embed-tab-btn" data-index="${i}" style="padding:6px 12px;">Embed ${i + 1}${state.embeds.length > 1 ? ` <span class="embed-tab-remove" data-index="${i}" title="Supprimer cet embed">✕</span>` : ''}</button>
+    <span class="embed-tab-group">
+      <button type="button" class="btn ${i === state.active ? '' : 'secondary'} embed-tab-btn" data-index="${i}" style="padding:6px 12px;">Embed ${i + 1}</button>
+      ${state.embeds.length > 1 ? `<button type="button" class="btn secondary embed-tab-remove" data-index="${i}" aria-label="Supprimer Embed ${i + 1}" title="Supprimer cet embed" style="padding:6px 8px;">✕</button>` : ''}
+    </span>
   `).join('');
   const addBtn = state.embeds.length < 10 ? '<button type="button" class="btn secondary" id="embed-tab-add" style="padding:6px 12px;">+ Embed</button>' : '';
   root.querySelector('#embed-tabs').innerHTML = tabsHtml + addBtn;

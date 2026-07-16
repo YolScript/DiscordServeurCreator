@@ -568,6 +568,8 @@ input::placeholder, textarea::placeholder { color: var(--text-faint); }
 }
 .char-counter-near { color: var(--warning); }
 
+.embed-tab-group { display: inline-flex; gap: 2px; }
+
 /* ---------- Toast ---------- */
 
 .toast {
