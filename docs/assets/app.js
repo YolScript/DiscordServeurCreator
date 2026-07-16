@@ -466,7 +466,12 @@ function roleRowHtml(role, members) {
       <div class="dp-role-detail">
         ${!isEveryone ? `
           <p class="dp-role-detail-title">Couleur</p>
-          <input type="color" class="dp-role-color-input" value="${hex}" data-role="${role.id}" />
+          <div class="dp-role-color-row">
+            <input type="color" class="dp-role-color-input" value="${hex}" data-role="${role.id}" />
+            <div class="dp-color-swatches">
+              ${DISCORD_ROLE_COLORS.map((c) => `<button type="button" class="dp-color-swatch-btn" data-color="${c}" data-role="${role.id}" style="--sw:${c}" title="${c}" aria-label="Couleur ${c}"></button>`).join('')}
+            </div>
+          </div>
         ` : ''}
         <p class="dp-role-detail-title">Permissions</p>
         ${perms.length
@@ -950,17 +955,26 @@ async function renderPreviewPage(id) {
     }
   }
 
+  async function applyRoleColor(roleId, colorHex, scope) {
+    try {
+      await Api.setRoleColor(id, roleId, parseInt(colorHex.slice(1), 16));
+      showToast('Couleur mise a jour.');
+      const row = scope.closest('.dp-role-row');
+      const dot = row?.querySelector('.dp-role-dot');
+      if (dot) dot.style.background = colorHex;
+      const nativeInput = row?.querySelector('.dp-role-color-input');
+      if (nativeInput) nativeInput.value = colorHex;
+    } catch (err) {
+      showToast(err.message, 'error');
+    }
+  }
+
+  app.querySelectorAll('.dp-color-swatch-btn').forEach((btn) => {
+    btn.addEventListener('click', () => applyRoleColor(btn.dataset.role, btn.dataset.color, btn));
+  });
+
   app.querySelectorAll('.dp-role-color-input').forEach((input) => {
-    input.addEventListener('change', async () => {
-      try {
-        await Api.setRoleColor(id, input.dataset.role, parseInt(input.value.slice(1), 16));
-        showToast('Couleur mise a jour.');
-        const dot = input.closest('.dp-role-row').querySelector('.dp-role-dot');
-        if (dot) dot.style.background = input.value;
-      } catch (err) {
-        showToast(err.message, 'error');
-      }
-    });
+    input.addEventListener('change', () => applyRoleColor(input.dataset.role, input.value, input));
   });
 
   function openChannel(chEl) {
@@ -1254,6 +1268,12 @@ function specialChannelToggleHtml(channelId, type, config) {
       </div>
     </div>`;
 }
+
+// Palette de couleurs de roles standard du client Discord (color picker natif).
+const DISCORD_ROLE_COLORS = [
+  '#1abc9c', '#2ecc71', '#3498db', '#9b59b6', '#e91e63',
+  '#f1c40f', '#e67e22', '#e74c3c', '#95a5a6', '#607d8b',
+];
 
 const CHANNEL_EMOJI_PICKS = [
   '📢', '💬', '🎮', '🎫', '📜', '👋', '🔊', '⭐', '🔥', '🎉', '📁', '🛡️',
