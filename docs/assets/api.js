@@ -75,6 +75,7 @@ window.Api = (function api() {
     endGiveaway: (guildId, giveawayId) => request(`/api/guilds/${guildId}/giveaways/${giveawayId}/end`, { method: 'POST' }),
     rerollGiveaway: (guildId, giveawayId) => request(`/api/guilds/${guildId}/giveaways/${giveawayId}/reroll`, { method: 'POST' }),
     createFeatureChannel: (guildId, feature) => request(`/api/guilds/${guildId}/feature-channel`, { method: 'POST', body: JSON.stringify({ feature }) }),
+    applyServerTemplate: (guildId, template) => request(`/api/guilds/${guildId}/apply-template`, { method: 'POST', body: JSON.stringify({ template }) }),
     addMemberRole: (guildId, userId, roleId) => request(`/api/guilds/${guildId}/members/${userId}/roles/${roleId}`, { method: 'PUT' }),
     removeMemberRole: (guildId, userId, roleId) => request(`/api/guilds/${guildId}/members/${userId}/roles/${roleId}`, { method: 'DELETE' }),
     createRole: (guildId, name, color, permissions) => request(`/api/guilds/${guildId}/roles`, { method: 'POST', body: JSON.stringify({ name, color, permissions }) }),

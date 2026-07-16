@@ -4988,6 +4988,27 @@ async function renderCreatorPage(id, container = app) {
 
   container.innerHTML = `
     <div class="inner">
+      ${sectionHtml('Templates de serveur', `
+        <p class="muted">Applique une structure complete en un clic (roles, categories, salons avec permissions). Additif : rien d'existant n'est touche, seuls les elements manquants sont crees.</p>
+        <div class="creator-grid">
+          <div class="creator-card">
+            <div class="creator-card-head"><span class="icon">🎮</span><strong>Gaming</strong></div>
+            <p class="muted creator-card-desc">Accueil, regles, clips, recherche de team, 3 vocaux, roles Joueur et VIP.</p>
+            <button type="button" class="btn apply-template-btn" data-template="gaming">Appliquer</button>
+          </div>
+          <div class="creator-card">
+            <div class="creator-card-head"><span class="icon">🏡</span><strong>Communaute</strong></div>
+            <p class="muted creator-card-desc">Infos, reglement, discussions, presentations, vocaux detente, roles Membre actif et Booster.</p>
+            <button type="button" class="btn apply-template-btn" data-template="communaute">Appliquer</button>
+          </div>
+          <div class="creator-card">
+            <div class="creator-card-head"><span class="icon">🎓</span><strong>Etudes</strong></div>
+            <p class="muted creator-card-desc">Planning, ressources, entraide, salles de travail vocales, roles Etudiant et Tuteur.</p>
+            <button type="button" class="btn apply-template-btn" data-template="etudes">Appliquer</button>
+          </div>
+        </div>
+      `, { alwaysOpen: true })}
+
       ${sectionHtml('Salons fonctionnels', `
         <p class="muted">Chaque salon est cree avec les bonnes permissions et branche automatiquement sur la fonctionnalite du bot.</p>
         <div class="creator-grid">${FEATURE_CHANNEL_CARDS.map(featureCardHtml).join('')}</div>
@@ -5012,6 +5033,24 @@ async function renderCreatorPage(id, container = app) {
       `, { alwaysOpen: true })}
     </div>
   `;
+
+  // Templates de serveur (roadmap n°143) : application additive confirmee.
+  container.querySelectorAll('.apply-template-btn').forEach((btn) => {
+    btn.addEventListener('click', async () => {
+      if (!window.confirm('Appliquer ce template ? Les roles, categories et salons manquants seront crees (rien d\'existant ne sera modifie).')) return;
+      btn.disabled = true;
+      btn.textContent = 'Creation...';
+      try {
+        const res = await Api.applyServerTemplate(id, btn.dataset.template);
+        showToast(`Template applique : ${res.createdChannels} salon(s) et ${res.createdRoles} role(s) crees${res.skipped ? `, ${res.skipped} deja presents` : ''}.`);
+        await renderCreatorPage(id, container);
+      } catch (err) {
+        showToast(err.message, 'error');
+        btn.disabled = false;
+        btn.textContent = 'Appliquer';
+      }
+    });
+  });
 
   container.querySelectorAll('.creator-channel-btn').forEach((btn) => {
     btn.addEventListener('click', async () => {

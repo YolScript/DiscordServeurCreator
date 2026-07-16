@@ -47,6 +47,7 @@ import {
   twitchLoginRedirect, handleTwitchCallback, syncTwitchSubs, getTwitchSubs, disconnectTwitch, syncAllTwitchSubs,
 } from './twitch.js';
 import { getTrash, pushTrash, removeTrash } from './trash.js';
+import { SERVER_TEMPLATES, applyServerTemplate } from './serverTemplates.js';
 
 // Serveur de reference dont la structure est lue en direct pour le template
 // "live" (miroir de SOURCE_GUILD_ID dans src/discord/guildSetup/templates/liveTemplate.js).
@@ -1202,6 +1203,20 @@ async function router(request, env) {
         await logAudit(env, guildId, { title: 'Salon supprime', description: `${session.username} a supprime un salon (${channelId}). Restaurable 24h dans la corbeille.` });
         return json({ ok: true }, env);
       }
+    }
+
+    // Templates de serveur complets (roadmap n°143) : application ADDITIVE
+    // d'une structure type (gaming/communaute/etudes).
+    if (sub === 'apply-template' && parts.length === 4 && method === 'POST') {
+      const session = await requireGuildAccess(env, request, guildId);
+      const { template } = await readJson(request);
+      if (!SERVER_TEMPLATES[template]) throw new HttpError(400, 'Template inconnu.');
+      const result = await applyServerTemplate(env, guildId, template);
+      await logAudit(env, guildId, {
+        title: 'Template de serveur applique',
+        description: `${session.username} a applique le template ${SERVER_TEMPLATES[template].label} (${result.createdChannels} salon(s), ${result.createdRoles} role(s) crees, ${result.skipped} existant(s) conserves).`,
+      });
+      return json(result, env);
     }
 
     // Corbeille (roadmap n°138) : liste + restauration des elements
