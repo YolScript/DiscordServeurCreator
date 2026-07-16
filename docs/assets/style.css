@@ -1297,7 +1297,7 @@ button.embed-json-jump { background: none; border: none; padding: 0; font-family
    lateraux deviennent des tiroirs ouverts par boutons flottants, et les
    petites cibles passent a ~44px (n°045). */
 .dp-drawer-btn { display: none; }
-@media (hover: none), (max-width: 700px) {
+@media (hover: none) and (pointer: coarse), (max-width: 700px) {
   .dp-sidebar, .dp-roles-panel { transition: transform 0.2s ease; }
   .dp-sidebar { transform: translateX(-100%); }
   .dp-roles-panel { transform: translateX(100%); }
