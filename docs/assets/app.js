@@ -3760,12 +3760,55 @@ function embedCharCount(e) {
   return n;
 }
 
+// Modeles d'embed prets a l'emploi (n°002) : bases de depart courantes,
+// pre-remplies avec les variables dynamiques quand c'est pertinent.
+const EMBED_PRESETS = [
+  { key: 'annonce', label: '📣 Annonce', embed: { title: '📣 Annonce', description: '**Quoi :** ...\n**Quand :** {date}\n**Ou :** ...', color: 0x5865f2, footer: { text: '{server}' } } },
+  { key: 'reglement', label: '📜 Reglement', embed: { title: '📜 Reglement du serveur', description: '**1.** Respect entre membres, zero harcelement.\n**2.** Pas de spam ni de publicite.\n**3.** Contenu choquant interdit.\n**4.** Les decisions du staff s\'appliquent.', color: 0xef5c5c, footer: { text: 'En restant sur {server}, tu acceptes ces regles.' } } },
+  { key: 'bienvenue', label: '👋 Bienvenue', embed: { title: '👋 Bienvenue sur {server} !', description: 'Nous sommes deja **{memberCount} membres**.\n- Lis le reglement\n- Recupere tes roles\n- Presente-toi quand tu veux !', color: 0x57f287 } },
+  { key: 'giveaway', label: '🎉 Giveaway', embed: { title: '🎉 GIVEAWAY', description: '**Lot :** ...\n**Fin :** ...\n**Pour participer :** reagis avec 🎉', color: 0xfee75c, footer: { text: 'Bonne chance a tous !' } } },
+  { key: 'patchnote', label: '🛠️ Patch note', embed: { title: '🛠️ Mise a jour du {date}', description: '**Nouveau**\n- ...\n\n**Corrige**\n- ...', color: 0x5865f2 } },
+];
+
+// Variables dynamiques (n°004) : resolues dans l'apercu ET au moment de
+// poster/programmer (cote client, avec les valeurs du serveur courant).
+let embedVarContext = null;
+function resolveEmbedVars(text) {
+  if (typeof text !== 'string' || !text) return text;
+  let out = text.replaceAll('{date}', new Date().toLocaleDateString('fr-FR'));
+  if (embedVarContext?.server) out = out.replaceAll('{server}', embedVarContext.server);
+  if (embedVarContext?.memberCount != null) out = out.replaceAll('{memberCount}', String(embedVarContext.memberCount));
+  return out;
+}
+
+function substituteEmbedVars(embed) {
+  const out = { ...embed };
+  out.title = resolveEmbedVars(embed.title);
+  out.description = resolveEmbedVars(embed.description);
+  if (embed.author) out.author = { ...embed.author, name: resolveEmbedVars(embed.author.name) };
+  if (embed.footer) out.footer = { ...embed.footer, text: resolveEmbedVars(embed.footer.text) };
+  if (embed.fields) out.fields = embed.fields.map((f) => ({ ...f, name: resolveEmbedVars(f.name), value: resolveEmbedVars(f.value) }));
+  return out;
+}
+
 function updateEmbedPreview(root) {
   const { embed, content } = buildEmbedFromForm(root);
   const state = root.__mb;
   if (state) state.embeds[state.active] = embed;
   const embeds = state ? state.embeds : [embed];
-  root.querySelector('#embed-preview-slot').innerHTML = messagePreviewHtml(content, embeds);
+  root.querySelector('#embed-preview-slot').innerHTML = messagePreviewHtml(resolveEmbedVars(content), embeds.map(substituteEmbedVars));
+
+  // Brouillon auto (n°007) : sauvegarde debouncee du travail en cours.
+  if (root.__draftKey) {
+    clearTimeout(root.__draftTimer);
+    root.__draftTimer = setTimeout(() => {
+      const hasContent = content || embeds.some((e) => embedCharCount(e) > 0 || e.image || e.thumbnail);
+      if (!hasContent) return;
+      try {
+        localStorage.setItem(root.__draftKey, JSON.stringify({ embeds, content, at: Date.now() }));
+      } catch { /* stockage plein : tant pis pour le brouillon */ }
+    }, 800);
+  }
 
   const total = embeds.reduce((n, e) => n + embedCharCount(e), 0);
   const counter = root.querySelector('#embed-char-total');
@@ -3792,7 +3835,8 @@ function renderEmbedTabs(root) {
     </span>
   `).join('');
   const addBtn = state.embeds.length < 10 ? '<button type="button" class="btn secondary" id="embed-tab-add" style="padding:6px 12px;">+ Embed</button>' : '';
-  root.querySelector('#embed-tabs').innerHTML = tabsHtml + addBtn;
+  const dupBtn = state.embeds.length < 10 ? '<button type="button" class="btn secondary" id="embed-tab-duplicate" style="padding:6px 10px;" title="Dupliquer l\'embed affiche" aria-label="Dupliquer l\'embed affiche">⧉ Dupliquer</button>' : '';
+  root.querySelector('#embed-tabs').innerHTML = tabsHtml + addBtn + dupBtn;
 
   root.querySelectorAll('.embed-tab-remove').forEach((el) => {
     el.addEventListener('click', (e) => {
@@ -3805,6 +3849,20 @@ function renderEmbedTabs(root) {
   });
   const addTabBtn = root.querySelector('#embed-tab-add');
   if (addTabBtn) addTabBtn.addEventListener('click', () => addEmbedTab(root));
+  const dupTabBtn = root.querySelector('#embed-tab-duplicate');
+  if (dupTabBtn) dupTabBtn.addEventListener('click', () => duplicateEmbedTab(root));
+}
+
+// Duplique l'embed actif (n°008) et bascule dessus.
+function duplicateEmbedTab(root) {
+  const state = root.__mb;
+  if (state.embeds.length >= 10) return;
+  state.embeds[state.active] = buildEmbedFromForm(root).embed;
+  state.embeds.splice(state.active + 1, 0, JSON.parse(JSON.stringify(state.embeds[state.active])));
+  state.active += 1;
+  populateEmbedForm(root, state.embeds[state.active], root.querySelector('#embed-content').value);
+  renderEmbedTabs(root);
+  showToast('Embed duplique.');
 }
 
 function switchEmbedTab(root, index) {
@@ -3883,9 +3941,17 @@ function wireEmbedFieldRows(root) {
 
 async function renderEmbedBuilderPage(id, container = app) {
   container.innerHTML = skeletonHtml();
-  const [channels, templates] = await Promise.all([Api.channels(id), Api.embedTemplates(id).catch(() => [])]);
+  const [channels, templates, members] = await Promise.all([
+    Api.channels(id),
+    Api.embedTemplates(id).catch(() => []),
+    Api.members(id).catch(() => null),
+  ]);
   const textChannels = channels.filter((c) => c.type === 0);
   const channelOptions = textChannels.map((c) => `<option value="${c.id}">#${escapeHtml(c.name)}</option>`).join('');
+  embedVarContext = {
+    server: allGuilds.find((g) => g.guildId === id)?.name || null,
+    memberCount: Array.isArray(members) ? members.length : null,
+  };
 
   const templateRows = () => templates.map((t) => `
     <div class="embed-template-row" data-id="${t.id}">
@@ -3926,6 +3992,12 @@ async function renderEmbedBuilderPage(id, container = app) {
             </div>
             <label for="embed-description">Description</label>
             <textarea id="embed-description" maxlength="4096" placeholder="Texte principal (markdown Discord supporte)" data-charcount data-md-link></textarea>
+            <div class="embed-vars-row" role="group" aria-label="Variables dynamiques">
+              <span>Variables :</span>
+              <button type="button" class="embed-var-chip" data-var="{server}" title="Nom du serveur">{server}</button>
+              <button type="button" class="embed-var-chip" data-var="{memberCount}" title="Nombre de membres">{memberCount}</button>
+              <button type="button" class="embed-var-chip" data-var="{date}" title="Date du jour">{date}</button>
+            </div>
             <label for="embed-color">Couleur</label>
             <div class="dp-role-color-row">
               <input type="color" id="embed-color" value="#5865f2" />
@@ -3987,7 +4059,11 @@ async function renderEmbedBuilderPage(id, container = app) {
             </label>
 
             <div class="dp-subsection-divider"></div>
-            <p class="dp-block-title">💾 Modeles enregistres</p>
+            <p class="dp-block-title">💾 Modeles</p>
+            <div class="embed-presets-row" role="group" aria-label="Modeles prets a l'emploi">
+              ${EMBED_PRESETS.map((p) => `<button type="button" class="embed-preset-btn" data-preset="${p.key}">${p.label}</button>`).join('')}
+            </div>
+            <div id="embed-draft-row"></div>
             <div id="embed-templates-list">${templateRows()}</div>
 
             <div class="dp-subsection-divider"></div>
@@ -4002,7 +4078,10 @@ async function renderEmbedBuilderPage(id, container = app) {
         </div>
 
         <div class="embed-builder-preview-wrap">
-          <p class="muted" style="margin-top:0;">Apercu en direct</p>
+          <div class="row" style="justify-content:space-between; align-items:center;">
+            <p class="muted" style="margin:0;">Apercu en direct</p>
+            <button type="button" class="embed-json-jump" id="embed-preview-width-btn" aria-pressed="false" title="Simuler la largeur d'un telephone">📱 Apercu mobile</button>
+          </div>
           <div id="embed-preview-slot"></div>
           <p class="embed-char-total" id="embed-char-total" aria-live="polite"></p>
           <label style="margin-top:14px;" for="embed-target-channel">Salon de destination</label>
@@ -4054,7 +4133,104 @@ async function renderEmbedBuilderPage(id, container = app) {
     if (!window.confirm("Vider l'embed affiche ? Le texte du message et les autres embeds sont conserves.")) return;
     populateEmbedForm(container, {}, container.querySelector('#embed-content').value);
   });
+
+  // Brouillon auto (n°007) : propose de restaurer le travail en cours.
+  container.__draftKey = `embedDraft:${id}`;
+  const draftRow = container.querySelector('#embed-draft-row');
+  const renderDraftRow = () => {
+    let draft = null;
+    try { draft = JSON.parse(localStorage.getItem(container.__draftKey) || 'null'); } catch { draft = null; }
+    if (!draft?.embeds) { draftRow.innerHTML = ''; return; }
+    const age = Math.max(1, Math.round((Date.now() - draft.at) / 60000));
+    draftRow.innerHTML = `
+      <div class="embed-template-row">
+        <span class="embed-template-name">📝 Brouillon auto (il y a ${age >= 60 ? `${Math.round(age / 60)} h` : `${age} min`})</span>
+        <button type="button" class="btn secondary" id="embed-draft-restore">Restaurer</button>
+        <button type="button" class="btn danger" id="embed-draft-delete" title="Supprimer le brouillon" aria-label="Supprimer le brouillon">✕</button>
+      </div>`;
+    draftRow.querySelector('#embed-draft-restore').addEventListener('click', () => {
+      container.__mb = { embeds: draft.embeds, active: 0 };
+      populateEmbedForm(container, draft.embeds[0] || {}, draft.content || '');
+      renderEmbedTabs(container);
+      showToast('Brouillon restaure.');
+    });
+    draftRow.querySelector('#embed-draft-delete').addEventListener('click', () => {
+      localStorage.removeItem(container.__draftKey);
+      draftRow.innerHTML = '';
+      showToast('Brouillon supprime.');
+    });
+  };
+  renderDraftRow();
+
+  // Modeles prets a l'emploi (n°002).
+  container.querySelectorAll('.embed-preset-btn').forEach((btn) => {
+    btn.addEventListener('click', () => {
+      const preset = EMBED_PRESETS.find((p) => p.key === btn.dataset.preset);
+      if (!preset) return;
+      populateEmbedForm(container, JSON.parse(JSON.stringify(preset.embed)), container.querySelector('#embed-content').value);
+      showToast(`Modele "${preset.label.replace(/^\S+\s/, '')}" charge : adapte-le puis poste.`);
+    });
+  });
+
+  // Variables dynamiques (n°004) : insertion dans la derniere zone de texte
+  // markdown utilisee (description par defaut).
+  container.__lastMdArea = container.querySelector('#embed-description');
+  container.addEventListener('focusin', (e) => {
+    if (e.target.matches?.('textarea[data-md-link], .embed-field-name, #embed-title, #embed-footer-text')) {
+      container.__lastMdArea = e.target;
+    }
+  });
+  container.querySelectorAll('.embed-var-chip').forEach((chip) => {
+    chip.addEventListener('click', () => {
+      const area = container.__lastMdArea || container.querySelector('#embed-description');
+      const start = area.selectionStart ?? area.value.length;
+      const end = area.selectionEnd ?? start;
+      area.value = area.value.slice(0, start) + chip.dataset.var + area.value.slice(end);
+      const pos = start + chip.dataset.var.length;
+      area.setSelectionRange(pos, pos);
+      area.focus();
+      area.dispatchEvent(new Event('input', { bubbles: true }));
+    });
+  });
+
+  // Apercu mobile (n°009) : simule la largeur d'un telephone.
+  container.querySelector('#embed-preview-width-btn').addEventListener('click', (e) => {
+    const wrap = container.querySelector('.embed-builder-preview-wrap');
+    const mobile = wrap.classList.toggle('mobile-preview');
+    e.currentTarget.setAttribute('aria-pressed', String(mobile));
+    e.currentTarget.textContent = mobile ? '🖥️ Apercu bureau' : '📱 Apercu mobile';
+  });
+
+  // Validation en direct des URL d'images (n°010) : chargement reel teste.
+  const imgUrlIds = ['embed-author-icon', 'embed-thumbnail', 'embed-image', 'embed-footer-icon'];
+  imgUrlIds.forEach((fieldId) => {
+    const input = container.querySelector(`#${fieldId}`);
+    let timer = null;
+    input.addEventListener('input', () => {
+      clearTimeout(timer);
+      input.classList.remove('url-ok', 'url-bad');
+      const v = input.value.trim();
+      if (!v) return;
+      timer = setTimeout(() => {
+        if (!/^https?:\/\/\S+$/i.test(v)) { input.classList.add('url-bad'); return; }
+        const probe = new Image();
+        probe.onload = () => { if (input.value.trim() === v) input.classList.add('url-ok'); };
+        probe.onerror = () => { if (input.value.trim() === v) input.classList.add('url-bad'); };
+        probe.src = v;
+      }, 600);
+    });
+  });
+
   container.querySelector('#embed-target-message-id').addEventListener('input', (e) => {
+    // Lien de message colle (n°006) : detecte salon + message automatiquement.
+    const linkMatch = e.target.value.match(/discord(?:app)?\.com\/channels\/\d+\/(\d+)\/(\d+)/);
+    if (linkMatch) {
+      const [, channelId, messageId] = linkMatch;
+      const sel = container.querySelector('#embed-target-channel');
+      if ([...sel.options].some((o) => o.value === channelId)) sel.value = channelId;
+      e.target.value = messageId;
+      showToast('Lien decode : salon et message selectionnes.');
+    }
     container.querySelector('#embed-post-btn').textContent = e.target.value.trim()
       ? '✏️ Mettre a jour le message'
       : '🚀 Poster dans Discord';
@@ -4091,8 +4267,8 @@ async function renderEmbedBuilderPage(id, container = app) {
     const messageId = container.querySelector('#embed-target-message-id').value.trim();
     const state = container.__mb;
     state.embeds[state.active] = buildEmbedFromForm(container).embed;
-    const embeds = state.embeds;
-    const content = container.querySelector('#embed-content').value.trim();
+    const embeds = state.embeds.map(substituteEmbedVars);
+    const content = resolveEmbedVars(container.querySelector('#embed-content').value.trim());
     if (!channelId) { showToast('Choisis un salon.', 'error'); return; }
     if (!embeds.some((e) => e.title || e.description || (e.fields || []).length)) {
       showToast('Ajoute au moins un titre, une description ou un champ.', 'error');
@@ -4106,6 +4282,7 @@ async function renderEmbedBuilderPage(id, container = app) {
         await Api.postEmbed(id, channelId, embeds, content);
         showToast(`Embed${embeds.length > 1 ? 's' : ''} en cours d'envoi, actif sous quelques secondes.`);
       }
+      localStorage.removeItem(container.__draftKey);
     } catch (err) {
       showToast(err.message, 'error');
     }
@@ -4122,8 +4299,8 @@ async function renderEmbedBuilderPage(id, container = app) {
     if (!dateVal) { showToast('Choisis une date et une heure.', 'error'); return; }
     const state = container.__mb;
     state.embeds[state.active] = buildEmbedFromForm(container).embed;
-    const embeds = state.embeds;
-    const content = container.querySelector('#embed-content').value.trim();
+    const embeds = state.embeds.map(substituteEmbedVars);
+    const content = resolveEmbedVars(container.querySelector('#embed-content').value.trim());
     if (!embeds.some((e) => e.title || e.description || (e.fields || []).length)) {
       showToast('Ajoute au moins un titre, une description ou un champ.', 'error');
       return;
@@ -4175,7 +4352,7 @@ async function renderEmbedBuilderPage(id, container = app) {
     });
   });
 
-  container.querySelector('.embed-json-jump').addEventListener('click', () => {
+  container.querySelector('a.embed-json-jump').addEventListener('click', () => {
     setTimeout(() => container.querySelector('#embed-json').focus(), 300);
   });
   container.querySelector('#embed-json-apply').addEventListener('click', () => {
