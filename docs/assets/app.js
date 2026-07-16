@@ -683,14 +683,14 @@ async function renderPreviewPage(id) {
   const channelIcon = (c) => (c.type === 2 ? '🔊' : c.type === 4 ? '' : '#');
 
   const channelRow = (c) => `
-    <div class="dp-channel" draggable="true" data-channel="${c.id}" data-name="${escapeHtml(c.name)}" data-type="${c.type}">
+    <div class="dp-channel" draggable="true" tabindex="0" role="button" aria-label="Salon ${escapeHtml(c.name)} (Alt+fleches pour reordonner)" data-channel="${c.id}" data-name="${escapeHtml(c.name)}" data-type="${c.type}">
       <span class="hash">${channelIcon(c)}</span> <span class="dp-channel-name">${escapeHtml(c.name)}</span>
     </div>`;
 
   const categoryBlock = (cat) => {
     const children = channels.filter((c) => c.parent_id === cat.id).sort((a, b) => a.position - b.position);
     return `
-      <div class="dp-category" data-cat="${cat.id}" draggable="true" data-drag-type="category" data-drag-name="${escapeHtml(cat.name)}">
+      <div class="dp-category" data-cat="${cat.id}" draggable="true" tabindex="0" role="button" aria-expanded="true" aria-label="Categorie ${escapeHtml(cat.name)}" data-drag-type="category" data-drag-name="${escapeHtml(cat.name)}">
         <span class="chevron">▾</span>
         <span class="dp-category-name">${escapeHtml(cat.name)}</span>
         <button type="button" class="dp-category-settings" data-cat-settings="${cat.id}" data-cat-name="${escapeHtml(cat.name)}" title="Configurer" aria-label="Configurer la categorie ${escapeHtml(cat.name)}">⚙</button>
@@ -761,7 +761,16 @@ async function renderPreviewPage(id) {
   });
 
   app.querySelectorAll('.dp-category').forEach((catEl) => {
-    catEl.addEventListener('click', () => catEl.classList.toggle('collapsed'));
+    const toggle = () => {
+      catEl.classList.toggle('collapsed');
+      catEl.setAttribute('aria-expanded', String(!catEl.classList.contains('collapsed')));
+    };
+    catEl.addEventListener('click', toggle);
+    catEl.addEventListener('keydown', (e) => {
+      if (e.key !== 'Enter' && e.key !== ' ') return;
+      e.preventDefault();
+      toggle();
+    });
   });
 
   app.querySelectorAll('.dp-category-settings').forEach((btn) => {
@@ -915,18 +924,21 @@ async function renderPreviewPage(id) {
     });
     chEl.addEventListener('dragend', async () => {
       chEl.classList.remove('dragging');
-      const list = chEl.parentElement;
-      const orderedIds = [...list.querySelectorAll('.dp-channel[data-channel]')].map((el) => el.dataset.channel);
-      const positions = orderedIds.map((cid, idx) => ({ id: cid, position: idx }));
-      try {
-        await Api.setChannelPositions(id, positions);
-        showToast('Ordre des salons mis a jour.');
-      } catch (err) {
-        showToast(err.message, 'error');
-        await renderPreviewPage(id);
-      }
+      await persistChannelOrder(chEl.parentElement);
     });
   });
+
+  async function persistChannelOrder(list) {
+    const orderedIds = [...list.querySelectorAll('.dp-channel[data-channel]')].map((el) => el.dataset.channel);
+    const positions = orderedIds.map((cid, idx) => ({ id: cid, position: idx }));
+    try {
+      await Api.setChannelPositions(id, positions);
+      showToast('Ordre des salons mis a jour.');
+    } catch (err) {
+      showToast(err.message, 'error');
+      await renderPreviewPage(id);
+    }
+  }
 
   app.querySelectorAll('.dp-role-color-input').forEach((input) => {
     input.addEventListener('change', async () => {
@@ -941,14 +953,35 @@ async function renderPreviewPage(id) {
     });
   });
 
+  function openChannel(chEl) {
+    app.querySelectorAll('.dp-channel').forEach((el) => el.classList.remove('selected'));
+    chEl.classList.add('selected');
+    window.UISound?.select();
+    withViewTransition(() => {
+      renderChannelPanel(id, chEl.dataset.channel, chEl.dataset.name, Number(chEl.dataset.type), config, channels, rolesSorted);
+    });
+  }
+
   app.querySelectorAll('.dp-channel[data-channel]').forEach((chEl) => {
-    chEl.addEventListener('click', () => {
-      app.querySelectorAll('.dp-channel').forEach((el) => el.classList.remove('selected'));
-      chEl.classList.add('selected');
-      window.UISound?.select();
-      withViewTransition(() => {
-        renderChannelPanel(id, chEl.dataset.channel, chEl.dataset.name, Number(chEl.dataset.type), config, channels, rolesSorted);
+    chEl.addEventListener('click', () => openChannel(chEl));
+    chEl.addEventListener('keydown', async (e) => {
+      if (e.key === 'Enter' || e.key === ' ') {
+        e.preventDefault();
+        openChannel(chEl);
+        return;
+      }
+      if (!e.altKey || (e.key !== 'ArrowUp' && e.key !== 'ArrowDown')) return;
+      e.preventDefault();
+      const list = chEl.parentElement;
+      const sibling = e.key === 'ArrowUp' ? chEl.previousElementSibling : chEl.nextElementSibling;
+      if (!sibling || !sibling.matches('.dp-channel[data-channel]')) return;
+      animateReorder(list, '.dp-channel[data-channel]', () => {
+        if (e.key === 'ArrowUp') list.insertBefore(chEl, sibling);
+        else list.insertBefore(sibling, chEl);
       });
+      chEl.focus();
+      window.UISound?.select();
+      await persistChannelOrder(list);
     });
   });
 
