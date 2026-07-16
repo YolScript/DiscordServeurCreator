@@ -3768,7 +3768,7 @@ async function renderEmbedBuilderPage(id, container = app) {
             <label for="embed-title">Titre</label>
             <input type="text" id="embed-title" maxlength="256" placeholder="Titre de l'embed" data-charcount />
             <label for="embed-url">Lien du titre</label>
-            <input type="text" id="embed-url" placeholder="https://..." />
+            <input type="text" id="embed-url" placeholder="Lien du titre : https://..." />
             <label for="embed-description">Description</label>
             <textarea id="embed-description" maxlength="4096" placeholder="Texte principal (markdown Discord supporte)" data-charcount></textarea>
             <label for="embed-color">Couleur</label>
@@ -3784,7 +3784,7 @@ async function renderEmbedBuilderPage(id, container = app) {
             <label for="embed-author-name">Nom</label>
             <input type="text" id="embed-author-name" maxlength="256" placeholder="Nom affiche en haut" data-charcount />
             <label for="embed-author-url">Lien</label>
-            <input type="text" id="embed-author-url" placeholder="https://..." />
+            <input type="text" id="embed-author-url" placeholder="Lien de l'auteur : https://..." />
             <label for="embed-author-icon">Icone (URL)</label>
             <input type="text" id="embed-author-icon" placeholder="https://..." />
 

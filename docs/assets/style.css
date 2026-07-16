@@ -650,6 +650,13 @@ input::placeholder, textarea::placeholder { color: var(--text-faint); }
 .dp-sidebar {
   width: 240px; flex: none; background: var(--bg-sidebar);
   display: flex; flex-direction: column;
+  position: absolute; left: 0; top: 0; bottom: 0; z-index: 30;
+  transform: translateX(calc(-100% + 10px));
+  transition: transform 0.16s ease;
+  box-shadow: 6px 0 18px -6px rgba(0,0,0,0.55);
+}
+.dp-sidebar:hover, .dp-sidebar:focus-within {
+  transform: translateX(0);
 }
 .dp-server-header {
   flex: none; height: 48px; display: flex; align-items: center; justify-content: space-between;
@@ -975,6 +982,13 @@ input::placeholder, textarea::placeholder { color: var(--text-faint); }
 .dp-roles-panel {
   width: 220px; flex: none; background: var(--bg-sidebar);
   border-left: 1px solid var(--border); display: flex; flex-direction: column;
+  position: absolute; right: 0; top: 0; bottom: 0; z-index: 30;
+  transform: translateX(calc(100% - 10px));
+  transition: transform 0.16s ease;
+  box-shadow: -6px 0 18px -6px rgba(0,0,0,0.55);
+}
+.dp-roles-panel:hover, .dp-roles-panel:focus-within {
+  transform: translateX(0);
 }
 .dp-roles-header {
   flex: none; height: 48px; display: flex; align-items: center; padding: 0 14px;
@@ -1063,7 +1077,9 @@ mark {
 .dp-role-handle {
   flex: none; color: var(--text-faint); cursor: grab; font-size: 0.9rem;
   background: none; border: none; padding: 2px; font-family: inherit; border-radius: 4px;
+  opacity: 0; transition: opacity 0.12s ease, color 0.12s ease, background 0.12s ease;
 }
+.dp-role-summary:hover .dp-role-handle, .dp-role-handle:focus-visible { opacity: 1; }
 .dp-role-handle:hover, .dp-role-handle:focus-visible { color: var(--text); background: var(--bg-input); }
 .dp-role-row[draggable="true"]:active .dp-role-handle { cursor: grabbing; }
 .dp-role-row.dragging { opacity: 0.4; }
@@ -1135,6 +1151,16 @@ body.bg-video-off .bg-video, body.bg-video-off .bg-video-wrap video { display: n
 
 .embed-json-jump { font-size: 0.78rem; color: var(--text-faint); text-decoration: none; white-space: nowrap; }
 .embed-json-jump:hover { color: var(--accent); text-decoration: underline; }
+/* Formulaire compact : le generateur d'embed empile ~20 champs sur 8
+   sections. Les labels sont masques visuellement (mais gardes dans le DOM
+   avec leur for= pour les lecteurs d'ecran) : le placeholder de chaque champ
+   suffit a l'identifier une fois rendu specifique (voir les placeholders
+   "https://..." differencies dans le JS). Uniquement dans ce formulaire,
+   le reste du site garde ses labels visibles habituels. */
+.embed-builder-form label { position: absolute; width: 1px; height: 1px; overflow: hidden; clip: rect(0,0,0,0); white-space: nowrap; }
+.embed-builder-form .dp-subsection-divider { margin: 10px 0 8px; }
+.embed-builder-form .dp-block-title { margin-bottom: 6px; }
+.embed-builder-form textarea { min-height: 60px; }
 .embed-builder-layout { display: flex; gap: 24px; align-items: flex-start; }
 .embed-builder-form { flex: 1; min-width: 320px; }
 .embed-builder-preview-wrap { width: 380px; flex: none; position: sticky; top: 0; }
