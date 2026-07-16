@@ -14,7 +14,7 @@ kv_namespaces = [
 # - dimanche 5h00 : sauvegarde complete du KV (cles guild:*/bot:*) dans
 #   backup:<date>, 4 dernieres conservees.
 [triggers]
-crons = ["0 4 * * *", "*/10 * * * *", "0 5 * * 0"]
+crons = ["0 4 * * *", "*/10 * * * *", "0 5 * * SUN"]
 
 [vars]
 BOT_KEEPALIVE_URL = "https://discordserveurcreator.onrender.com/"

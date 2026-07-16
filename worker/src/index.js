@@ -1466,7 +1466,7 @@ export default {
       return;
     }
     // Sauvegarde hebdomadaire complete du KV (roadmap n°106).
-    if (event.cron === '0 5 * * 0') {
+    if (event.cron === '0 5 * * SUN') {
       await backupAllKv(env);
       return;
     }
