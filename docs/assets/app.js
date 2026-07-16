@@ -62,6 +62,72 @@ app.addEventListener('click', async (e) => {
   }
 }, true);
 
+// Champs d'URL (lien ou image) : accepte le glisser-deposer d'un lien ou
+// d'une image venant d'une page web, et le Ctrl+V d'une image copiee sur le
+// web (le navigateur fournit alors le HTML <img src=...> d'origine, dont on
+// extrait le lien). Delegue sur #app comme les compteurs de caracteres :
+// marche partout (generateur d'embed, webhooks...) sans re-cablage par
+// re-rendu. Capture + stopPropagation : les zones parentes (#dp-main) ont
+// leurs propres handlers de depose (salons/categories) a ne pas reveiller.
+(function initUrlFieldDropPaste() {
+  const isUrlInput = (el) => el?.matches?.('input[type=text]') && /https?:\/\//.test(el.placeholder || '');
+  const isHttpUrl = (s) => /^https?:\/\/\S+$/i.test(s);
+
+  const setValue = (input, url) => {
+    input.value = url;
+    input.dispatchEvent(new Event('input', { bubbles: true }));
+    showToast('Lien insere.');
+  };
+
+  const imgSrcFromHtml = (html) => {
+    if (!html) return '';
+    const src = new DOMParser().parseFromString(html, 'text/html').querySelector('img[src]')?.src || '';
+    return isHttpUrl(src) ? src : '';
+  };
+
+  const extractUrl = (dt) => {
+    const uri = (dt.getData('text/uri-list') || '').split('\n').map((l) => l.trim()).find((l) => l && !l.startsWith('#'));
+    if (uri && isHttpUrl(uri)) return uri;
+    const fromHtml = imgSrcFromHtml(dt.getData('text/html'));
+    if (fromHtml) return fromHtml;
+    const text = (dt.getData('text/plain') || '').trim();
+    return isHttpUrl(text) ? text : '';
+  };
+
+  app.addEventListener('dragover', (e) => {
+    if (!isUrlInput(e.target)) return;
+    e.preventDefault();
+    e.stopPropagation();
+    e.target.classList.add('drag-over');
+  }, true);
+  app.addEventListener('dragleave', (e) => {
+    if (isUrlInput(e.target)) e.target.classList.remove('drag-over');
+  }, true);
+  app.addEventListener('drop', (e) => {
+    if (!isUrlInput(e.target)) return;
+    e.preventDefault();
+    e.stopPropagation();
+    e.target.classList.remove('drag-over');
+    const url = extractUrl(e.dataTransfer);
+    if (url) { setValue(e.target, url); return; }
+    if (e.dataTransfer.files?.length) {
+      showToast("Fichier local : Discord a besoin d'un lien public. Poste l'image dans un salon Discord, puis clic droit > Copier le lien.", 'error');
+    }
+  }, true);
+
+  app.addEventListener('paste', (e) => {
+    if (!isUrlInput(e.target)) return;
+    const dt = e.clipboardData;
+    if ((dt.getData('text/plain') || '').trim()) return; // lien texte : collage natif
+    const fromHtml = imgSrcFromHtml(dt.getData('text/html'));
+    if (fromHtml) { e.preventDefault(); setValue(e.target, fromHtml); return; }
+    if (dt.files?.length) {
+      e.preventDefault();
+      showToast("Image sans lien source : poste-la dans un salon Discord, puis clic droit > Copier le lien.", 'error');
+    }
+  }, true);
+}());
+
 const params = new URLSearchParams(location.search);
 const guildId = params.get('guild');
 
