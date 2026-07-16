@@ -1438,7 +1438,7 @@ function channelActionDetailHtml(key, ctx) {
       </div>
       <div class="dp-block">
         <p class="dp-block-title">📥 Importer d'un autre salon</p>
-        <select id="dp-import-from">
+        <select id="dp-import-from" aria-label="Importer les permissions d'un autre salon">
           <option value="">Choisir un salon...</option>
           ${otherChannels.map((c) => `<option value="${c.id}">${c.type === 2 ? '🔊' : '#'}${escapeHtml(c.name)}</option>`).join('')}
         </select>
@@ -1620,7 +1620,7 @@ function categoryActionDetailHtml(key, ctx) {
       </div>
       <div class="dp-block">
         <p class="dp-block-title">📥 Importer d'une autre categorie</p>
-        <select id="dp-cat-import-from">
+        <select id="dp-cat-import-from" aria-label="Importer les permissions d'une autre categorie">
           <option value="">Choisir une categorie...</option>
           ${otherCategories.map((c) => `<option value="${c.id}">📁 ${escapeHtml(c.name)}</option>`).join('')}
         </select>
@@ -2646,12 +2646,12 @@ async function renderAutomationsPage(id, container = app) {
         <p class="muted">Envoie une requete POST JSON vers une URL externe a chaque evenement choisi (arrivee, depart, action de moderation).</p>
         <div id="webhooks-list">${webhookRows(config?.outgoingWebhooks || [])}</div>
         <div class="row" style="margin-top:10px;">
-          <select id="new-webhook-event">
+          <select id="new-webhook-event" aria-label="Evenement declencheur">
             <option value="member_join">Arrivee d'un membre</option>
             <option value="member_leave">Depart d'un membre</option>
             <option value="mod_action">Action de moderation</option>
           </select>
-          <input type="text" id="new-webhook-url" placeholder="https://..." style="flex:1; min-width:220px;" />
+          <input type="text" id="new-webhook-url" placeholder="https://..." aria-label="URL du webhook" style="flex:1; min-width:220px;" />
           <button class="btn secondary" id="add-webhook">Ajouter</button>
         </div>
       `, { id: 'webhooks' })}
@@ -2660,9 +2660,9 @@ async function renderAutomationsPage(id, container = app) {
         <p class="muted">Les membres gagnent des pieces via /daily, peuvent en envoyer via /pay, et les depenser ici. Un article peut donner un role automatiquement.</p>
         <div id="shop-items-list">${shopItemRows}</div>
         <div class="row" style="margin-top:10px;">
-          <input type="text" id="new-shop-name" placeholder="Nom de l'article" style="flex:1; min-width:160px;" />
-          <input type="number" id="new-shop-price" placeholder="Prix" min="1" style="width:100px;" />
-          <select id="new-shop-role">
+          <input type="text" id="new-shop-name" placeholder="Nom de l'article" aria-label="Nom de l'article" style="flex:1; min-width:160px;" />
+          <input type="number" id="new-shop-price" placeholder="Prix" aria-label="Prix" min="1" style="width:100px;" />
+          <select id="new-shop-role" aria-label="Role attribue par l'article">
             <option value="">Aucun role</option>
             ${roleOptions()}
           </select>
@@ -2691,8 +2691,8 @@ async function renderAutomationsPage(id, container = app) {
       ${sectionHtml('Roles de niveau (XP)', `
         <div id="level-roles-list">${levelRoleRows}</div>
         <div class="row" style="margin-top:10px;">
-          <input type="number" id="new-level" placeholder="Niveau" min="1" style="width:100px;" />
-          <select id="new-level-role">${roleOptions()}</select>
+          <input type="number" id="new-level" placeholder="Niveau" aria-label="Niveau" min="1" style="width:100px;" />
+          <select id="new-level-role" aria-label="Role attribue a ce niveau">${roleOptions()}</select>
           <button class="btn secondary" id="add-level-role">Ajouter</button>
         </div>
       `, { id: 'niveaux' })}
@@ -2700,8 +2700,8 @@ async function renderAutomationsPage(id, container = app) {
       ${sectionHtml('Parrainage', `
         <div id="referral-roles-list">${referralRoleRows}</div>
         <div class="row" style="margin-top:10px;">
-          <input type="number" id="new-referral-count" placeholder="Nb invitations" min="1" style="width:130px;" />
-          <select id="new-referral-role">${roleOptions()}</select>
+          <input type="number" id="new-referral-count" placeholder="Nb invitations" aria-label="Nombre d'invitations" min="1" style="width:130px;" />
+          <select id="new-referral-role" aria-label="Role de parrainage">${roleOptions()}</select>
           <button class="btn secondary" id="add-referral-role">Ajouter</button>
         </div>
         <button class="btn secondary" id="generate-referral-role" style="margin-top:8px;">🎗️ Generer un role Parrain automatiquement</button>
@@ -2712,12 +2712,12 @@ async function renderAutomationsPage(id, container = app) {
       ${sectionHtml('Streamers lies', `
         <div id="streamers-list">${streamerRows}</div>
         <div class="row" style="margin-top:10px;">
-          <input type="text" id="new-streamer-user" placeholder="ID Discord" style="width:160px;" />
-          <select id="new-streamer-platform">
+          <input type="text" id="new-streamer-user" placeholder="ID Discord" aria-label="ID Discord" style="width:160px;" />
+          <select id="new-streamer-platform" aria-label="Plateforme">
             <option value="twitch">Twitch</option>
             <option value="youtube">YouTube</option>
           </select>
-          <input type="text" id="new-streamer-identifier" placeholder="Pseudo / chaine" style="width:160px;" />
+          <input type="text" id="new-streamer-identifier" placeholder="Pseudo / chaine" aria-label="Pseudo ou chaine" style="width:160px;" />
           <button class="btn secondary" id="add-streamer">Ajouter</button>
         </div>
       `, { id: 'streamers' })}
