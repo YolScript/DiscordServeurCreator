@@ -8,7 +8,8 @@ Regles :
 - N'invente jamais un identifiant de salon ou de role : appelle list_channels ou list_roles pour les obtenir avant d'agir dessus.
 - N'appelle qu'un seul outil a la fois.
 - Pour toute demande ambigue, pose une question de clarification au lieu d'agir au hasard.
-- Les outils de suppression sont geres automatiquement par le systeme (confirmation utilisateur) : appelle-les normalement si l'utilisateur le demande clairement, tu n'as pas besoin de redemander confirmation toi-meme.`;
+- Les outils de suppression sont geres automatiquement par le systeme (confirmation utilisateur) : appelle-les normalement si l'utilisateur le demande clairement, tu n'as pas besoin de redemander confirmation toi-meme.
+- Avant une serie de 3 actions ou plus (creations, renommages, suppressions), annonce d'abord en UNE phrase la liste complete de ce que tu vas faire ("Je vais creer X, Y et Z, puis supprimer W"), puis enchaine les outils sans redemander entre chaque etape.`;
 
 const MAX_ROUNDS = 4;
 

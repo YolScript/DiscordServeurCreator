@@ -5,7 +5,7 @@ import {
   handleLogin, handleCallback, refreshTokenIfNeeded, getUserAdminGuildIds, getUserAdminGuilds,
 } from './oauth.js';
 import { getSession, destroySession, clearSessionCookie } from './session.js';
-import { botFetch, botFetchJson } from './discordApi.js';
+import { botFetch, botFetchJson, notifyGuildOwner } from './discordApi.js';
 import {
   getGuildConfig, putGuildConfig, getGameRoles, putGameRoles,
   getModConfig, putModConfig,
@@ -553,6 +553,18 @@ async function router(request, env) {
         const existing = (await getGuildConfig(env, guildId)) || {};
         const merged = { ...existing, ...body };
         await putGuildConfig(env, guildId, merged);
+        // Alerte au proprietaire (roadmap n°063) : nouvel acces dashboard
+        // delegue accorde -> MP Discord immediat au owner du serveur.
+        if (Array.isArray(body.dashboardAllowedUserIds)) {
+          const before = existing.dashboardAllowedUserIds || [];
+          const added = body.dashboardAllowedUserIds.filter((uid) => !before.includes(uid));
+          if (added.length) {
+            notifyGuildOwner(
+              env, guildId,
+              `🔑 **Acces dashboard accorde** — ${session.username} vient de donner l'acces au dashboard de votre serveur a : ${added.map((uid) => `<@${uid}>`).join(', ')}. Si ce n'est pas voulu, retirez cet acces depuis Permissions > Acces au dashboard.`,
+            ).catch((err) => console.error('alerte owner echouee', err));
+          }
+        }
         await logAudit(env, guildId, {
           title: 'Configuration modifiee',
           description: `${session.username} a modifie : ${Object.keys(body).join(', ')}`,

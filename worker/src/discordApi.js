@@ -20,3 +20,18 @@ export async function botFetchJson(env, path, options = {}) {
   if (res.status === 204) return null;
   return res.json();
 }
+
+// MP Discord au proprietaire d'un serveur (alertes de securite, roadmap
+// n°063). Echoue silencieusement si le owner bloque les MP.
+export async function notifyGuildOwner(env, guildId, content) {
+  const guild = await botFetchJson(env, `/guilds/${guildId}`);
+  if (!guild?.owner_id) return;
+  const dm = await botFetchJson(env, '/users/@me/channels', {
+    method: 'POST',
+    body: JSON.stringify({ recipient_id: guild.owner_id }),
+  });
+  await botFetchJson(env, `/channels/${dm.id}/messages`, {
+    method: 'POST',
+    body: JSON.stringify({ content }),
+  });
+}

@@ -160,6 +160,115 @@ app.addEventListener('click', async (e) => {
   }, true);
 }());
 
+// ---------- Recherche globale Ctrl+K (roadmap n°012) ----------
+// Contexte alimente par renderPreviewPage : modules + salons + roles du
+// serveur courant, ouverts/reveles depuis une seule palette clavier.
+const paletteCtx = { guildId: null, channels: [], roles: [] };
+
+async function revealInSidebar(selector, panelSel) {
+  if (!app.querySelector('.dp-sidebar')) await renderPreviewPage(paletteCtx.guildId);
+  const el = app.querySelector(selector);
+  const panel = app.querySelector(panelSel);
+  if (!el || !panel) return;
+  if (!panel.classList.contains('pinned')) {
+    panel.classList.add('palette-reveal');
+    setTimeout(() => panel.classList.remove('palette-reveal'), 3000);
+  }
+  el.scrollIntoView({ block: 'center' });
+  el.classList.add('flash-highlight');
+  setTimeout(() => el.classList.remove('flash-highlight'), 2400);
+}
+
+function paletteItems() {
+  const gid = paletteCtx.guildId;
+  if (!gid) return [];
+  const items = HOME_MODULES.map((m) => ({
+    icon: m.icon,
+    label: m.label,
+    hint: HOME_CATEGORIES.find((c) => c.id === m.category)?.label || 'Module',
+    run: () => withViewTransition(() => renderSettingsPanel(gid, m.parent, m.section)),
+  }));
+  paletteCtx.channels.filter((c) => c.type !== 4).forEach((c) => {
+    items.push({
+      icon: c.type === 2 ? '🔊' : '#',
+      label: c.name,
+      hint: 'Salon',
+      run: () => revealInSidebar(`.dp-channel[data-channel="${c.id}"]`, '.dp-sidebar'),
+    });
+  });
+  paletteCtx.roles.forEach((r) => {
+    items.push({
+      icon: '🏷️',
+      label: r.name,
+      hint: 'Role',
+      run: () => revealInSidebar(`.dp-role-row[data-role="${r.id}"]`, '.dp-roles-panel'),
+    });
+  });
+  return items;
+}
+
+function openCommandPalette() {
+  if (document.getElementById('cmdk-overlay') || !paletteCtx.guildId) return;
+  const overlay = document.createElement('div');
+  overlay.id = 'cmdk-overlay';
+  overlay.innerHTML = `
+    <div class="cmdk-box" role="dialog" aria-modal="true" aria-label="Recherche globale">
+      <input type="text" id="cmdk-input" placeholder="Module, salon ou role... (Echap pour fermer)" aria-label="Recherche globale" autocomplete="off" />
+      <div class="cmdk-list" id="cmdk-list"></div>
+    </div>`;
+  document.body.appendChild(overlay);
+  const input = overlay.querySelector('#cmdk-input');
+  const list = overlay.querySelector('#cmdk-list');
+  const items = paletteItems();
+  let filtered = items;
+  let sel = 0;
+  const close = () => overlay.remove();
+  const renderList = () => {
+    const visible = filtered.slice(0, 12);
+    list.innerHTML = visible.map((it, i) => `
+      <button type="button" class="cmdk-item${i === sel ? ' selected' : ''}" data-i="${i}">
+        <span class="cmdk-icon">${it.icon}</span>
+        <span class="cmdk-label">${escapeHtml(it.label)}</span>
+        <span class="cmdk-hint">${escapeHtml(it.hint)}</span>
+      </button>`).join('') || '<p class="muted" style="padding:12px 16px; margin:0;">Aucun resultat.</p>';
+    list.querySelectorAll('.cmdk-item').forEach((el) => {
+      el.addEventListener('click', () => {
+        const it = visible[Number(el.dataset.i)];
+        close();
+        it.run();
+      });
+    });
+  };
+  input.addEventListener('input', () => {
+    const q = input.value.trim().toLowerCase();
+    filtered = !q ? items : items.filter((it) => it.label.toLowerCase().includes(q));
+    sel = 0;
+    renderList();
+  });
+  input.addEventListener('keydown', (e) => {
+    const max = Math.min(filtered.length, 12) - 1;
+    if (e.key === 'ArrowDown') { e.preventDefault(); sel = Math.min(sel + 1, max); renderList(); }
+    else if (e.key === 'ArrowUp') { e.preventDefault(); sel = Math.max(sel - 1, 0); renderList(); }
+    else if (e.key === 'Enter') { e.preventDefault(); const it = filtered[sel]; if (it) { close(); it.run(); } }
+    else if (e.key === 'Escape') close();
+  });
+  overlay.addEventListener('click', (e) => { if (e.target === overlay) close(); });
+  renderList();
+  input.focus();
+}
+
+document.addEventListener('keydown', (e) => {
+  if ((e.ctrlKey || e.metaKey) && e.key.toLowerCase() === 'k') {
+    e.preventDefault();
+    openCommandPalette();
+  }
+});
+
+// Pile de navigation entre modules (roadmap n°028) : "Retour" ramene au
+// module precedent (utile apres un saut via Ctrl+K), sinon a l'accueil.
+let currentPanelRef = null;
+const panelNavStack = [];
+
 // Version deployee (roadmap n°110) : commit courant en infobulle sur le logo
 // - "le fix est-il en ligne ?" se verifie d'un survol.
 fetch('https://api.github.com/repos/YolScript/DiscordServeurCreator/commits/master')
@@ -630,7 +739,7 @@ const HOME_MODULES = [
 function customChannelFormHtml(catId) {
   return `
     <div class="dp-custom-form" data-form-for="${catId}" style="display:none;">
-      <input type="text" class="dp-custom-name" placeholder="Nom du salon" aria-label="Nom du salon" maxlength="80" data-charcount />
+      <input type="text" class="dp-custom-name" placeholder="Nom (virgules = plusieurs salons)" aria-label="Nom du salon (separer par des virgules pour en creer plusieurs)" maxlength="200" />
       <select class="dp-custom-type" aria-label="Type de salon">
         <option value="text">Texte</option>
         <option value="voice">Vocal</option>
@@ -915,6 +1024,13 @@ async function renderPreviewPage(id) {
   }
   const rolesSorted = [...roles].sort((a, b) => b.position - a.position);
 
+  // Contexte de la palette Ctrl+K (n°012) + reset de la pile de modules (n°028).
+  paletteCtx.guildId = id;
+  paletteCtx.channels = channels;
+  paletteCtx.roles = rolesSorted;
+  currentPanelRef = null;
+  panelNavStack.length = 0;
+
   if (aiConversationGuildId !== id) {
     aiConversationGuildId = id;
     aiConversation = [];
@@ -937,6 +1053,7 @@ async function renderPreviewPage(id) {
       <div class="dp-category" data-cat="${cat.id}" draggable="true" tabindex="0" role="button" aria-expanded="true" aria-label="Categorie ${escapeHtml(cat.name)}" data-drag-type="category" data-drag-name="${escapeHtml(cat.name)}">
         <span class="chevron">▾</span>
         <span class="dp-category-name">${escapeHtml(cat.name)}</span>
+        <button type="button" class="dp-category-sort" data-cat-sort="${cat.id}" title="Trier les salons de A a Z" aria-label="Trier les salons de ${escapeHtml(cat.name)} de A a Z">A→Z</button>
         <button type="button" class="dp-category-settings" data-cat-settings="${cat.id}" data-cat-name="${escapeHtml(cat.name)}" title="Configurer" aria-label="Configurer la categorie ${escapeHtml(cat.name)}">⚙</button>
       </div>
       <div class="dp-channels">
@@ -953,7 +1070,7 @@ async function renderPreviewPage(id) {
         <div class="dp-sidebar">
           <div class="dp-server-header">
             <span class="name">${escapeHtml(guild?.name || 'Serveur')}</span>
-            <span class="caret">▾</span>
+            <button type="button" class="dp-pin-btn" id="dp-pin-left" title="Epingler le panneau (toujours visible)" aria-pressed="false">📌</button>
           </div>
           <div class="dp-sidebar-search">
             <input type="text" id="dp-channel-search" placeholder="🔎 Filtrer les salons..." aria-label="Filtrer les salons" autocomplete="off" />
@@ -967,7 +1084,10 @@ async function renderPreviewPage(id) {
           ${aiHomeHtml(guild)}
         </div>
         <div class="dp-roles-panel">
-          <div class="dp-roles-header${rolesSorted.length >= 230 ? ' near-limit' : ''}" title="${rolesSorted.length >= 230 ? 'Limite Discord : 250 roles par serveur' : ''}">Roles — ${rolesSorted.length}</div>
+          <div class="dp-roles-header${rolesSorted.length >= 230 ? ' near-limit' : ''}" title="${rolesSorted.length >= 230 ? 'Limite Discord : 250 roles par serveur' : ''}">
+            <span style="flex:1;">Roles — ${rolesSorted.length}</span>
+            <button type="button" class="dp-pin-btn" id="dp-pin-right" title="Epingler le panneau (toujours visible)" aria-pressed="false">📌</button>
+          </div>
           <div class="dp-sidebar-search">
             <input type="text" id="dp-role-search" placeholder="🔎 Filtrer les roles..." aria-label="Filtrer les roles" autocomplete="off" />
           </div>
@@ -1194,6 +1314,45 @@ async function renderPreviewPage(id) {
     }
   }
 
+  // Tri alphabetique d'une categorie (roadmap n°017).
+  app.querySelectorAll('.dp-category-sort').forEach((btn) => {
+    btn.addEventListener('click', async (e) => {
+      e.stopPropagation();
+      const list = btn.closest('.dp-category').nextElementSibling;
+      if (!list?.classList.contains('dp-channels')) return;
+      const rows = [...list.querySelectorAll('.dp-channel[data-channel]')];
+      const sorted = [...rows].sort((a, b) => (a.dataset.name || '').localeCompare(b.dataset.name || '', 'fr'));
+      if (rows.length < 2 || rows.every((r, i) => r === sorted[i])) { showToast('Deja trie de A a Z.'); return; }
+      if (!window.confirm('Trier les salons de cette categorie de A a Z ?')) return;
+      const anchor = list.querySelector('.dp-add-channel');
+      animateReorder(list, '.dp-channel', () => {
+        sorted.forEach((row) => list.insertBefore(row, anchor));
+      });
+      await persistChannelOrder(list);
+    });
+  });
+
+  // Epinglage des panneaux lateraux (roadmap n°015) : desactive le repli
+  // au survol, memorise par navigateur.
+  const pinInit = (btnId, panelSel, storeKey) => {
+    const btn = document.getElementById(btnId);
+    const panel = app.querySelector(panelSel);
+    if (!btn || !panel) return;
+    const apply = (pinned) => {
+      panel.classList.toggle('pinned', pinned);
+      btn.setAttribute('aria-pressed', String(pinned));
+    };
+    apply(localStorage.getItem(storeKey) === '1');
+    btn.addEventListener('click', (e) => {
+      e.stopPropagation();
+      const pinned = !panel.classList.contains('pinned');
+      localStorage.setItem(storeKey, pinned ? '1' : '0');
+      apply(pinned);
+    });
+  };
+  pinInit('dp-pin-left', '.dp-sidebar', 'dsc-pin-left');
+  pinInit('dp-pin-right', '.dp-roles-panel', 'dsc-pin-right');
+
   async function applyRoleColor(roleId, colorHex, scope) {
     try {
       await Api.setRoleColor(id, roleId, parseInt(colorHex.slice(1), 16));
@@ -1379,12 +1538,16 @@ async function renderPreviewPage(id) {
   app.querySelectorAll('.dp-custom-create').forEach((btn) => {
     btn.addEventListener('click', async () => {
       const form = btn.closest('.dp-custom-form');
-      const name = form.querySelector('.dp-custom-name').value.trim();
+      // Creation multiple (roadmap n°013) : des virgules = plusieurs salons.
+      const names = form.querySelector('.dp-custom-name').value.split(',').map((s) => s.trim()).filter(Boolean);
       const type = form.querySelector('.dp-custom-type').value;
-      if (!name) { showToast('Nom requis.', 'error'); return; }
+      if (!names.length) { showToast('Nom requis.', 'error'); return; }
       try {
-        await Api.createChannel(id, name, type, btn.dataset.cat || undefined);
-        showToast('Salon cree.');
+        for (const name of names) {
+          // eslint-disable-next-line no-await-in-loop
+          await Api.createChannel(id, name, type, btn.dataset.cat || undefined);
+        }
+        showToast(names.length > 1 ? `${names.length} salons crees.` : 'Salon cree.');
         await renderPreviewPage(id);
       } catch (err) {
         showToast(err.message, 'error');
@@ -1408,25 +1571,46 @@ const SETTINGS_PANEL_INTROS = {
   memberlookup: 'Recherche un membre par pseudo ou par ID et vois ses roles en un coup d\'oeil.',
 };
 
-async function renderSettingsPanel(guildId, key, preselectSectionId) {
+async function renderSettingsPanel(guildId, key, preselectSectionId, { fromBack = false } = {}) {
   const main = document.getElementById('dp-main');
   const panel = SETTINGS_PANELS.find((p) => p.key === key);
   const intro = SETTINGS_PANEL_INTROS[key] || `Voici ${panel?.label || key}.`;
+  // Pile de navigation (n°028) : on empile le module quitte, sauf en retour.
+  if (!fromBack && currentPanelRef && currentPanelRef.key !== key) panelNavStack.push(currentPanelRef);
+  currentPanelRef = { key, section: preselectSectionId };
+  const prevPanel = panelNavStack.length ? SETTINGS_PANELS.find((p) => p.key === panelNavStack[panelNavStack.length - 1].key) : null;
   main.innerHTML = `
     <div class="dp-panel-topbar">
       <div class="dp-panel-heading">
         <span class="dp-panel-heading-icon">${panel?.icon || '⚙️'}</span>
         <div>
+          <div class="dp-breadcrumb">
+            <button type="button" id="dp-crumb-home">Accueil</button>
+            <span aria-hidden="true">›</span>
+            <span>${escapeHtml(panel?.label || key)}</span>
+          </div>
           <div class="dp-panel-heading-title">${escapeHtml(panel?.label || key)}</div>
           <div class="dp-panel-heading-sub">${escapeHtml(intro)}</div>
         </div>
       </div>
-      <button type="button" class="dp-panel-back-btn" id="dp-settings-back">← Retour</button>
+      <button type="button" class="dp-panel-back-btn" id="dp-settings-back" title="${prevPanel ? `Revenir a ${escapeHtml(prevPanel.label)}` : "Revenir a l'accueil"}">← ${prevPanel ? escapeHtml(prevPanel.label) : 'Retour'}</button>
     </div>
     <div class="dp-settings-body-wrap" id="dp-settings-body"></div>
   `;
   document.getElementById('dp-settings-back').addEventListener('click', () => {
     window.UISound?.select();
+    const prev = panelNavStack.pop();
+    if (prev) {
+      withViewTransition(() => renderSettingsPanel(guildId, prev.key, prev.section, { fromBack: true }));
+    } else {
+      currentPanelRef = null;
+      withViewTransition(() => renderPreviewPage(guildId));
+    }
+  });
+  document.getElementById('dp-crumb-home').addEventListener('click', () => {
+    window.UISound?.select();
+    currentPanelRef = null;
+    panelNavStack.length = 0;
     withViewTransition(() => renderPreviewPage(guildId));
   });
   const body = document.getElementById('dp-settings-body');
@@ -1983,15 +2167,20 @@ function renderCategoryPanel(guildId, categoryId, name, config, channels, roles)
       });
     }
     if (key === 'delete') {
-      scope.querySelector('#dp-cat-delete').addEventListener('click', async () => {
-        if (!window.confirm(`Supprimer definitivement la categorie "${name}" ?`)) return;
-        try {
-          await Api.deleteChannel(guildId, categoryId);
-          showToast('Categorie supprimee.');
-          await renderPreviewPage(guildId);
-        } catch (err) {
-          showToast(err.message, 'error');
-        }
+      scope.querySelector('#dp-cat-delete').addEventListener('click', () => {
+        withViewTransition(() => renderPreviewPage(guildId));
+        showUndoToast(`Categorie "${name}" supprimee dans`, {
+          onUndo: () => showToast('Suppression annulee.'),
+          onExpire: async () => {
+            try {
+              await Api.deleteChannel(guildId, categoryId);
+              showToast('Categorie supprimee.');
+              await renderPreviewPage(guildId);
+            } catch (err) {
+              showToast(err.message, 'error');
+            }
+          },
+        });
       });
     }
   }
@@ -2117,15 +2306,20 @@ function renderRolePanel(guildId, roleId, name, config, roles, members) {
       });
     }
     if (key === 'delete') {
-      scope.querySelector('#dp-role-delete').addEventListener('click', async () => {
-        if (!window.confirm(`Supprimer definitivement le role "${name}" ?`)) return;
-        try {
-          await Api.deleteRole(guildId, roleId);
-          showToast('Role supprime.');
-          await renderPreviewPage(guildId);
-        } catch (err) {
-          showToast(err.message, 'error');
-        }
+      scope.querySelector('#dp-role-delete').addEventListener('click', () => {
+        withViewTransition(() => renderPreviewPage(guildId));
+        showUndoToast(`Role "${name}" supprime dans`, {
+          onUndo: () => showToast('Suppression annulee.'),
+          onExpire: async () => {
+            try {
+              await Api.deleteRole(guildId, roleId);
+              showToast('Role supprime.');
+              await renderPreviewPage(guildId);
+            } catch (err) {
+              showToast(err.message, 'error');
+            }
+          },
+        });
       });
     }
   }
@@ -2389,15 +2583,20 @@ function renderChannelPanel(guildId, channelId, name, type, config, channels, ro
 
     const deleteBtn = scope.querySelector('#dp-delete');
     if (deleteBtn) {
-      deleteBtn.addEventListener('click', async () => {
-        if (!window.confirm(`Supprimer definitivement "${name}" ?`)) return;
-        try {
-          await Api.deleteChannel(guildId, channelId);
-          showToast('Salon supprime.');
-          await renderPreviewPage(guildId);
-        } catch (err) {
-          showToast(err.message, 'error');
-        }
+      deleteBtn.addEventListener('click', () => {
+        withViewTransition(() => renderPreviewPage(guildId));
+        showUndoToast(`Salon "${name}" supprime dans`, {
+          onUndo: () => showToast('Suppression annulee.'),
+          onExpire: async () => {
+            try {
+              await Api.deleteChannel(guildId, channelId);
+              showToast('Salon supprime.');
+              await renderPreviewPage(guildId);
+            } catch (err) {
+              showToast(err.message, 'error');
+            }
+          },
+        });
       });
     }
   }
@@ -3442,7 +3641,12 @@ async function renderSecurityPage(id, container = app) {
   });
 
   document.getElementById('lockdown-btn').addEventListener('click', async () => {
-    if (!window.confirm('Verrouiller le serveur maintenant ?')) return;
+    // Confirmation par saisie du nom (roadmap n°061) : action massive qui
+    // affecte tout le serveur, un simple OK ne suffit pas.
+    const guildName = allGuilds.find((g) => g.guildId === id)?.name || '';
+    const typed = window.prompt(`Verrouiller tout le serveur ?\nTape le nom exact du serveur pour confirmer :\n${guildName}`);
+    if (typed === null) return;
+    if (typed.trim() !== guildName) { showToast('Nom incorrect, verrouillage annule.', 'error'); return; }
     try {
       await Api.lockdown(id);
       showToast('Serveur verrouille.');

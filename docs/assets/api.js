@@ -1,10 +1,29 @@
 window.Api = (function api() {
-  async function request(path, options = {}) {
-    const res = await fetch(`${window.API_BASE_URL}${path}`, {
-      credentials: 'include',
-      headers: { 'Content-Type': 'application/json', ...(options.headers || {}) },
-      ...options,
-    });
+  const sleep = (ms) => new Promise((resolve) => setTimeout(resolve, ms));
+
+  // Nouvelle tentative automatique (roadmap n°051) : les LECTURES qui
+  // echouent (panne reseau, 5xx pendant un reveil du backend) sont retentees
+  // deux fois avec un delai croissant. Jamais les mutations (POST/PATCH/
+  // DELETE) : retenter une creation peut la dupliquer.
+  async function request(path, options = {}, attempt = 0) {
+    const method = (options.method || 'GET').toUpperCase();
+    const canRetry = method === 'GET' && attempt < 2;
+    const retry = async () => {
+      await sleep(attempt === 0 ? 600 : 1500);
+      return request(path, options, attempt + 1);
+    };
+
+    let res;
+    try {
+      res = await fetch(`${window.API_BASE_URL}${path}`, {
+        credentials: 'include',
+        headers: { 'Content-Type': 'application/json', ...(options.headers || {}) },
+        ...options,
+      });
+    } catch (err) {
+      if (canRetry) return retry();
+      throw err;
+    }
 
     if (res.status === 401) {
       const onIndex = /(^|\/)index\.html$/.test(window.location.pathname) || window.location.pathname.endsWith('/');
@@ -19,6 +38,7 @@ window.Api = (function api() {
     }
 
     if (!res.ok) {
+      if (res.status >= 500 && canRetry) return retry();
       const message = (body && body.error) || `Erreur ${res.status}`;
       throw new Error(message);
     }
@@ -148,4 +168,42 @@ window.showToast = function showToast(message, type = 'success') {
     toast.classList.add('leaving');
     setTimeout(() => { toast.remove(); reflow(); }, 220);
   }, 4000);
+};
+
+// Toast avec compte a rebours et bouton Annuler (roadmap n°011) : onExpire
+// n'est appele qu'a la fin du delai, sauf clic sur Annuler (onUndo).
+window.showUndoToast = function showUndoToast(message, { onUndo, onExpire, seconds = 8 } = {}) {
+  const toast = document.createElement('div');
+  toast.className = 'toast undo';
+  const safeMessage = window.escapeHtml ? window.escapeHtml(message) : String(message ?? '');
+  toast.innerHTML = `
+    <span class="toast-icon" aria-hidden="true">🗑</span>
+    <span>${safeMessage} <strong class="toast-count">${seconds}s</strong></span>
+    <button type="button" class="toast-undo-btn">Annuler</button>`;
+  toast.setAttribute('role', 'status');
+  document.body.appendChild(toast);
+
+  const reflow = () => {
+    let offset = 90;
+    document.querySelectorAll('.toast:not(.leaving)').forEach((t) => {
+      t.style.bottom = `${offset}px`;
+      offset += t.offsetHeight + 10;
+    });
+  };
+  reflow();
+
+  let remaining = seconds;
+  const countEl = toast.querySelector('.toast-count');
+  const tick = setInterval(() => {
+    remaining -= 1;
+    if (remaining >= 0) countEl.textContent = `${remaining}s`;
+  }, 1000);
+  const close = () => {
+    clearInterval(tick);
+    clearTimeout(expireTimer);
+    toast.classList.add('leaving');
+    setTimeout(() => { toast.remove(); reflow(); }, 220);
+  };
+  const expireTimer = setTimeout(() => { close(); onExpire?.(); }, seconds * 1000);
+  toast.querySelector('.toast-undo-btn').addEventListener('click', () => { close(); onUndo?.(); });
 };
