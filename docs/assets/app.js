@@ -3781,7 +3781,7 @@ async function renderGenerateChoice(guildId, guildName) {
             </div>
           </div>
           <div class="gen-preview-mock" id="gen-template-preview">
-            <p class="muted">Chargement de l'apercu...</p>
+            <div class="gen-preview-mock-placeholder"><p class="muted">Chargement de l'apercu...</p></div>
           </div>
         </div>
       `, { alwaysOpen: true })}
@@ -3793,12 +3793,12 @@ async function renderGenerateChoice(guildId, guildName) {
 
   async function loadPreview() {
     const key = templateSelect.value;
-    previewEl.innerHTML = '<p class="muted">Chargement de l\'apercu...</p>';
+    previewEl.innerHTML = '<div class="gen-preview-mock-placeholder"><p class="muted">Chargement de l\'apercu...</p></div>';
     try {
       const preview = await Api.templatePreview(key);
       previewEl.innerHTML = templatePreviewHtml(preview);
     } catch (err) {
-      previewEl.innerHTML = `<p class="muted">Apercu indisponible (${escapeHtml(err.message)}).</p>`;
+      previewEl.innerHTML = `<div class="gen-preview-mock-placeholder"><p class="muted">🪄 Apercu indisponible<br>(${escapeHtml(err.message)})</p></div>`;
     }
   }
   templateSelect.addEventListener('change', loadPreview);
