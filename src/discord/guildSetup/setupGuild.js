@@ -5,6 +5,7 @@ const moderationConfigStore = require('../../kv/moderationConfigStore');
 const { getTemplate } = require('./templates');
 const { DEFAULT_REGLEMENT_TEXT } = require('./defaultReglement');
 const { postReglementPanel } = require('../roles/reglementPanel');
+const { postTicketPanel } = require('../support/ticketManager');
 const { ensureStaffCategory } = require('../roles/staffCategory');
 const { ensureGamesCategory, syncGameChannels } = require('../roles/gameChannels');
 const { ensurePublicVoiceCreator } = require('../roles/publicVoiceManager');
@@ -123,6 +124,7 @@ async function setupGuild({
   const reglementChannel = channelObjects[template.specialKeys.reglement];
   const arrivalChannel = channelObjects[template.specialKeys.arrivalDeparture];
   const rolesChannel = channelObjects[template.specialKeys.roles];
+  const supportChannel = channelObjects[template.specialKeys.support];
 
   // Le +16/-16 n'est plus auto-declaratif : il est deduit automatiquement de
   // la date de naissance saisie lors de la validation du reglement (voir
@@ -142,6 +144,7 @@ async function setupGuild({
     rulesChannelId: reglementChannel?.id,
     rolesChannelId: rolesChannel?.id,
     vocauxCategoryId: channelObjects[template.specialKeys.vocaux]?.id,
+    ticketPanelChannelId: supportChannel?.id,
     botRoleId: roleObjects.bot.id,
     adminRoleId: roleObjects.administrateur.id,
     moderateurRoleId: roleObjects.moderateur.id,
@@ -157,6 +160,11 @@ async function setupGuild({
   if (reglementChannel) {
     await postReglementPanel(guild).catch((err) => logger.error('postReglementPanel initial', err));
     onStep({ kind: 'reglement', label: 'Reglement publie' });
+  }
+
+  if (supportChannel) {
+    await postTicketPanel(supportChannel).catch((err) => logger.error('postTicketPanel initial', err));
+    onStep({ kind: 'ticket', label: 'Panneau de ticket publie' });
   }
 
   if (template.modConfig) {

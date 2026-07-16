@@ -152,6 +152,7 @@ async function buildLiveTemplate(client, sourceGuildId = SOURCE_GUILD_ID, label)
       arrivalDeparture: sourceConfig.arrivalDepartureChannelId,
       roles: sourceConfig.rolesChannelId,
       vocaux: sourceConfig.vocauxCategoryId,
+      support: sourceConfig.ticketPanelChannelId,
     },
     gameRoles,
     guildIconURL: sourceGuild.iconURL({ size: 256, extension: 'png' }),

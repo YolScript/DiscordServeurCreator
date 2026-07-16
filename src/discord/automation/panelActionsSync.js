@@ -6,6 +6,7 @@ const { postPollPanel } = require('../engagement/pollManager');
 const { postTicketPanel } = require('../support/ticketManager');
 const { postOrRefresh: postReactionRoleGroup } = require('../roles/reactionRoleManager');
 const reactionRoleStore = require('../../kv/reactionRoleStore');
+const guildConfigStore = require('../../kv/guildConfigStore');
 const logger = require('../../shared/logger');
 
 const TICK_MS = 8_000;
@@ -28,8 +29,16 @@ async function executeAction(guild, action) {
     if (!action.channelId) return;
     const channel = await guild.channels.fetch(action.channelId).catch(() => null);
     if (!channel) return;
-    if (action.type === 'poll') await postPollPanel(channel);
-    else await postTicketPanel(channel);
+    if (action.type === 'poll') {
+      await postPollPanel(channel);
+    } else {
+      await postTicketPanel(channel);
+      // Persiste le salon pour que le template sache reposter ce panneau
+      // (cf specialKeys.support dans liveTemplate.js) : sans ca, un serveur
+      // regenere depuis ce template a un salon "support" vide sans le
+      // bouton "Ouvrir un ticket".
+      await guildConfigStore.upsert(guild.id, { ticketPanelChannelId: channel.id });
+    }
     return;
   }
   if (action.type === 'reactionroles') {
