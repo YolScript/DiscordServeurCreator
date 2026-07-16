@@ -3182,6 +3182,13 @@ async function renderPermissionsPage(id, container = app) {
         <button class="btn" id="apply-bulk" style="margin-top:12px;">Appliquer</button>
       `, { id: 'perm-bulk' })}
 
+      ${sectionHtml('Voir comme un role', `
+        <p class="muted">Affiche le serveur tel que ce role le voit : les salons barres lui sont invisibles.</p>
+        <label for="viewas-role">Role</label>
+        <select id="viewas-role"><option value="">— Choisir un role —</option>${roleOptions}</select>
+        <div id="viewas-result" style="margin-top:10px; font-size:0.85rem;"></div>
+      `, { id: 'perm-viewas' })}
+
       ${sectionHtml('Export / Import (copier-coller)', `
         <label for="export-channel">Salon a exporter</label>
         <select id="export-channel">${channelOptionsSimple}</select>
@@ -3230,6 +3237,48 @@ async function renderPermissionsPage(id, container = app) {
     permPrefill = null;
     showToast('Salon et role pre-selectionnes : choisis l\'action a appliquer.');
   }
+
+  // Simulateur « voir comme » (roadmap n°146) : visibilite de chaque salon
+  // pour un role — base @everyone|role, puis overwrites @everyone puis role
+  // (l'heritage de categorie est deja copie par Discord dans les overwrites
+  // du salon lui-meme).
+  const VIEW_BIT = 1024n;
+  const ADMIN_BIT = 8n;
+  const roleCanSee = (channel, role, everyoneRole) => {
+    const base = BigInt(everyoneRole?.permissions || 0) | BigInt(role.permissions || 0);
+    if (base & ADMIN_BIT) return true;
+    let can = Boolean(base & VIEW_BIT);
+    const overwrites = channel.permission_overwrites || [];
+    for (const targetId of [everyoneRole?.id, role.id]) {
+      const ov = overwrites.find((o) => o.id === targetId);
+      if (!ov) continue;
+      if (BigInt(ov.deny || 0) & VIEW_BIT) can = false;
+      if (BigInt(ov.allow || 0) & VIEW_BIT) can = true;
+    }
+    return can;
+  };
+
+  document.getElementById('viewas-role').addEventListener('change', (e) => {
+    const out = document.getElementById('viewas-result');
+    const role = roles.find((r) => r.id === e.target.value);
+    if (!role) { out.innerHTML = ''; return; }
+    const everyoneRole = roles.find((r) => r.id === id);
+    const realChannels = channels.filter((c) => c.type === 0 || c.type === 2);
+    let visibleCount = 0;
+    const chanRow = (c) => {
+      const visible = roleCanSee(c, role, everyoneRole);
+      if (visible) visibleCount += 1;
+      return `<div style="padding:2px 0 2px 16px;${visible ? '' : ' opacity:0.45; text-decoration:line-through;'}">${c.type === 2 ? '🔊' : '#'} ${escapeHtml(c.name)}${visible ? '' : ' 🚫'}</div>`;
+    };
+    const rows = [];
+    rows.push(...realChannels.filter((c) => !c.parent_id).sort((a, b) => a.position - b.position).map(chanRow));
+    for (const cat of channels.filter((c) => c.type === 4).sort((a, b) => a.position - b.position)) {
+      const catVisible = roleCanSee(cat, role, everyoneRole);
+      rows.push(`<div style="margin-top:8px; font-weight:700; font-size:0.76rem; text-transform:uppercase;${catVisible ? '' : ' opacity:0.45; text-decoration:line-through;'}">📁 ${escapeHtml(cat.name)}${catVisible ? '' : ' 🚫'}</div>`);
+      rows.push(...realChannels.filter((c) => c.parent_id === cat.id).sort((a, b) => a.position - b.position).map(chanRow));
+    }
+    out.innerHTML = `<p class="muted">${escapeHtml(role.name)} voit ${visibleCount} salon(s) sur ${realChannels.length}.</p>${rows.join('')}`;
+  });
 
   document.getElementById('apply-bulk').addEventListener('click', async () => {
     const channelIds = [...container.querySelectorAll('.perm-channel:checked')].map((el) => el.value);
@@ -6916,6 +6965,16 @@ async function init() {
     }
     const backBtn = document.getElementById('dp-settings-back') || document.getElementById('dp-actionchat-back');
     backBtn?.click();
+  });
+
+  // Indicateur de modifications non enregistrees (roadmap n°120) : toute
+  // saisie dans un panneau de section pose un point orange, efface au
+  // re-rendu (chaque enregistrement re-rend sa page). Les champs de
+  // recherche/filtre sont exclus (ils ne modifient rien).
+  document.addEventListener('input', (e) => {
+    if (!e.target.matches || e.target.matches('[type="search"], [id*="search"], [id*="filter"]')) return;
+    const panel = e.target.closest('.section-panel');
+    if (panel && panel.querySelector('.btn')) panel.classList.add('dirty');
   });
 
   // Raccourci "/" pour focus direct sur la recherche (pattern Discord/Linear/
