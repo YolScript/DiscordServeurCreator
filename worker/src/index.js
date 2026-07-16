@@ -211,10 +211,11 @@ async function router(request, env) {
       const sourceConfig = await getGuildConfig(env, sourceGuildId);
       if (!sourceConfig) throw new HttpError(404, 'Serveur source introuvable ou non configure.');
 
-      const [sourceGuild, allRoles, allChannels] = await Promise.all([
+      const [sourceGuild, allRoles, allChannels, gameRolesCatalog] = await Promise.all([
         botFetchJson(env, `/guilds/${sourceGuildId}`).catch(() => null),
         botFetchJson(env, `/guilds/${sourceGuildId}/roles`).catch(() => []),
         botFetchJson(env, `/guilds/${sourceGuildId}/channels`).catch(() => []),
+        getGameRoles(env, sourceGuildId).catch(() => []),
       ]);
 
       const baseRoleFields = [
@@ -240,19 +241,61 @@ async function router(request, env) {
         .filter((c) => c.type === 4 && !excludedCategoryIds.has(c.id) && !isThirdPartyName(c.name))
         .sort((a, b) => a.position - b.position)
         .map((cat) => ({
+          id: cat.id,
           name: cat.name,
           channels: allChannels
             .filter((c) => c.parent_id === cat.id && !excludedChannelIds.has(c.id) && !isThirdPartyName(c.name)
               && (c.type === 0 || c.type === 2))
             .sort((a, b) => a.position - b.position)
-            .map((ch) => ({ name: ch.name, type: ch.type === 2 ? 'voice' : 'text' })),
+            .map((ch) => ({ id: ch.id, name: ch.name, type: ch.type === 2 ? 'voice' : 'text' })),
         }));
+
+      // La categorie Vocaux recoit un salon declencheur "Creer un vocal"
+      // apres coup (ensurePublicVoiceCreator), jamais copie tel quel car
+      // exclu ci-dessus : on le rejoute ici pour un apercu fidele.
+      const vocauxCategory = categories.find((c) => c.id === sourceConfig.vocauxCategoryId);
+      if (vocauxCategory) {
+        vocauxCategory.channels.push({ name: 'Creer un vocal', type: 'voice', auto: true });
+      }
+
+      // Sections regenerees a chaque setup par leurs propres modules
+      // (staffCategory.js, gameChannels.js) plutot que copiees depuis la
+      // source : absentes de `categories` par construction (exclusion par
+      // ID plus haut) mais bien presentes sur le serveur final genere.
+      const autoCategories = [];
+      if (gameRolesCatalog.length) {
+        autoCategories.push({
+          name: '🎮 Jeux',
+          auto: true,
+          channels: [
+            { name: 'Creer un vocal', type: 'voice', auto: true },
+            ...gameRolesCatalog.map((r) => ({ name: r.displayName, type: 'text', auto: true })),
+          ],
+        });
+      }
+      autoCategories.push({
+        name: '🛡️ Staff',
+        auto: true,
+        channels: [{ name: 'SERVICE STAFF', type: 'voice', auto: true }],
+      });
 
       return json({
         label: label || `Copie de ${sourceGuild?.name || 'ServeurCreator'} (a jour)`,
         guildIconUrl: sourceGuild?.icon ? `https://cdn.discordapp.com/icons/${sourceGuildId}/${sourceGuild.icon}.png?size=64` : null,
         roles: previewRoles,
+        gameRoles: gameRolesCatalog.map((r) => ({ name: r.displayName, color: r.colorHex || '#5865f2' })),
         categories,
+        autoCategories,
+        specialChannelIds: {
+          reglement: sourceConfig.rulesChannelId || null,
+          arrivalDeparture: sourceConfig.arrivalDepartureChannelId || null,
+          roles: sourceConfig.rolesChannelId || null,
+        },
+        content: {
+          reglementText: sourceConfig.reglementText || null,
+          welcomeMessageTemplate: sourceConfig.welcomeMessageTemplate || null,
+          leaveMessageTemplate: sourceConfig.leaveMessageTemplate || null,
+        },
       }, env);
     }
   }

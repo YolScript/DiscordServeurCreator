@@ -3797,6 +3797,7 @@ async function renderGenerateChoice(guildId, guildName) {
     try {
       const preview = await Api.templatePreview(key);
       previewEl.innerHTML = templatePreviewHtml(preview);
+      wireTemplatePreview(previewEl, preview);
     } catch (err) {
       previewEl.innerHTML = `<div class="gen-preview-mock-placeholder"><p class="muted">🪄 Apercu indisponible<br>(${escapeHtml(err.message)})</p></div>`;
     }
@@ -3822,10 +3823,42 @@ async function renderGenerateChoice(guildId, guildName) {
   });
 }
 
+function templatePreviewChannelKind(ch, preview) {
+  if (!ch.id || !preview.specialChannelIds) return null;
+  if (ch.id === preview.specialChannelIds.reglement) return 'reglement';
+  if (ch.id === preview.specialChannelIds.arrivalDeparture) return 'arrivalDeparture';
+  if (ch.id === preview.specialChannelIds.roles) return 'roles';
+  return null;
+}
+
+function templatePreviewChanHtml(ch, preview) {
+  const kind = templatePreviewChannelKind(ch, preview);
+  const clickable = kind ? ' clickable' : '';
+  const attrs = kind ? ` data-chan-kind="${kind}"` : '';
+  return `
+    <div class="tplprev-chan-wrap">
+      <div class="tplprev-chan${clickable}"${attrs}>
+        <span class="tplprev-chan-icon">${ch.type === 'voice' ? '🔊' : '#'}</span>${escapeHtml(ch.name)}
+        ${ch.auto ? '<span class="tplprev-auto-badge">auto</span>' : ''}
+      </div>
+    </div>
+  `;
+}
+
+function templatePreviewCategoryHtml(c, preview) {
+  return `
+    <div class="tplprev-cat${c.auto ? ' auto' : ''}">${escapeHtml(c.name)}${c.auto ? '<span class="tplprev-auto-badge">auto</span>' : ''}</div>
+    ${c.channels.map((ch) => templatePreviewChanHtml(ch, preview)).join('')}
+  `;
+}
+
 function templatePreviewHtml(preview) {
   if (!preview) return '<p class="muted">Apercu indisponible.</p>';
   const roles = preview.roles || [];
+  const gameRoles = preview.gameRoles || [];
   const categories = preview.categories || [];
+  const autoCategories = preview.autoCategories || [];
+  const totalChannels = [...categories, ...autoCategories].reduce((n, c) => n + c.channels.length, 0);
   return `
     <div class="tplprev-head">
       ${preview.guildIconUrl ? `<img class="tplprev-icon" src="${preview.guildIconUrl}" alt="" />` : '<span class="tplprev-icon tplprev-icon-fallback">🪄</span>'}
@@ -3837,18 +3870,77 @@ function templatePreviewHtml(preview) {
         <div class="tplprev-roles">
           ${roles.length ? roles.map((r) => `<span class="tplprev-role-chip" style="--rc:${escapeHtml(r.color)}">${escapeHtml(r.name)}</span>`).join('') : '<span class="muted">Aucun</span>'}
         </div>
+        ${gameRoles.length ? `
+          <p class="tplprev-subtitle" style="margin-top:14px;">Roles de jeu (${gameRoles.length})</p>
+          <div class="tplprev-roles">
+            ${gameRoles.map((r) => `<span class="tplprev-role-chip" style="--rc:${escapeHtml(r.color)}">${escapeHtml(r.name)}</span>`).join('')}
+          </div>
+        ` : ''}
       </div>
       <div class="tplprev-channels-block">
-        <p class="tplprev-subtitle">Salons (${categories.reduce((n, c) => n + c.channels.length, 0)})</p>
+        <p class="tplprev-subtitle">Salons (${totalChannels})</p>
         <div class="tplprev-channels">
-          ${categories.length ? categories.map((c) => `
-            <div class="tplprev-cat">${escapeHtml(c.name)}</div>
-            ${c.channels.map((ch) => `<div class="tplprev-chan"><span class="tplprev-chan-icon">${ch.type === 'voice' ? '🔊' : '#'}</span>${escapeHtml(ch.name)}</div>`).join('')}
-          `).join('') : '<span class="muted">Aucun</span>'}
+          ${categories.length ? categories.map((c) => templatePreviewCategoryHtml(c, preview)).join('') : '<span class="muted">Aucun</span>'}
+          ${autoCategories.map((c) => templatePreviewCategoryHtml(c, preview)).join('')}
         </div>
+        ${autoCategories.length ? '<p class="tplprev-auto-note">auto = cree automatiquement a la generation (staff, roles de jeu, createur vocal), pas copie tel quel</p>' : ''}
       </div>
     </div>
   `;
+}
+
+function templatePreviewEmbedHtml(kind, preview) {
+  const content = preview.content || {};
+  const label = escapeHtml(preview.label || 'ce serveur');
+  if (kind === 'reglement') {
+    const desc = content.reglementText
+      ? escapeHtml(content.reglementText)
+      : '<em>(texte par defaut du bot : regles de respect, anti-spam, moderation...)</em>';
+    return `
+      <div class="tplprev-embed" style="--ec:#e63946">
+        <div class="tplprev-embed-title">Reglement du serveur</div>
+        <div class="tplprev-embed-desc">${desc}</div>
+      </div>
+      <p class="tplprev-embed-hint">+ boutons "J'accepte le reglement" et "Autres langues"</p>
+    `;
+  }
+  if (kind === 'arrivalDeparture') {
+    const welcomeRaw = content.welcomeMessageTemplate || 'Bienvenue {user} sur {server} !';
+    const welcome = escapeHtml(welcomeRaw.replace(/\{user\}/g, '@NouveauMembre').replace(/\{server\}/g, preview.label || 'ce serveur'));
+    return `
+      <div class="tplprev-embed" style="--ec:#30a46c">
+        <div class="tplprev-embed-author">NouveauMembre</div>
+        <div class="tplprev-embed-title">👋 Nouveau membre</div>
+        <div class="tplprev-embed-desc">${welcome}</div>
+        <div class="tplprev-embed-fields">
+          <div><div class="tplprev-embed-field-name">Membre</div><div class="tplprev-embed-field-value">@NouveauMembre</div></div>
+          <div><div class="tplprev-embed-field-name">Total</div><div class="tplprev-embed-field-value">123 membres</div></div>
+        </div>
+      </div>
+      <p class="tplprev-embed-hint">meme salon, embed rouge "👋 Depart" au depart d'un membre</p>
+    `;
+  }
+  if (kind === 'roles') {
+    return `<p class="tplprev-embed-note">Menu de selection des roles de jeu, genere et mis a jour automatiquement selon les jeux configures sur ${label}.</p>`;
+  }
+  return '<p class="tplprev-embed-note">Aucun contenu automatique pour ce salon.</p>';
+}
+
+function wireTemplatePreview(previewEl, preview) {
+  previewEl.querySelectorAll('.tplprev-chan.clickable').forEach((el) => {
+    el.addEventListener('click', () => {
+      const wrap = el.closest('.tplprev-chan-wrap');
+      const already = wrap.querySelector('.tplprev-embed-panel');
+      previewEl.querySelectorAll('.tplprev-embed-panel').forEach((p) => p.remove());
+      previewEl.querySelectorAll('.tplprev-chan.active').forEach((c) => c.classList.remove('active'));
+      if (already) return;
+      el.classList.add('active');
+      const panel = document.createElement('div');
+      panel.className = 'tplprev-embed-panel';
+      panel.innerHTML = templatePreviewEmbedHtml(el.dataset.chanKind, preview);
+      wrap.appendChild(panel);
+    });
+  });
 }
 
 function renderGenerationScreen(guildId, guildName) {
