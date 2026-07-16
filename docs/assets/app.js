@@ -3490,7 +3490,8 @@ function intToHex(color) {
 
 function embedFieldRowHtml(field = {}) {
   return `
-    <div class="embed-field-row">
+    <div class="embed-field-row" draggable="true">
+      <button type="button" class="embed-field-handle" aria-label="Reordonner ce champ (fleches haut/bas)">⠿</button>
       <input type="text" class="embed-field-name" placeholder="Nom du champ" aria-label="Nom du champ" maxlength="256" value="${escapeHtml(field.name || '')}" />
       <textarea class="embed-field-value" placeholder="Valeur du champ" aria-label="Valeur du champ" maxlength="1024">${escapeHtml(field.value || '')}</textarea>
       <label class="embed-field-inline"><input type="checkbox" class="embed-field-inline-input" ${field.inline ? 'checked' : ''} /> Cote a cote</label>
@@ -3538,23 +3539,24 @@ function embedPreviewHtml(embed) {
   const authorHtml = embed.author?.name ? `
     <div class="embed-preview-author">
       ${embed.author.icon_url ? `<img src="${escapeHtml(embed.author.icon_url)}" alt="" />` : ''}
-      <span>${escapeHtml(embed.author.name)}</span>
+      <span>${embed.author.url ? `<a href="${escapeHtml(embed.author.url)}" target="_blank" rel="noopener noreferrer">${escapeHtml(embed.author.name)}</a>` : escapeHtml(embed.author.name)}</span>
     </div>` : '';
-  const titleHtml = embed.title ? `<div class="embed-preview-title">${escapeHtml(embed.title)}</div>` : '';
-  const descHtml = embed.description ? `<div class="embed-preview-desc">${escapeHtml(embed.description)}</div>` : '';
+  const titleHtml = embed.title ? `
+    <div class="embed-preview-title">${embed.url ? `<a href="${escapeHtml(embed.url)}" target="_blank" rel="noopener noreferrer">${escapeHtml(embed.title)}</a>` : escapeHtml(embed.title)}</div>` : '';
+  const descHtml = embed.description ? `<div class="embed-preview-desc">${renderMarkdownLite(embed.description)}</div>` : '';
   const fieldsHtml = (embed.fields || []).length ? `
     <div class="embed-preview-fields">
       ${embed.fields.map((f) => `
         <div class="embed-preview-field${f.inline ? ' inline' : ''}">
           <div class="embed-preview-field-name">${escapeHtml(f.name)}</div>
-          <div class="embed-preview-field-value">${escapeHtml(f.value)}</div>
+          <div class="embed-preview-field-value">${renderMarkdownLite(f.value)}</div>
         </div>`).join('')}
     </div>` : '';
   const imageHtml = embed.image?.url ? `<div class="embed-preview-image"><img src="${escapeHtml(embed.image.url)}" alt="" /></div>` : '';
   const thumbHtml = embed.thumbnail?.url ? `<div class="embed-preview-thumb"><img src="${escapeHtml(embed.thumbnail.url)}" alt="" /></div>` : '';
   const footerBits = [];
   if (embed.footer?.text) footerBits.push(escapeHtml(embed.footer.text));
-  if (embed.timestamp) footerBits.push(new Date().toLocaleString('fr-FR'));
+  if (embed.timestamp) footerBits.push(new Date().toLocaleString('fr-FR', { day: '2-digit', month: '2-digit', year: 'numeric', hour: '2-digit', minute: '2-digit' }));
   const footerHtml = footerBits.length ? `
     <div class="embed-preview-footer">
       ${embed.footer?.icon_url ? `<img src="${escapeHtml(embed.footer.icon_url)}" alt="" />` : ''}
@@ -3562,6 +3564,7 @@ function embedPreviewHtml(embed) {
     </div>` : '';
 
   const isEmpty = !authorHtml && !titleHtml && !descHtml && !fieldsHtml && !imageHtml && !thumbHtml && !footerHtml;
+  if (isEmpty) return '';
 
   return `
     <div class="embed-preview" style="border-left-color:${hex};">
@@ -3573,7 +3576,34 @@ function embedPreviewHtml(embed) {
         ${fieldsHtml}
         ${imageHtml}
         ${footerHtml}
-        ${isEmpty ? '<p class="muted" style="margin:0;">Remplis le formulaire pour voir l\'apercu.</p>' : ''}
+      </div>
+    </div>`;
+}
+
+// Habillage "vrai message Discord" autour du/des embed(s) : avatar + nom du
+// bot + badge BOT + heure, puis le texte simple, puis les embeds - au lieu
+// de montrer les cartes d'embed nues sans contexte.
+function messagePreviewHtml(content, embeds) {
+  const now = new Date().toLocaleTimeString('fr-FR', { hour: '2-digit', minute: '2-digit' });
+  const embedsHtml = embeds.map(embedPreviewHtml).join('');
+  const contentHtml = content ? `<div class="embed-preview-content">${renderMarkdownLite(content)}</div>` : '';
+  if (!contentHtml && !embedsHtml) {
+    return `
+      <div class="embed-preview-msg">
+        <div class="embed-preview-avatar">${botAvatarHtml()}</div>
+        <div class="embed-preview-body">
+          <div class="embed-preview-msg-header"><strong>ServeurCreator Bot</strong><span class="embed-preview-bot-tag">BOT</span><span class="embed-preview-time">${now}</span></div>
+          <p class="muted" style="margin:0;">Remplis le formulaire pour voir l'apercu.</p>
+        </div>
+      </div>`;
+  }
+  return `
+    <div class="embed-preview-msg">
+      <div class="embed-preview-avatar">${botAvatarHtml()}</div>
+      <div class="embed-preview-body">
+        <div class="embed-preview-msg-header"><strong>ServeurCreator Bot</strong><span class="embed-preview-bot-tag">BOT</span><span class="embed-preview-time">${now}</span></div>
+        ${contentHtml}
+        ${embedsHtml}
       </div>
     </div>`;
 }
@@ -3598,14 +3628,11 @@ function populateEmbedForm(root, embed = {}, content = '') {
 }
 
 function updateEmbedPreview(root) {
-  const { embed } = buildEmbedFromForm(root);
+  const { embed, content } = buildEmbedFromForm(root);
   const state = root.__mb;
-  if (state) {
-    state.embeds[state.active] = embed;
-    root.querySelector('#embed-preview-slot').innerHTML = state.embeds.map(embedPreviewHtml).join('');
-  } else {
-    root.querySelector('#embed-preview-slot').innerHTML = embedPreviewHtml(embed);
-  }
+  if (state) state.embeds[state.active] = embed;
+  const embeds = state ? state.embeds : [embed];
+  root.querySelector('#embed-preview-slot').innerHTML = messagePreviewHtml(content, embeds);
 }
 
 function renderEmbedTabs(root) {
@@ -3665,6 +3692,45 @@ function wireEmbedFieldRows(root) {
   root.querySelectorAll('.embed-field-remove').forEach((btn) => {
     btn.onclick = () => { btn.closest('.embed-field-row').remove(); updateEmbedPreview(root); };
   });
+  // Reordonnancement des champs (l'ordre du DOM fait foi, buildEmbedFromForm
+  // lit .embed-field-row dans l'ordre d'affichage) : drag&drop souris + une
+  // alternative clavier sur la poignee, meme logique que les roles/salons.
+  root.querySelectorAll('.embed-field-row').forEach((row) => {
+    row.ondragstart = (e) => {
+      row.classList.add('dragging');
+      e.dataTransfer.setData('text/plain', '');
+      e.dataTransfer.effectAllowed = 'move';
+    };
+    row.ondragover = (e) => {
+      e.preventDefault();
+      const list = row.parentElement;
+      const dragging = list.querySelector('.embed-field-row.dragging');
+      if (!dragging || dragging === row) return;
+      const rect = row.getBoundingClientRect();
+      const before = (e.clientY - rect.top) < rect.height / 2;
+      const target = before ? row : row.nextSibling;
+      if (dragging.nextSibling === target) return;
+      animateReorder(list, '.embed-field-row', () => list.insertBefore(dragging, target));
+    };
+    row.ondragend = () => { row.classList.remove('dragging'); updateEmbedPreview(root); };
+  });
+  root.querySelectorAll('.embed-field-handle').forEach((handle) => {
+    handle.onclick = (e) => e.stopPropagation();
+    handle.onkeydown = (e) => {
+      if (e.key !== 'ArrowUp' && e.key !== 'ArrowDown') return;
+      e.preventDefault();
+      const row = handle.closest('.embed-field-row');
+      const list = row.parentElement;
+      const sibling = e.key === 'ArrowUp' ? row.previousElementSibling : row.nextElementSibling;
+      if (!sibling || !sibling.matches('.embed-field-row')) return;
+      animateReorder(list, '.embed-field-row', () => {
+        if (e.key === 'ArrowUp') list.insertBefore(row, sibling);
+        else list.insertBefore(sibling, row);
+      });
+      handle.focus();
+      updateEmbedPreview(root);
+    };
+  });
 }
 
 async function renderEmbedBuilderPage(id, container = app) {
@@ -3688,7 +3754,10 @@ async function renderEmbedBuilderPage(id, container = app) {
       <div class="embed-builder-layout">
         <div class="embed-builder-form">
           <div class="dp-block">
-            <p class="dp-block-title">📨 Message</p>
+            <div class="row" style="justify-content:space-between; align-items:center;">
+              <p class="dp-block-title" style="margin:0;">📨 Message</p>
+              <a href="#embed-json" class="embed-json-jump">🧾 Importer/exporter en JSON</a>
+            </div>
             <label for="embed-content">Texte au-dessus des embeds (optionnel)</label>
             <textarea id="embed-content" placeholder="Texte simple, en plus des embeds"></textarea>
 
@@ -3703,7 +3772,12 @@ async function renderEmbedBuilderPage(id, container = app) {
             <label for="embed-description">Description</label>
             <textarea id="embed-description" maxlength="4096" placeholder="Texte principal (markdown Discord supporte)" data-charcount></textarea>
             <label for="embed-color">Couleur</label>
-            <input type="color" id="embed-color" value="#5865f2" />
+            <div class="dp-role-color-row">
+              <input type="color" id="embed-color" value="#5865f2" />
+              <div class="dp-color-swatches">
+                ${DISCORD_ROLE_COLORS.map((c) => `<button type="button" class="dp-color-swatch-btn embed-color-swatch-btn" data-color="${c}" style="--sw:${c}" title="${c}" aria-label="Couleur ${c}"></button>`).join('')}
+              </div>
+            </div>
 
             <div class="dp-subsection-divider"></div>
             <p class="dp-block-title">👤 Auteur</p>
@@ -3792,6 +3866,12 @@ async function renderEmbedBuilderPage(id, container = app) {
 
   container.querySelectorAll('input, textarea').forEach((el) => {
     el.addEventListener('input', () => updateEmbedPreview(container));
+  });
+  container.querySelectorAll('.embed-color-swatch-btn').forEach((btn) => {
+    btn.addEventListener('click', () => {
+      container.querySelector('#embed-color').value = btn.dataset.color;
+      updateEmbedPreview(container);
+    });
   });
   container.querySelector('#embed-target-message-id').addEventListener('input', (e) => {
     container.querySelector('#embed-post-btn').textContent = e.target.value.trim()
@@ -3914,6 +3994,9 @@ async function renderEmbedBuilderPage(id, container = app) {
     });
   });
 
+  container.querySelector('.embed-json-jump').addEventListener('click', () => {
+    setTimeout(() => container.querySelector('#embed-json').focus(), 300);
+  });
   container.querySelector('#embed-json-apply').addEventListener('click', () => {
     try {
       const parsed = JSON.parse(container.querySelector('#embed-json').value);
