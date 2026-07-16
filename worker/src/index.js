@@ -1153,6 +1153,17 @@ export default {
     }
   },
   async scheduled(event, env) {
+    // Cron rapproche : simple ping pour garder le bot Render eveille
+    // (free tier suspendu apres 15 min sans trafic entrant).
+    if (event.cron === '*/10 * * * *') {
+      if (!env.BOT_KEEPALIVE_URL) return;
+      try {
+        await fetch(env.BOT_KEEPALIVE_URL, { signal: AbortSignal.timeout(30000) });
+      } catch (err) {
+        console.error('keepalive bot echoue', err);
+      }
+      return;
+    }
     await snapshotAllGuilds(env);
   },
 };

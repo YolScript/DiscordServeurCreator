@@ -138,6 +138,16 @@ app.addEventListener('click', async (e) => {
   }, true);
 
   app.addEventListener('paste', (e) => {
+    // Zone markdown : coller une URL seule propose aussi le lien cliquable.
+    if (isMdArea(e.target)) {
+      const text = (e.clipboardData.getData('text/plain') || '').trim();
+      if (!isHttpUrl(text)) return; // texte normal : collage natif
+      e.preventDefault();
+      const label = window.prompt('Texte affiche pour ce lien cliquable ? (laisser vide pour coller le lien brut)', '');
+      insertAtCursor(e.target, label && label.trim() ? `[${label.trim()}](${text})` : text);
+      if (label && label.trim()) showToast('Lien cliquable insere.');
+      return;
+    }
     if (!isUrlInput(e.target)) return;
     const dt = e.clipboardData;
     if ((dt.getData('text/plain') || '').trim()) return; // lien texte : collage natif

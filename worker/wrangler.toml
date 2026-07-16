@@ -6,12 +6,16 @@ kv_namespaces = [
   { binding = "GUILD_KV", id = "aeb9e5560f154dacbcd3e3cee5e9dad0" }
 ]
 
-# Snapshot automatique quotidien de la structure (roles/salons) de chaque
-# serveur configure, garde les 5 derniers par serveur.
+# Deux crons :
+# - 4h00 : snapshot automatique quotidien de la structure (roles/salons) de
+#   chaque serveur configure, garde les 5 derniers par serveur.
+# - toutes les 10 min : ping du bot heberge sur Render (free tier endormi
+#   apres 15 min d'inactivite) pour le maintenir eveille.
 [triggers]
-crons = ["0 4 * * *"]
+crons = ["0 4 * * *", "*/10 * * * *"]
 
 [vars]
+BOT_KEEPALIVE_URL = "https://discordserveurcreator.onrender.com/"
 DISCORD_CLIENT_ID = "1526237674355036401"
 OAUTH_REDIRECT_URI = "https://discord-serveur-creator-worker.energiecraft-online.workers.dev/auth/callback"
 FRONTEND_ORIGIN = "https://yolscript.github.io"
