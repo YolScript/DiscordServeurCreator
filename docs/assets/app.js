@@ -1155,6 +1155,7 @@ function wireAiHome(guildId, channels, rolesSorted) {
     if (!window.confirm('Demarrer une nouvelle conversation avec l\'assistant ? L\'historique actuel sera perdu.')) return;
     aiConversation = [];
     aiPendingConfirmation = null;
+    Api.clearAiHistory(guildId).catch(() => {});
     withViewTransition(() => renderPreviewPage(guildId));
   });
 
@@ -1203,6 +1204,7 @@ function wireAiHome(guildId, channels, rolesSorted) {
         ? { ...result.pendingConfirmation, label: resolveAiActionLabel(result.pendingConfirmation, channels, rolesSorted) }
         : null;
       aiBusy = false;
+      Api.saveAiHistory(guildId, aiConversation).catch(() => {});
       await renderPreviewPage(guildId);
     } catch (err) {
       showToast(err.message, 'error');
@@ -1265,6 +1267,7 @@ function wireAiHome(guildId, channels, rolesSorted) {
         ? { ...result.pendingConfirmation, label: resolveAiActionLabel(result.pendingConfirmation, channels, rolesSorted) }
         : null;
       aiBusy = false;
+      Api.saveAiHistory(guildId, aiConversation).catch(() => {});
       await renderPreviewPage(guildId);
     } catch (err) {
       aiConversation.pop();
@@ -1347,6 +1350,15 @@ function renderPreviewContent(id, { channels, config, roles, members }) {
     aiConversationGuildId = id;
     aiConversation = [];
     aiPendingConfirmation = null;
+    // Conversation persistee (roadmap n°137) : recharge le fil sauvegarde
+    // cote KV pour ce serveur, puis re-rend la queue du chat si toujours vide.
+    Api.aiHistory(id).then((h) => {
+      if (h?.messages?.length && !aiConversation.length && aiConversationGuildId === id) {
+        aiConversation = h.messages;
+        const tail = document.getElementById('dp-ai-tail');
+        if (tail) tail.innerHTML = aiConversationHtml();
+      }
+    }).catch(() => { /* hors-ligne ou viewer : tant pis */ });
   }
 
   const categories = channels.filter((c) => c.type === 4).sort((a, b) => a.position - b.position);
@@ -5644,6 +5656,15 @@ async function renderEmbedBuilderPage(id, container = app) {
               </div>
             </div>
             <label for="embed-description">Description</label>
+            <div class="embed-md-toolbar" role="toolbar" aria-label="Mise en forme markdown">
+              <button type="button" class="embed-md-btn" data-md="bold" title="Gras"><strong>B</strong></button>
+              <button type="button" class="embed-md-btn" data-md="italic" title="Italique"><em>I</em></button>
+              <button type="button" class="embed-md-btn" data-md="underline" title="Souligne"><u>S</u></button>
+              <button type="button" class="embed-md-btn" data-md="strike" title="Barre"><s>T</s></button>
+              <button type="button" class="embed-md-btn" data-md="code" title="Code">&lt;/&gt;</button>
+              <button type="button" class="embed-md-btn" data-md="link" title="Lien [texte](url)">🔗</button>
+              <button type="button" class="embed-md-btn" data-md="list" title="Liste a puces">•—</button>
+            </div>
             <textarea id="embed-description" maxlength="4096" placeholder="Texte principal (markdown Discord supporte)" data-charcount data-md-link></textarea>
             <div class="embed-vars-row" role="group" aria-label="Variables dynamiques">
               <span>Variables :</span>
@@ -5861,6 +5882,30 @@ async function renderEmbedBuilderPage(id, container = app) {
       const end = area.selectionEnd ?? start;
       area.value = area.value.slice(0, start) + chip.dataset.var + area.value.slice(end);
       const pos = start + chip.dataset.var.length;
+      area.setSelectionRange(pos, pos);
+      area.focus();
+      area.dispatchEvent(new Event('input', { bubbles: true }));
+    });
+  });
+
+  // Barre d'outils markdown (roadmap n°128) : entoure la selection (ou
+  // insere un gabarit) dans la derniere zone de texte utilisee.
+  const MD_WRAPPERS = {
+    bold: ['**', '**'], italic: ['*', '*'], underline: ['__', '__'], strike: ['~~', '~~'], code: ['`', '`'],
+  };
+  container.querySelectorAll('.embed-md-btn').forEach((btn) => {
+    btn.addEventListener('click', () => {
+      const area = container.__lastMdArea || container.querySelector('#embed-description');
+      const start = area.selectionStart ?? area.value.length;
+      const end = area.selectionEnd ?? start;
+      const selected = area.value.slice(start, end);
+      const kind = btn.dataset.md;
+      let insert;
+      if (kind === 'link') insert = `[${selected || 'texte'}](https://)`;
+      else if (kind === 'list') insert = (selected || 'element').split('\n').map((l) => `- ${l}`).join('\n');
+      else insert = MD_WRAPPERS[kind][0] + (selected || 'texte') + MD_WRAPPERS[kind][1];
+      area.value = area.value.slice(0, start) + insert + area.value.slice(end);
+      const pos = start + insert.length;
       area.setSelectionRange(pos, pos);
       area.focus();
       area.dispatchEvent(new Event('input', { bubbles: true }));

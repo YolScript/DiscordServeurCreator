@@ -134,6 +134,9 @@ window.Api = (function api() {
     saveAiConfig: (guildId, provider, apiKey) => request(`/api/guilds/${guildId}/aiconfig`, { method: 'PUT', body: JSON.stringify({ provider, apiKey }) }),
     clearAiConfig: (guildId) => request(`/api/guilds/${guildId}/aiconfig`, { method: 'DELETE' }),
     aiChat: (guildId, messages, message) => request(`/api/guilds/${guildId}/aichat`, { method: 'POST', body: JSON.stringify({ messages, message }) }),
+    aiHistory: (guildId) => request(`/api/guilds/${guildId}/aichat/history`),
+    saveAiHistory: (guildId, messages) => request(`/api/guilds/${guildId}/aichat/history`, { method: 'PUT', body: JSON.stringify({ messages }) }),
+    clearAiHistory: (guildId) => request(`/api/guilds/${guildId}/aichat/history`, { method: 'DELETE' }),
     // Variante streaming (roadmap n°066) : fetch dedie car request() attend
     // un corps JSON complet. Parse le flux SSE et relaie les events delta
     // (texte au fil de l'eau) et tool (outil en cours) aux handlers ;

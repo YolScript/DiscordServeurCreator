@@ -515,6 +515,25 @@ async function router(request, env) {
       return json({ ok: true }, env);
     }
 
+    // Conversation IA persistee (roadmap n°137) : une cle KV par serveur ET
+    // par admin, TTL 14 jours, 40 derniers messages. Le refresh du dashboard
+    // ne perd plus le fil.
+    if (sub === 'aichat' && parts[4] === 'history' && parts.length === 5) {
+      const session = await requireGuildAccess(env, request, guildId);
+      const historyKey = `guild:${guildId}:aichat:${session.userId}`;
+      if (method === 'GET') return json((await env.GUILD_KV.get(historyKey, 'json')) || { messages: [] }, env);
+      if (method === 'PUT') {
+        const { messages } = await readJson(request);
+        if (!Array.isArray(messages)) throw new HttpError(400, 'messages requis.');
+        await env.GUILD_KV.put(historyKey, JSON.stringify({ messages: messages.slice(-40), updatedAt: Date.now() }), { expirationTtl: 60 * 60 * 24 * 14 });
+        return json({ ok: true }, env);
+      }
+      if (method === 'DELETE') {
+        await env.GUILD_KV.delete(historyKey);
+        return json({ ok: true }, env);
+      }
+    }
+
     if (sub === 'aichat' && parts.length === 4 && method === 'POST') {
       const session = await requireGuildAccess(env, request, guildId);
       const rate = await checkAiRateLimit(env, guildId, session.userId);
