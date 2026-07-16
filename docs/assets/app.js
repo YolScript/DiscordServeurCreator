@@ -4028,7 +4028,7 @@ async function renderMemberLookupPage(id, container = app) {
 const FEATURE_CHANNEL_CARDS = [
   { key: 'giveaways', icon: '🎉', label: 'Giveaways', desc: 'Salon en lecture seule, propose par defaut au lancement des giveaways.', configKey: 'giveawayChannelId' },
   { key: 'annonces', icon: '📣', label: 'Annonces', desc: 'Salon en lecture seule pour les annonces officielles.', configKey: 'announceChannelId' },
-  { key: 'suggestions', icon: '💡', label: 'Suggestions', desc: 'Les membres proposent leurs idees, votes du bot dessus.', configKey: 'suggestionChannelId' },
+  { key: 'suggestions', icon: '💡', label: 'Suggestions & sondages', desc: 'Les membres proposent leurs idees et creent des sondages (panneau avec bouton inclus).', configKey: 'suggestionChannelId' },
   { key: 'modlog', icon: '📋', label: 'Journal de moderation', desc: 'Visible du staff uniquement, le bot y ecrit chaque action automod.', configKey: 'modLogChannelId' },
   { key: 'bienvenue', icon: '👋', label: 'Bienvenue', desc: 'Arrivees et departs annonces par le bot, lecture seule.', configKey: 'arrivalDepartureChannelId' },
   { key: 'support', icon: '🎫', label: 'Support / tickets', desc: 'Salon du panneau de tickets, lecture seule.', configKey: 'ticketPanelChannelId' },

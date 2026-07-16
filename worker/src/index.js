@@ -570,8 +570,13 @@ async function router(request, env) {
           welcome: { embeds: [{ title: '📣 Annonces', description: 'Les annonces officielles du serveur sont publiees ici.', color: 0x5865f2 }] },
         },
         suggestions: {
-          name: 'suggestions', topic: 'Propose tes idees pour ameliorer le serveur', readonly: false, configKey: 'suggestionChannelId',
-          welcome: { embeds: [{ title: '💡 Suggestions', description: 'Propose tes idees pour ameliorer le serveur : ecris-les simplement ici.\nLe staff les passera en revue.', color: 0xfee75c }] },
+          name: 'suggestions', topic: 'Propose tes idees et cree des sondages', readonly: false, configKey: 'suggestionChannelId',
+          // Panneau sondages identique a celui du bot (pollManager) : le
+          // bouton poll_create_open ouvre le modal de creation de sondage.
+          welcome: {
+            embeds: [{ title: '📊 Sondages', description: 'Clique sur le bouton ci-dessous pour creer ton propre sondage (question + jusqu\'a 5 options), sans limite de temps.', color: 0x5b8def }],
+            components: [{ type: 1, components: [{ type: 2, style: 1, label: 'Creer un sondage', emoji: { name: '📊' }, custom_id: 'poll_create_open' }] }],
+          },
         },
         modlog: {
           name: 'mod-log', topic: 'Journal de moderation automatique du bot', staffOnly: true, configKey: 'modLogChannelId',
