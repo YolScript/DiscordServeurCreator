@@ -3169,6 +3169,29 @@ async function renderPermissionsPage(id, container = app) {
   let dashboardAllowedUserIds = config?.dashboardAllowedUserIds || [];
   let dashboardViewerUserIds = config?.dashboardViewerUserIds || [];
 
+  // Detecteur d'incoherences (roadmap n°145) : ecrire-sans-voir et
+  // overwrites orphelins (role supprime depuis).
+  const permIssues = [];
+  {
+    const VIEW_B = 1024n;
+    const SEND_B = 2048n;
+    const roleById = new Map(roles.map((r) => [r.id, r]));
+    for (const c of channels.filter((ch) => ch.type === 0 || ch.type === 2)) {
+      for (const ov of c.permission_overwrites || []) {
+        if (ov.type === 0 && !roleById.has(ov.id)) {
+          permIssues.push(`#${escapeHtml(c.name)} : permission orpheline (role supprime).`);
+          continue;
+        }
+        const allow = BigInt(ov.allow || 0);
+        const deny = BigInt(ov.deny || 0);
+        if ((allow & SEND_B) && (deny & VIEW_B)) {
+          const label = ov.type === 0 ? escapeHtml(roleById.get(ov.id)?.name || ov.id) : 'un membre';
+          permIssues.push(`#${escapeHtml(c.name)} : ${label} peut ecrire mais ne voit pas le salon.`);
+        }
+      }
+    }
+  }
+
   container.innerHTML = `
     <div class="inner">
       ${sectionHtml('Edition en masse', `
@@ -3181,6 +3204,12 @@ async function renderPermissionsPage(id, container = app) {
         <select id="perm-preset">${presetOptions}</select>
         <button class="btn" id="apply-bulk" style="margin-top:12px;">Appliquer</button>
       `, { id: 'perm-bulk' })}
+
+      ${permIssues.length ? sectionHtml('Incoherences detectees', `
+        <p class="muted">${permIssues.length} probleme(s) de permissions repere(s) automatiquement :</p>
+        ${permIssues.slice(0, 20).map((i) => `<div style="padding:3px 0; font-size:0.84rem;">⚠️ ${i}</div>`).join('')}
+        <p class="muted" style="margin-top:8px;">Corrige-les via l'edition en masse ci-dessus ou l'editeur de salons.</p>
+      `, { id: 'perm-issues' }) : ''}
 
       ${sectionHtml('Voir comme un role', `
         <p class="muted">Affiche le serveur tel que ce role le voit : les salons barres lui sont invisibles.</p>
