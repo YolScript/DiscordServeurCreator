@@ -433,8 +433,8 @@ const HOME_MODULES = [
 function customChannelFormHtml(catId) {
   return `
     <div class="dp-custom-form" data-form-for="${catId}" style="display:none;">
-      <input type="text" class="dp-custom-name" placeholder="Nom du salon" maxlength="80" data-charcount />
-      <select class="dp-custom-type">
+      <input type="text" class="dp-custom-name" placeholder="Nom du salon" aria-label="Nom du salon" maxlength="80" data-charcount />
+      <select class="dp-custom-type" aria-label="Type de salon">
         <option value="text">Texte</option>
         <option value="voice">Vocal</option>
       </select>
@@ -2356,9 +2356,9 @@ function wireReactionRoleRows(root) {
 function reactionRoleRowHtml(row = {}) {
   return `
     <div class="reaction-role-row">
-      <input type="text" class="rr-role-id" placeholder="ID du role" maxlength="32" value="${escapeHtml(row.roleId || '')}" />
-      <input type="text" class="rr-label" placeholder="Libelle affiche" maxlength="100" value="${escapeHtml(row.label || '')}" />
-      <input type="text" class="rr-emoji" placeholder="Emoji" maxlength="8" value="${escapeHtml(row.emoji || '')}" />
+      <input type="text" class="rr-role-id" placeholder="ID du role" aria-label="ID du role" maxlength="32" value="${escapeHtml(row.roleId || '')}" />
+      <input type="text" class="rr-label" placeholder="Libelle affiche" aria-label="Libelle affiche" maxlength="100" value="${escapeHtml(row.label || '')}" />
+      <input type="text" class="rr-emoji" placeholder="Emoji" aria-label="Emoji" maxlength="8" value="${escapeHtml(row.emoji || '')}" />
       <button type="button" class="btn danger rr-remove" title="Supprimer" aria-label="Supprimer cette ligne">✕</button>
     </div>`;
 }
@@ -3298,8 +3298,8 @@ function intToHex(color) {
 function embedFieldRowHtml(field = {}) {
   return `
     <div class="embed-field-row">
-      <input type="text" class="embed-field-name" placeholder="Nom du champ" maxlength="256" value="${escapeHtml(field.name || '')}" />
-      <textarea class="embed-field-value" placeholder="Valeur du champ" maxlength="1024">${escapeHtml(field.value || '')}</textarea>
+      <input type="text" class="embed-field-name" placeholder="Nom du champ" aria-label="Nom du champ" maxlength="256" value="${escapeHtml(field.name || '')}" />
+      <textarea class="embed-field-value" placeholder="Valeur du champ" aria-label="Valeur du champ" maxlength="1024">${escapeHtml(field.value || '')}</textarea>
       <label class="embed-field-inline"><input type="checkbox" class="embed-field-inline-input" ${field.inline ? 'checked' : ''} /> Cote a cote</label>
       <button type="button" class="btn danger embed-field-remove" title="Supprimer ce champ" aria-label="Supprimer ce champ">✕</button>
     </div>`;
