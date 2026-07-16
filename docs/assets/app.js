@@ -2301,6 +2301,7 @@ async function renderPermissionsPage(id, container = app) {
   function wireDashboardAccessDeleteButtons() {
     document.querySelectorAll('.delete-dashboard-access').forEach((btn) => {
       btn.addEventListener('click', async () => {
+        if (!window.confirm('Retirer l\'acces au dashboard pour cet utilisateur ?')) return;
         try {
           dashboardAllowedUserIds = dashboardAllowedUserIds.filter((uid) => uid !== btn.dataset.uid);
           await Api.updateConfig(id, { dashboardAllowedUserIds });
@@ -2862,6 +2863,7 @@ async function renderAutomationsPage(id, container = app) {
   function wireWebhookDeleteButtons() {
     document.querySelectorAll('.delete-webhook').forEach((btn) => {
       btn.addEventListener('click', async () => {
+        if (!window.confirm('Supprimer ce webhook ?')) return;
         try {
           currentWebhooks = currentWebhooks.filter((_, i) => i !== Number(btn.dataset.index));
           await Api.updateConfig(id, { outgoingWebhooks: currentWebhooks });
@@ -2904,6 +2906,7 @@ async function renderAutomationsPage(id, container = app) {
   });
   container.querySelectorAll('.delete-shop-item').forEach((btn) => {
     btn.addEventListener('click', async () => {
+      if (!window.confirm('Supprimer cet article de la boutique ?')) return;
       try {
         await Api.deleteShopItem(id, btn.dataset.id);
         showToast('Article supprime.');
@@ -2957,6 +2960,7 @@ async function renderAutomationsPage(id, container = app) {
   });
   container.querySelectorAll('.delete-level-role').forEach((btn) => {
     btn.addEventListener('click', async () => {
+      if (!window.confirm('Supprimer ce role de niveau ?')) return;
       try {
         await Api.deleteLevelRole(id, btn.dataset.level);
         showToast('Role de niveau supprime.');
@@ -2991,6 +2995,7 @@ async function renderAutomationsPage(id, container = app) {
   });
   container.querySelectorAll('.delete-referral-role').forEach((btn) => {
     btn.addEventListener('click', async () => {
+      if (!window.confirm('Supprimer ce role de parrainage ?')) return;
       try {
         await Api.deleteReferralRole(id, btn.dataset.count);
         showToast('Role de parrainage supprime.');
@@ -3016,6 +3021,7 @@ async function renderAutomationsPage(id, container = app) {
   });
   container.querySelectorAll('.delete-streamer').forEach((btn) => {
     btn.addEventListener('click', async () => {
+      if (!window.confirm('Retirer ce streamer ?')) return;
       try {
         await Api.deleteStreamer(id, btn.dataset.user, btn.dataset.platform);
         showToast('Streamer retire.');
@@ -3044,6 +3050,7 @@ async function renderAutomationsPage(id, container = app) {
   });
   container.querySelectorAll('.delete-scheduled').forEach((btn) => {
     btn.addEventListener('click', async () => {
+      if (!window.confirm('Supprimer cette annonce programmee ?')) return;
       try {
         await Api.deleteScheduled(id, btn.dataset.id);
         showToast('Annonce supprimee.');
