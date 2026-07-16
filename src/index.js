@@ -16,7 +16,9 @@ http.createServer((req, res) => {
     memoryMb: Math.round(process.memoryUsage().rss / 1048576),
     version: (process.env.RENDER_GIT_COMMIT || '').slice(0, 7) || null,
   };
-  res.writeHead(200, { 'Content-Type': 'application/json' });
+  // CORS ouvert : le healthcheck ne contient rien de sensible et alimente
+  // la page de statut publique du dashboard (roadmap n°108).
+  res.writeHead(200, { 'Content-Type': 'application/json', 'Access-Control-Allow-Origin': '*' });
   res.end(JSON.stringify(payload));
 }).listen(process.env.PORT || 3000);
 

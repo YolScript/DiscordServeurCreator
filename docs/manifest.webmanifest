@@ -1,0 +1,22 @@
+{
+  "name": "Discord Serveur Creator",
+  "short_name": "ServeurCreator",
+  "description": "Dashboard de configuration du bot Discord Serveur Creator",
+  "start_url": "app.html",
+  "scope": ".",
+  "display": "standalone",
+  "background_color": "#171013",
+  "theme_color": "#1a1013",
+  "icons": [
+    {
+      "src": "assets/logo-512.png",
+      "sizes": "512x512",
+      "type": "image/png"
+    },
+    {
+      "src": "assets/favicon-64.png",
+      "sizes": "64x64",
+      "type": "image/png"
+    }
+  ]
+}

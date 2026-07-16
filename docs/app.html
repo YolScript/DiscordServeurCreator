@@ -6,7 +6,9 @@
   <title>Discord Serveur Creator - Dashboard</title>
   <meta name="robots" content="noindex, nofollow" />
   <link rel="icon" type="image/png" href="assets/favicon-64.png?v=3" />
-  <link rel="stylesheet" href="assets/style.css?v=78" />
+  <link rel="manifest" href="manifest.webmanifest" />
+  <meta name="theme-color" content="#1a1013" />
+  <link rel="stylesheet" href="assets/style.css?v=79" />
   <script>
     (function () {
       var t = localStorage.getItem('theme');
@@ -58,8 +60,14 @@
   <script src="assets/config.js?v=5" defer></script>
   <script src="assets/sounds.js?v=1" defer></script>
   <script src="assets/api.js?v=26" defer></script>
-  <script src="assets/app.js?v=103" defer></script>
+  <script src="assets/app.js?v=104" defer></script>
   <script src="assets/microinteractions.js?v=1" defer></script>
   <script src="assets/bgvideo.js?v=4"></script>
+  <script>
+    // Service worker (coquille offline + ouverture instantanee).
+    if ('serviceWorker' in navigator) {
+      navigator.serviceWorker.register('sw.js').catch(function () {});
+    }
+  </script>
 </body>
 </html>

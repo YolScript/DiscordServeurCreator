@@ -21,6 +21,7 @@ const memberCountChannel = require('../automation/memberCountChannel');
 const botStatusHeartbeat = require('../automation/botStatusHeartbeat');
 const generationSync = require('../automation/generationSync');
 const reminderManager = require('../automation/reminderManager');
+const rssWatcher = require('../automation/rssWatcher');
 const logger = require('../../shared/logger');
 
 client.once(Events.ClientReady, async (readyClient) => {
@@ -68,4 +69,5 @@ client.once(Events.ClientReady, async (readyClient) => {
   botStatusHeartbeat.start();
   generationSync.start();
   reminderManager.start();
+  rssWatcher.start();
 });

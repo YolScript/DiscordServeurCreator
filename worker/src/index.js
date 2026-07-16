@@ -1465,6 +1465,41 @@ export default {
       }
       return;
     }
+    // Sauvegarde hebdomadaire complete du KV (roadmap n°106).
+    if (event.cron === '0 5 * * 0') {
+      await backupAllKv(env);
+      return;
+    }
     await snapshotAllGuilds(env);
   },
 };
+
+// Copie toutes les cles de donnees (guild:*, bot:*) dans backup:<date> et
+// garde les 4 sauvegardes les plus recentes. Les cles techniques (sessions,
+// caches, anciennes sauvegardes) sont exclues.
+async function backupAllKv(env) {
+  const backup = {};
+  let cursor;
+  do {
+    // eslint-disable-next-line no-await-in-loop
+    const page = await env.GUILD_KV.list({ cursor, limit: 1000 });
+    for (const key of page.keys) {
+      if (!key.name.startsWith('guild:') && !key.name.startsWith('bot:')) continue;
+      // eslint-disable-next-line no-await-in-loop
+      const value = await env.GUILD_KV.get(key.name);
+      if (value !== null) backup[key.name] = value;
+    }
+    cursor = page.list_complete ? undefined : page.cursor;
+  } while (cursor);
+
+  const date = new Date().toISOString().slice(0, 10);
+  await env.GUILD_KV.put(`backup:${date}`, JSON.stringify(backup));
+
+  const existing = await env.GUILD_KV.list({ prefix: 'backup:' });
+  const names = existing.keys.map((k) => k.name).sort();
+  for (const name of names.slice(0, -4)) {
+    // eslint-disable-next-line no-await-in-loop
+    await env.GUILD_KV.delete(name);
+  }
+  console.log(`backup hebdo : ${Object.keys(backup).length} cles sauvegardees dans backup:${date}`);
+}

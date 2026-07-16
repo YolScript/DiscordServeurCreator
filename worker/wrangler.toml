@@ -6,13 +6,15 @@ kv_namespaces = [
   { binding = "GUILD_KV", id = "aeb9e5560f154dacbcd3e3cee5e9dad0" }
 ]
 
-# Deux crons :
+# Trois crons :
 # - 4h00 : snapshot automatique quotidien de la structure (roles/salons) de
 #   chaque serveur configure, garde les 5 derniers par serveur.
 # - toutes les 10 min : ping du bot heberge sur Render (free tier endormi
 #   apres 15 min d'inactivite) pour le maintenir eveille.
+# - dimanche 5h00 : sauvegarde complete du KV (cles guild:*/bot:*) dans
+#   backup:<date>, 4 dernieres conservees.
 [triggers]
-crons = ["0 4 * * *", "*/10 * * * *"]
+crons = ["0 4 * * *", "*/10 * * * *", "0 5 * * 0"]
 
 [vars]
 BOT_KEEPALIVE_URL = "https://discordserveurcreator.onrender.com/"

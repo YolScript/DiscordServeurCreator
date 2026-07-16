@@ -1487,6 +1487,22 @@ button.embed-json-jump { background: none; border: none; padding: 0; font-family
 .onboarding-dots { display: flex; justify-content: center; gap: 6px; margin-top: 14px; }
 .onboarding-dots span { width: 7px; height: 7px; border-radius: 50%; background: var(--border-strong); }
 .onboarding-dots span.active { background: var(--accent); }
+
+/* Mobile : onglets formulaire/apercu de l'embed (n°046) + grille 2 colonnes (n°047) */
+.embed-mobile-tabs { display: none; }
+@media (max-width: 700px) {
+  .embed-mobile-tabs {
+    display: flex; gap: 6px; position: sticky; top: 0; z-index: 20;
+    background: var(--bg-elevated); padding: 8px 0; margin-bottom: 8px;
+  }
+  .embed-mobile-tabs .btn { flex: 1; }
+  .embed-mobile-tabs .btn[aria-pressed="true"] { border-color: var(--accent); color: var(--accent); }
+  .embed-builder-layout.show-preview .embed-builder-form { display: none; }
+  .embed-builder-layout:not(.show-preview) .embed-builder-preview-wrap { display: none; }
+}
+@media (max-width: 480px) {
+  .dp-action-grid { grid-template-columns: repeat(2, 1fr) !important; }
+}
 input[type=text].drag-over, textarea.drag-over { border-color: var(--accent); box-shadow: 0 0 0 3px var(--accent-soft); }
 
 .embed-field-row {

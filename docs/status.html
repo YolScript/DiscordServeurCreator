@@ -1,0 +1,83 @@
+<!doctype html>
+<html lang="fr">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <title>Statut — Discord Serveur Creator</title>
+  <meta name="robots" content="noindex, nofollow" />
+  <link rel="icon" type="image/png" href="assets/favicon-64.png?v=3" />
+  <style>
+    :root { color-scheme: dark; }
+    * { box-sizing: border-box; }
+    body {
+      margin: 0; min-height: 100vh; display: flex; align-items: center; justify-content: center;
+      background: #171013; color: #f0e7e3;
+      font-family: -apple-system, "Segoe UI", system-ui, Roboto, sans-serif; padding: 20px;
+    }
+    .card {
+      width: min(460px, 94vw); background: #201619; border: 1px solid #3b2b2f;
+      border-radius: 12px; padding: 26px 28px;
+    }
+    h1 { font-size: 1.1rem; margin: 0 0 4px; }
+    .sub { color: #a5958f; font-size: 0.82rem; margin: 0 0 20px; }
+    .row {
+      display: flex; align-items: center; justify-content: space-between; gap: 12px;
+      padding: 12px 0; border-top: 1px solid #2c2024;
+    }
+    .name { font-weight: 600; font-size: 0.92rem; }
+    .detail { color: #a5958f; font-size: 0.76rem; margin-top: 2px; }
+    .state { font-size: 0.8rem; font-weight: 700; padding: 4px 12px; border-radius: 999px; white-space: nowrap; }
+    .state.ok { background: rgba(48, 164, 108, 0.15); color: #4ccb8a; }
+    .state.ko { background: rgba(229, 72, 77, 0.15); color: #ef6a6a; }
+    .state.wait { background: rgba(217, 164, 65, 0.14); color: #d9a441; }
+    .foot { color: #7d6a63; font-size: 0.72rem; margin-top: 18px; text-align: center; }
+    a { color: #c97a5c; }
+  </style>
+</head>
+<body>
+  <div class="card">
+    <h1>Statut des services</h1>
+    <p class="sub">Discord Serveur Creator — verification en direct depuis ton navigateur.</p>
+
+    <div class="row">
+      <div>
+        <div class="name">🌐 API du dashboard</div>
+        <div class="detail" id="worker-detail">Verification...</div>
+      </div>
+      <span class="state wait" id="worker-state">…</span>
+    </div>
+
+    <div class="row">
+      <div>
+        <div class="name">🤖 Bot Discord</div>
+        <div class="detail" id="bot-detail">Verification...</div>
+      </div>
+      <span class="state wait" id="bot-state">…</span>
+    </div>
+
+    <p class="foot">Actualise la page pour re-verifier · <a href="app.html">Retour au dashboard</a></p>
+  </div>
+
+  <script>
+    function setState(id, ok, detail) {
+      var state = document.getElementById(id + '-state');
+      state.textContent = ok ? 'En ligne' : 'Hors ligne';
+      state.className = 'state ' + (ok ? 'ok' : 'ko');
+      document.getElementById(id + '-detail').textContent = detail;
+    }
+
+    fetch('https://discord-serveur-creator-worker.energiecraft-online.workers.dev/health')
+      .then(function (r) { return r.json(); })
+      .then(function (d) { setState('worker', Boolean(d.ok), 'Repond normalement'); })
+      .catch(function () { setState('worker', false, 'Ne repond pas'); });
+
+    fetch('https://discordserveurcreator.onrender.com/')
+      .then(function (r) { return r.json(); })
+      .then(function (d) {
+        var up = d.uptimeMin >= 60 ? Math.floor(d.uptimeMin / 60) + ' h ' + (d.uptimeMin % 60) + ' min' : d.uptimeMin + ' min';
+        setState('bot', d.status === 'ok', d.guilds + ' serveur(s) · ping ' + d.wsPingMs + ' ms · en ligne depuis ' + up);
+      })
+      .catch(function () { setState('bot', false, 'Ne repond pas (redemarrage en cours ?)'); });
+  </script>
+</body>
+</html>

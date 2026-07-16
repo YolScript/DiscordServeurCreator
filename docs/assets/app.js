@@ -814,6 +814,7 @@ const HOME_MODULES = [
   // Integrations : connecter des services/bots externes.
   { parent: 'automatisations', section: 'bots', icon: '🧩', label: 'Bots complementaires', category: 'integrations' },
   { parent: 'automatisations', section: 'webhooks', icon: '🔗', label: 'Webhooks sortants', category: 'integrations' },
+  { parent: 'automatisations', section: 'rss', icon: '📰', label: 'Flux RSS', category: 'integrations' },
   // Creation : construire du contenu (salons, textes, structure).
   { parent: 'creator', icon: '🏗️', label: 'Createur salons & roles', category: 'creation' },
   { parent: 'jeux', section: 'game-catalog', icon: '📚', label: 'Catalogue de jeux', category: 'creation' },
@@ -3406,6 +3407,20 @@ async function renderAutomationsPage(id, container = app) {
         </div>
       `, { id: 'webhooks' })}
 
+      ${sectionHtml('Flux RSS', `
+        <p class="muted">Chaque nouvel article d'un flux RSS/Atom est poste dans le salon choisi (verification toutes les 10 minutes).</p>
+        <div id="rss-feeds-list">${(config?.rssFeeds || []).map((f, i) => `
+          <div class="row" data-index="${i}" style="justify-content:space-between; margin-bottom:6px;">
+            <span style="overflow:hidden; text-overflow:ellipsis; white-space:nowrap;">${escapeHtml(f.url)} → <span class="muted">${escapeHtml(channelName(f.channelId))}</span></span>
+            <button class="btn danger delete-rss-feed" data-index="${i}">Supprimer</button>
+          </div>`).join('') || '<p class="muted">Aucun flux suivi.</p>'}</div>
+        <div class="row" style="margin-top:10px;">
+          <input type="text" id="new-rss-url" placeholder="https://exemple.com/feed.xml" aria-label="URL du flux RSS" style="flex:2; min-width:200px;" />
+          <select id="new-rss-channel" aria-label="Salon de destination" style="flex:1; min-width:140px;">${textChannelOptions}</select>
+          <button class="btn secondary" id="add-rss-feed">Suivre</button>
+        </div>
+      `, { id: 'rss' })}
+
       ${sectionHtml('Economie : boutique (/shop, /daily, /pay, /balance)', `
         <p class="muted">Les membres gagnent des pieces via /daily, peuvent en envoyer via /pay, et les depenser ici. Un article peut donner un role automatiquement.</p>
         <div id="shop-items-list">${shopItemRows}</div>
@@ -3726,6 +3741,37 @@ async function renderAutomationsPage(id, container = app) {
     } catch (err) {
       showToast(err.message, 'error');
     }
+  });
+
+  // Flux RSS (roadmap n°099) : liste stockee dans config.rssFeeds, lue par
+  // le bot toutes les 10 minutes.
+  document.getElementById('add-rss-feed').addEventListener('click', async () => {
+    const url = document.getElementById('new-rss-url').value.trim();
+    if (!/^https?:\/\/\S+$/i.test(url)) { showToast('URL de flux invalide.', 'error'); return; }
+    const rssFeeds = [...(config?.rssFeeds || [])];
+    if (rssFeeds.length >= 10) { showToast('10 flux maximum.', 'error'); return; }
+    if (rssFeeds.some((f) => f.url === url)) { showToast('Ce flux est deja suivi.', 'error'); return; }
+    rssFeeds.push({ url, channelId: document.getElementById('new-rss-channel').value });
+    try {
+      await Api.updateConfig(id, { rssFeeds });
+      showToast('Flux suivi : les prochains articles seront postes.');
+      await renderAutomationsPage(id, container);
+    } catch (err) {
+      showToast(err.message, 'error');
+    }
+  });
+  document.querySelectorAll('.delete-rss-feed').forEach((btn) => {
+    btn.addEventListener('click', async () => {
+      if (!window.confirm('Ne plus suivre ce flux ?')) return;
+      const rssFeeds = (config?.rssFeeds || []).filter((_, i) => i !== Number(btn.dataset.index));
+      try {
+        await Api.updateConfig(id, { rssFeeds });
+        showToast('Flux retire.');
+        await renderAutomationsPage(id, container);
+      } catch (err) {
+        showToast(err.message, 'error');
+      }
+    });
   });
 
   // Courbe d'XP (roadmap n°082) : taux global + boost par salon. Le select
@@ -5006,6 +5052,10 @@ async function renderEmbedBuilderPage(id, container = app) {
 
   container.innerHTML = `
     <div class="inner" style="max-width:none;">
+      <div class="embed-mobile-tabs" role="group" aria-label="Basculer formulaire / apercu">
+        <button type="button" class="btn secondary" id="embed-mobile-form-btn" aria-pressed="true">📝 Formulaire</button>
+        <button type="button" class="btn secondary" id="embed-mobile-preview-btn" aria-pressed="false">👁️ Apercu</button>
+      </div>
       <div class="embed-builder-layout">
         <div class="embed-builder-form">
           <div class="dp-block">
@@ -5332,6 +5382,19 @@ async function renderEmbedBuilderPage(id, container = app) {
   });
   container.querySelector('#embed-buttons-list').addEventListener('input', () => updateEmbedPreview(container));
   container.querySelector('#embed-buttons-list').addEventListener('change', () => updateEmbedPreview(container));
+
+  // Onglets Formulaire/Apercu sur mobile (roadmap n°046) : sous 700px les
+  // deux colonnes s'empilent, la bascule evite de scroller sans fin.
+  const embedLayout = container.querySelector('.embed-builder-layout');
+  const mobileFormBtn = container.querySelector('#embed-mobile-form-btn');
+  const mobilePreviewBtn = container.querySelector('#embed-mobile-preview-btn');
+  const setMobileTab = (preview) => {
+    embedLayout.classList.toggle('show-preview', preview);
+    mobileFormBtn.setAttribute('aria-pressed', String(!preview));
+    mobilePreviewBtn.setAttribute('aria-pressed', String(preview));
+  };
+  mobileFormBtn.addEventListener('click', () => setMobileTab(false));
+  mobilePreviewBtn.addEventListener('click', () => setMobileTab(true));
 
   container.querySelector('#embed-load-message-btn').addEventListener('click', async () => {
     const channelId = container.querySelector('#embed-target-channel').value;
