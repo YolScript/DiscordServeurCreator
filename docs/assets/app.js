@@ -456,7 +456,7 @@ function roleRowHtml(role, members) {
   const hex = role.color ? `#${role.color.toString(16).padStart(6, '0')}` : '#99aab5';
   return `
     <div class="dp-role-row" data-role="${role.id}" data-role-name="${escapeHtml(role.name)}" data-position="${role.position}" ${isEveryone ? '' : 'draggable="true"'}>
-      <div class="dp-role-summary">
+      <div class="dp-role-summary" tabindex="0" role="button" aria-expanded="false" aria-label="Details du role ${escapeHtml(role.name)}">
         ${!isEveryone ? `<button type="button" class="dp-role-handle" data-role-handle="${role.id}" aria-label="Reordonner ${escapeHtml(role.name)} (fleches haut/bas)">⠿</button>` : ''}
         ${roleColorDot(role)}
         <span class="dp-role-name">${escapeHtml(role.name)}</span>
@@ -829,7 +829,17 @@ async function renderPreviewPage(id) {
   });
 
   app.querySelectorAll('.dp-role-row').forEach((row) => {
-    row.querySelector('.dp-role-summary').addEventListener('click', () => row.classList.toggle('expanded'));
+    const summary = row.querySelector('.dp-role-summary');
+    const toggle = () => {
+      row.classList.toggle('expanded');
+      summary.setAttribute('aria-expanded', String(row.classList.contains('expanded')));
+    };
+    summary.addEventListener('click', toggle);
+    summary.addEventListener('keydown', (e) => {
+      if (e.target !== summary || (e.key !== 'Enter' && e.key !== ' ')) return;
+      e.preventDefault();
+      toggle();
+    });
   });
 
   app.querySelectorAll('.dp-role-settings').forEach((btn) => {
