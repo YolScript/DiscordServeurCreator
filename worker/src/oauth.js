@@ -60,6 +60,15 @@ export async function handleCallback(request, env) {
     expiresAt: Date.now() + tokens.expires_in * 1000,
   });
 
+  // Journal des connexions (roadmap n°059) : trace la connexion dans chaque
+  // serveur ou l'utilisateur est admin. Dedoublonne a 12 h pres pour ne pas
+  // remplir le journal a chaque visite. Jamais bloquant pour le login.
+  try {
+    await recordDashboardLogins(env, tokens.access_token, discordUser);
+  } catch (err) {
+    console.error('journal connexions echoue', err);
+  }
+
   return new Response(null, {
     status: 302,
     headers: {
@@ -67,6 +76,27 @@ export async function handleCallback(request, env) {
       'Set-Cookie': sessionCookie(sessionId),
     },
   });
+}
+
+async function recordDashboardLogins(env, accessToken, discordUser) {
+  const res = await fetch(`${DISCORD_API}/users/@me/guilds`, {
+    headers: { Authorization: `Bearer ${accessToken}` },
+  });
+  if (!res.ok) return;
+  const guilds = await res.json();
+  const adminGuildIds = guilds.filter((g) => (BigInt(g.permissions) & 8n) === 8n).map((g) => g.id);
+  const now = Date.now();
+  const username = discordUser.global_name || discordUser.username;
+  for (const gid of adminGuildIds) {
+    const key = `guild:${gid}:logins`;
+    // eslint-disable-next-line no-await-in-loop
+    const logins = (await env.GUILD_KV.get(key, 'json')) || [];
+    const last = logins.findLast?.((l) => l.userId === discordUser.id) || [...logins].reverse().find((l) => l.userId === discordUser.id);
+    if (last && now - last.at < 12 * 3600000) continue;
+    logins.push({ userId: discordUser.id, username, at: now });
+    // eslint-disable-next-line no-await-in-loop
+    await env.GUILD_KV.put(key, JSON.stringify(logins.slice(-50)));
+  }
 }
 
 export async function refreshTokenIfNeeded(env, session) {

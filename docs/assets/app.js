@@ -553,7 +553,20 @@ function renderMarkdownLite(text) {
   }).join('');
 }
 
-function skeletonHtml(lines = 3) {
+// Squelettes de chargement (roadmap n°055) : la forme suit le contenu
+// attendu — 'list' pour des rangees, 'grid' pour des cartes, 'chart' pour
+// un graphique, sinon des lignes de texte.
+function skeletonHtml(variant = 3) {
+  if (variant === 'list') {
+    return `<div class="skeleton-block">${Array.from({ length: 6 }, () => '<div class="skeleton-line" style="height:34px; width:100%;"></div>').join('')}</div>`;
+  }
+  if (variant === 'grid') {
+    return `<div class="skeleton-block skeleton-grid">${Array.from({ length: 6 }, () => '<div class="skeleton-line" style="height:78px;"></div>').join('')}</div>`;
+  }
+  if (variant === 'chart') {
+    return '<div class="skeleton-block"><div class="skeleton-line" style="width:40%"></div><div class="skeleton-line" style="height:140px; width:100%;"></div><div class="skeleton-line" style="width:30%"></div></div>';
+  }
+  const lines = typeof variant === 'number' ? variant : 3;
   const widths = ['100%', '92%', '60%'];
   return `<div class="skeleton-block">${Array.from({ length: lines }, (_, i) => `<div class="skeleton-line" style="width:${widths[i % widths.length]}"></div>`).join('')}</div>`;
 }
@@ -4204,9 +4217,10 @@ function resolveMentions(text, members, roles) {
 }
 
 async function renderAuditLogPage(id, container = app) {
-  container.innerHTML = skeletonHtml();
-  const [logs, members, roles] = await Promise.all([
+  container.innerHTML = skeletonHtml('list');
+  const [logs, members, roles, logins] = await Promise.all([
     Api.auditLog(id), Api.members(id).catch(() => []), Api.roles(id).catch(() => []),
+    Api.dashboardLogins(id).catch(() => []),
   ]);
 
   const rowHtml = (entry) => `
@@ -4239,6 +4253,15 @@ async function renderAuditLogPage(id, container = app) {
           </select>
         </div>
         <div class="audit-log-list" id="audit-log-list">${logs.map(rowHtml).join('') || '<p class="muted">Aucune action enregistree pour le moment.</p>'}</div>
+        <h2 style="margin-top:20px; font-size:0.85rem;">🔑 Connexions au dashboard</h2>
+        <p class="muted">Qui s'est connecte au dashboard de ce serveur (une entree par personne et par demi-journee, 50 dernieres).</p>
+        <div class="audit-log-list">${logins.slice().reverse().map((l) => `
+          <div class="audit-row">
+            <div class="audit-row-header">
+              <strong>${escapeHtml(l.username || l.userId)}</strong>
+              <span class="muted">${new Date(l.at).toLocaleString('fr-FR')}</span>
+            </div>
+          </div>`).join('') || '<p class="muted">Aucune connexion enregistree (le journal demarre a partir de maintenant).</p>'}</div>
       `, { alwaysOpen: true })}
     </div>
   `;
@@ -4265,7 +4288,7 @@ async function renderAuditLogPage(id, container = app) {
 // pour un salon Discord classique).
 
 async function renderMemberLookupPage(id, container = app) {
-  container.innerHTML = skeletonHtml();
+  container.innerHTML = skeletonHtml('list');
   const [members, roles] = await Promise.all([
     Api.members(id).catch(() => []), Api.roles(id).catch(() => []),
   ]);
@@ -4286,7 +4309,7 @@ async function renderMemberLookupPage(id, container = app) {
       .join('') || '<span class="muted">Aucun role</span>';
     return `
       <div class="member-lookup-row">
-        <img class="member-lookup-avatar" src="${memberAvatarUrl(m)}" alt="" width="36" height="36" />
+        <img class="member-lookup-avatar" src="${memberAvatarUrl(m)}" alt="" width="36" height="36" loading="lazy" decoding="async" />
         <div class="member-lookup-info">
           <div class="member-lookup-name">${highlightMatch(m.displayName || m.userId, q)}</div>
           <div class="member-lookup-id">
@@ -4389,7 +4412,7 @@ const FEATURE_CHANNEL_CARDS = [
 ];
 
 async function renderCreatorPage(id, container = app) {
-  container.innerHTML = skeletonHtml();
+  container.innerHTML = skeletonHtml('grid');
   const [config, channels, roles, members] = await Promise.all([
     Api.config(id).catch(() => ({})),
     Api.channels(id).catch(() => []),
@@ -4502,7 +4525,7 @@ async function renderCreatorPage(id, container = app) {
       const has = memberRoleSets.get(m.userId)?.has(roleId);
       return `
         <div class="creator-member-row">
-          <img class="member-lookup-avatar" src="${memberAvatarUrl(m)}" alt="" width="28" height="28" />
+          <img class="member-lookup-avatar" src="${memberAvatarUrl(m)}" alt="" width="28" height="28" loading="lazy" decoding="async" />
           <span class="creator-member-name">${escapeHtml(m.displayName || m.userId)}</span>
           <button type="button" class="creator-assign-btn${has ? ' has-role' : ''}" data-user="${m.userId}"
             title="${has ? 'Retirer le role' : 'Attribuer le role'}"
@@ -4542,7 +4565,7 @@ async function renderCreatorPage(id, container = app) {
 // le bot gere ensuite participations, cloture, tirage et annonce.
 
 async function renderGiveawaysPage(id, container = app) {
-  container.innerHTML = skeletonHtml();
+  container.innerHTML = skeletonHtml('list');
   const [giveaways, channels, roles, gwConfig] = await Promise.all([
     Api.giveaways(id).catch(() => []),
     Api.channels(id).catch(() => []),
@@ -4682,7 +4705,7 @@ function lineChartSvg(points, { width = 560, height = 140, color = 'var(--accent
 }
 
 async function renderStatsPage(id, container = app) {
-  container.innerHTML = skeletonHtml();
+  container.innerHTML = skeletonHtml('chart');
   const [stats, xpData, statMembers] = await Promise.all([
     Api.stats(id),
     Api.xp(id).catch(() => ({})),

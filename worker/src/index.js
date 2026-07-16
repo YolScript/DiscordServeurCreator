@@ -1252,6 +1252,12 @@ async function router(request, env) {
       return json({ token }, env);
     }
 
+    // Journal des connexions au dashboard (roadmap n°059).
+    if (sub === 'logins' && parts.length === 4 && method === 'GET') {
+      await requireGuildAccess(env, request, guildId);
+      return json((await env.GUILD_KV.get(`guild:${guildId}:logins`, 'json')) || [], env);
+    }
+
     // Suggestions (roadmap n°091) : lecture du store ecrit par le bot,
     // pour le suivi des statuts au dashboard.
     if (sub === 'suggestions' && parts.length === 4 && method === 'GET') {
