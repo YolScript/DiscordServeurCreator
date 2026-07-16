@@ -5612,10 +5612,21 @@ async function renderStatsPage(id, container = app) {
     .sort((a, b) => b[1].voiceMinutes - a[1].voiceMinutes).slice(0, 10)
     .map(([uid, d]) => topRow(uid, Math.round(d.voiceMinutes / 60 * 10) / 10, 'h vocal')).join('') || '<p class="muted">Pas encore de donnees vocales.</p>';
 
+  // Tendance sur la croissance des membres (roadmap n°165) : delta net des
+  // 7 derniers jours vs les 7 precedents.
+  const memberTrendHtml = (() => {
+    if (memberPoints.length < 15) return '';
+    const deltaLast = memberPoints[memberPoints.length - 1] - memberPoints[memberPoints.length - 8];
+    const deltaPrev = memberPoints[memberPoints.length - 8] - memberPoints[memberPoints.length - 15];
+    const cls = deltaLast >= deltaPrev ? 'up' : 'down';
+    const sign = (n) => (n >= 0 ? `+${n}` : `${n}`);
+    return `<span class="stats-trend ${cls}" title="Delta net de membres : 7 derniers jours vs 7 precedents">${deltaLast >= deltaPrev ? '▲' : '▼'} ${sign(deltaLast)} membres (vs ${sign(deltaPrev)})</span>`;
+  })();
+
   container.innerHTML = `
     <div class="inner">
       ${sectionHtml('Membres', `
-        <p class="muted">Evolution du nombre de membres (${stats.length} jour(s) enregistre(s)${firstDate ? `, depuis le ${firstDate}` : ''}).</p>
+        <p class="muted">Evolution du nombre de membres (${stats.length} jour(s) enregistre(s)${firstDate ? `, depuis le ${firstDate}` : ''}). ${memberTrendHtml}</p>
         ${lineChartSvg(memberPoints, { color: 'var(--accent)' })}
         ${lastDate ? `<p class="muted" style="margin-top:8px;">Dernier releve : ${lastDate} — ${memberPoints[memberPoints.length - 1]} membre(s)</p>` : ''}
       `, { id: 'stats-members' })}
