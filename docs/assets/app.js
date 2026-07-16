@@ -4440,7 +4440,7 @@ function messagePreviewHtml(content, embeds, buttons = []) {
   const buttonsHtml = buttons.length
     ? `<div class="embed-preview-buttons">${buttons.map((b) => `<span class="embed-preview-btn ${b.kind}">${b.emoji ? `${escapeHtml(b.emoji)} ` : ''}${escapeHtml(b.label)}${b.kind === 'link' ? ' ↗' : ''}</span>`).join('')}</div>`
     : '';
-  if (!contentHtml && !embedsHtml) {
+  if (!contentHtml && !embedsHtml && !buttonsHtml) {
     return `
       <div class="embed-preview-msg">
         <div class="embed-preview-avatar">${botAvatarHtml()}</div>
