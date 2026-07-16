@@ -7494,6 +7494,32 @@ async function init() {
     });
   }
 
+  // Barre de navigation inferieure mobile (roadmap n°123) : 5 onglets fixes
+  // en bas d'ecran, visibles uniquement en contexte tactile/etroit et quand
+  // un serveur est ouvert.
+  const tabbar = document.getElementById('mobile-tabbar');
+  if (tabbar) {
+    const mobileQuery = window.matchMedia('(hover: none), (max-width: 700px)');
+    const updateTabbar = () => {
+      tabbar.hidden = !mobileQuery.matches || !guildId;
+      document.body.classList.toggle('has-tabbar', !tabbar.hidden);
+    };
+    updateTabbar();
+    window.addEventListener('resize', updateTabbar);
+    tabbar.querySelectorAll('button').forEach((btn) => {
+      btn.addEventListener('click', () => {
+        if (!guildId) return;
+        tabbar.querySelectorAll('button').forEach((b) => b.classList.toggle('active', b === btn));
+        window.UISound?.select();
+        const tab = btn.dataset.tab;
+        if (tab === 'home') withViewTransition(() => renderPreviewPage(guildId));
+        else withViewTransition(() => renderSettingsPanel(guildId, tab, btn.dataset.tabSection || undefined));
+      });
+    });
+    // renderPreviewPage / navigation ailleurs : re-evaluer a chaque rendu.
+    window.__updateMobileTabbar = updateTabbar;
+  }
+
   // Mode compact (roadmap n°111) : densite d'affichage reduite via une
   // classe sur body, memorisee par appareil.
   const densityBtn = document.getElementById('density-toggle-btn');

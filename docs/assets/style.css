@@ -1552,6 +1552,25 @@ button.embed-json-jump { background: none; border: none; padding: 0; font-family
 
 .dp-empty-state { text-align: center; padding: 22px 12px; }
 
+/* Barre de navigation inferieure mobile (n°123). */
+.mobile-tabbar {
+  position: fixed; bottom: 0; left: 0; right: 0; z-index: 80;
+  display: flex; justify-content: space-around; align-items: stretch;
+  background: var(--bg-elevated); border-top: 1px solid var(--border-strong);
+  padding: 4px 4px calc(4px + env(safe-area-inset-bottom, 0px));
+  box-shadow: 0 -6px 18px -8px rgba(0,0,0,0.5);
+}
+.mobile-tabbar button {
+  flex: 1; display: flex; flex-direction: column; align-items: center; gap: 1px;
+  background: none; border: none; color: var(--text-faint); cursor: pointer;
+  font-size: 0.62rem; padding: 5px 2px; border-radius: 8px; min-height: 48px;
+}
+.mobile-tabbar button span { font-size: 1.15rem; line-height: 1.2; }
+.mobile-tabbar button.active { color: var(--accent); background: var(--accent-soft); }
+body.has-tabbar .content-body { padding-bottom: 66px; }
+body.has-tabbar .dp-drawer-btn { bottom: 130px; }
+body.has-tabbar .toast { margin-bottom: 60px; }
+
 /* Checklist de configuration (n°169). */
 .dp-checklist {
   margin: 12px 0 4px; padding: 10px 12px; border: 1px solid var(--border);

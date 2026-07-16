@@ -8,7 +8,7 @@
   <link rel="icon" type="image/png" href="assets/favicon-64.png?v=3" />
   <link rel="manifest" href="manifest.webmanifest" />
   <meta name="theme-color" content="#1a1013" />
-  <link rel="stylesheet" href="assets/style.css?v=95" />
+  <link rel="stylesheet" href="assets/style.css?v=96" />
   <script>
     (function () {
       var t = localStorage.getItem('theme');
@@ -59,10 +59,18 @@
     </main>
   </div>
 
+  <nav class="mobile-tabbar" id="mobile-tabbar" hidden aria-label="Navigation principale">
+    <button type="button" data-tab="home" class="active" aria-label="Accueil"><span>🏠</span>Accueil</button>
+    <button type="button" data-tab="embedbuilder" aria-label="Embeds"><span>✉️</span>Embeds</button>
+    <button type="button" data-tab="automatisations" data-tab-section="tickets" aria-label="Tickets"><span>🎫</span>Tickets</button>
+    <button type="button" data-tab="stats" aria-label="Statistiques"><span>📊</span>Stats</button>
+    <button type="button" data-tab="securite" aria-label="Securite"><span>🧯</span>Securite</button>
+  </nav>
+
   <script src="assets/config.js?v=5" defer></script>
   <script src="assets/sounds.js?v=1" defer></script>
   <script src="assets/api.js?v=42" defer></script>
-  <script src="assets/app.js?v=134" defer></script>
+  <script src="assets/app.js?v=135" defer></script>
   <script src="assets/microinteractions.js?v=1" defer></script>
   <script src="assets/bgvideo.js?v=4"></script>
   <script>
