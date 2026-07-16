@@ -27,3 +27,4 @@ FRONTEND_REDIRECT_URL = "https://yolscript.github.io/DiscordServeurCreator/app.h
 #   DISCORD_CLIENT_SECRET
 #   DISCORD_BOT_TOKEN
 #   AI_KEY_ENCRYPTION_SECRET (chiffrement au repos des cles API IA fournies par les serveurs)
+#   TWITCH_CLIENT_ID + TWITCH_CLIENT_SECRET (sync des abonnes Twitch, roadmap n°098)

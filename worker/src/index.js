@@ -43,6 +43,9 @@ import {
 import { checkAiRateLimit } from './aiRateLimit.js';
 import { runAiTurn, resumeAfterConfirmation } from './aiOrchestrator.js';
 import { buildCalendarIcs } from './calendar.js';
+import {
+  twitchLoginRedirect, handleTwitchCallback, syncTwitchSubs, getTwitchSubs, disconnectTwitch, syncAllTwitchSubs,
+} from './twitch.js';
 
 // Serveur de reference dont la structure est lue en direct pour le template
 // "live" (miroir de SOURCE_GUILD_ID dans src/discord/guildSetup/templates/liveTemplate.js).
@@ -218,6 +221,18 @@ async function router(request, env) {
       },
     }), env);
   }
+
+  // --- Connexion du compte Twitch du streamer (roadmap n°098) ---
+  if (method === 'GET' && url.pathname === '/twitch/login') {
+    const gid = url.searchParams.get('guild');
+    if (!gid) throw new HttpError(400, 'guild requis.');
+    const session = await requireGuildAccess(env, request, gid);
+    // requireGuildAccess ne bloque les viewers que sur les mutations ; ce GET
+    // declenche une liaison de compte, donc on refuse explicitement ici.
+    if (session.viewerOnly) throw new HttpError(403, 'Acces en lecture seule : connexion Twitch reservee aux admins.');
+    return twitchLoginRedirect(env, request, gid);
+  }
+  if (method === 'GET' && url.pathname === '/twitch/callback') return handleTwitchCallback(env, request);
 
   // --- Auth ---
   if (method === 'GET' && url.pathname === '/auth/login') return handleLogin(request, env);
@@ -1309,6 +1324,31 @@ async function router(request, env) {
       return json({ inboundWebhook }, env);
     }
 
+    // Abonnes Twitch (roadmap n°098) : lecture de la derniere sync, sync
+    // manuelle, deconnexion du compte lie.
+    if (sub === 'twitch-subs' && parts.length === 4 && method === 'GET') {
+      await requireGuildAccess(env, request, guildId);
+      return json(await getTwitchSubs(env, guildId), env);
+    }
+    if (sub === 'twitch-sync' && parts.length === 4 && method === 'POST') {
+      const session = await requireGuildAccess(env, request, guildId);
+      const result = await syncTwitchSubs(env, guildId);
+      await logAudit(env, guildId, {
+        title: 'Abonnes Twitch synchronises',
+        description: `${session.username} a synchronise les abonnes Twitch (${result.total}).`,
+      });
+      return json(result, env);
+    }
+    if (sub === 'twitch-link' && parts.length === 4 && method === 'DELETE') {
+      const session = await requireGuildAccess(env, request, guildId);
+      await disconnectTwitch(env, guildId);
+      await logAudit(env, guildId, {
+        title: 'Compte Twitch deconnecte',
+        description: `${session.username} a deconnecte le compte Twitch du serveur.`,
+      });
+      return json({ ok: true }, env);
+    }
+
     // Calendrier externe (roadmap n°102) : genere ou revoque le token du
     // flux iCal public des evenements.
     if (sub === 'calendar-feed' && parts.length === 4 && method === 'POST') {
@@ -1726,6 +1766,8 @@ export default {
       return;
     }
     await snapshotAllGuilds(env);
+    // Sync quotidienne des abonnes Twitch (roadmap n°098).
+    await syncAllTwitchSubs(env).catch((err) => console.error('syncAllTwitchSubs', err));
   },
 };
 

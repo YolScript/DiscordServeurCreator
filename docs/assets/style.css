@@ -1519,6 +1519,10 @@ button.embed-json-jump { background: none; border: none; padding: 0; font-family
   flex: none; font-size: 0.68rem; font-weight: 700; color: var(--success);
   background: rgba(48, 164, 108, 0.15); border-radius: 999px; padding: 0 6px; margin-left: 4px;
 }
+.dp-chip {
+  display: inline-block; font-size: 0.74rem; padding: 2px 8px; border-radius: 999px;
+  background: var(--bg-input); border: 1px solid var(--border); color: var(--text);
+}
 input[type=text].drag-over, textarea.drag-over { border-color: var(--accent); box-shadow: 0 0 0 3px var(--accent-soft); }
 
 .embed-field-row {

@@ -3703,6 +3703,23 @@ async function renderAutomationsPage(id, container = app) {
           <input type="text" id="new-streamer-identifier" placeholder="Pseudo / chaine" aria-label="Pseudo ou chaine" style="width:160px;" />
           <button class="btn secondary" id="add-streamer">Ajouter</button>
         </div>
+
+        <h2 style="margin-top:18px; font-size:0.85rem;">💜 Abonnes Twitch</h2>
+        ${config?.twitchBroadcasterLogin
+    ? await (async () => {
+      const data = await Api.twitchSubs(id).catch(() => null);
+      const subsRows = (data?.subs || []).slice(0, 30).map((s) => `<span class="dp-chip" style="margin:2px;">${escapeHtml(s.name)} · T${s.tier}${s.isGift ? ' 🎁' : ''}</span>`).join('') || '<p class="muted">Aucun abonne dans la derniere sync.</p>';
+      return `
+            <p class="muted">Compte connecte : <strong>${escapeHtml(config.twitchBroadcasterLogin)}</strong>${data ? ` — ${data.total} abonne(s), sync ${new Date(data.syncedAt).toLocaleString('fr-FR')}` : ' — aucune sync encore.'} Sync automatique chaque nuit a 4h.</p>
+            <div style="margin:8px 0; display:flex; flex-wrap:wrap; gap:2px;">${subsRows}</div>
+            <div class="row" style="gap:8px;">
+              <button class="btn secondary" id="twitch-sync-now">🔄 Synchroniser maintenant</button>
+              <button class="btn danger" id="twitch-disconnect">Deconnecter</button>
+            </div>`;
+    })()
+    : `
+          <p class="muted">Connecte le compte Twitch du streamer pour synchroniser la liste de ses abonnes (nombre, pseudos, tiers) dans le dashboard. Sync automatique quotidienne.</p>
+          <a class="btn secondary" href="${escapeHtml(window.API_BASE_URL)}/twitch/login?guild=${id}">💜 Connecter un compte Twitch</a>`}
       `, { id: 'streamers' })}
 
       ${sectionHtml('Annonces programmees', `
@@ -4130,6 +4147,30 @@ async function renderAutomationsPage(id, container = app) {
         showToast(err.message, 'error');
       }
     });
+  });
+
+  // Abonnes Twitch (roadmap n°098) : sync manuelle et deconnexion.
+  document.getElementById('twitch-sync-now')?.addEventListener('click', async (e) => {
+    const btn = e.currentTarget;
+    btn.disabled = true;
+    try {
+      const result = await Api.twitchSync(id);
+      showToast(`${result.total} abonne(s) Twitch synchronise(s).`);
+      await renderAutomationsPage(id, container);
+    } catch (err) {
+      showToast(err.message, 'error');
+      btn.disabled = false;
+    }
+  });
+  document.getElementById('twitch-disconnect')?.addEventListener('click', async () => {
+    if (!window.confirm('Deconnecter le compte Twitch ? La liste des abonnes sera supprimee du dashboard.')) return;
+    try {
+      await Api.twitchDisconnect(id);
+      showToast('Compte Twitch deconnecte.');
+      await renderAutomationsPage(id, container);
+    } catch (err) {
+      showToast(err.message, 'error');
+    }
   });
 
   document.getElementById('add-streamer').addEventListener('click', async () => {
