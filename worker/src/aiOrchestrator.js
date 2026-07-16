@@ -16,11 +16,20 @@ async function callAndRecordRound(env, guildId, session, provider, apiKey, worki
   const result = await callProvider({
     provider, apiKey, systemPrompt: SYSTEM_PROMPT, messages: working, tools: AI_TOOLS,
   });
-  const [firstCall] = result.toolCalls;
+  const [firstCall, ...extraCalls] = result.toolCalls;
 
   if (!firstCall) {
     working.push({ role: 'assistant', content: result.content || '...' });
     return { done: true, pendingConfirmation: null };
+  }
+
+  // Le modele n'est cense appeler qu'un seul outil par tour (consigne du
+  // system prompt). S'il en propose plusieurs quand meme, on ne garde que le
+  // premier (les tool_use non confirmes dans le message ne cassent pas le
+  // protocole des fournisseurs), mais on le journalise pour rester
+  // diagnosticable au lieu de perdre l'info silencieusement.
+  if (extraCalls.length) {
+    console.warn(`aiOrchestrator: ${extraCalls.length} appel(s) d'outil supplementaire(s) ignore(s) dans ce tour (${extraCalls.map((c) => c.name).join(', ')})`);
   }
 
   working.push({ role: 'assistant', content: result.content, toolCalls: [firstCall] });

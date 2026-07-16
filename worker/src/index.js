@@ -109,6 +109,11 @@ async function router(request, env) {
 
   if (method === 'OPTIONS') return preflightResponse(env);
 
+  // --- Supervision (pour un monitoring externe type UptimeRobot) ---
+  if (method === 'GET' && url.pathname === '/health') {
+    return json({ ok: true, time: new Date().toISOString() }, env);
+  }
+
   // --- Auth ---
   if (method === 'GET' && url.pathname === '/auth/login') return handleLogin(request, env);
   if (method === 'GET' && url.pathname === '/auth/callback') return handleCallback(request, env);

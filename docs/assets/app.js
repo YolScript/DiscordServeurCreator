@@ -165,7 +165,7 @@ function renderRail() {
     const icon = guildIconUrl(g);
     const active = g.guildId === guildId;
     return `
-      <button class="rail-guild${active ? ' active' : ''}" data-guild="${g.guildId}" title="${escapeHtml(g.name)}">
+      <button class="rail-guild${active ? ' active' : ''}" data-guild="${g.guildId}" title="${escapeHtml(g.name)}" aria-label="${escapeHtml(g.name)}">
         ${icon ? `<img src="${icon}" alt="" />` : escapeHtml(initials(g.name))}
       </button>`;
   }).join('');
@@ -258,7 +258,7 @@ const SETTINGS_PANELS = [
   { key: 'embedbuilder', label: 'Generateur embed', icon: '💬' },
   { key: 'botstatus', label: 'Statut du bot', icon: '🤖' },
   { key: 'templates', label: 'Templates', icon: '📁' },
-  { key: 'customcommands', label: 'Commandes personnalisees', icon: '🧩' },
+  { key: 'customcommands', label: 'Commandes personnalisees', icon: '💻' },
   { key: 'assistant-ia', label: 'Assistant IA', icon: '✨' },
 ];
 
@@ -287,7 +287,7 @@ const HOME_MODULES = [
   { parent: 'automatisations', section: 'arrivee', icon: '👋', label: 'Arrivee & statut du bot', category: 'creation' },
   { parent: 'automatisations', section: 'webhooks', icon: '🔗', label: 'Webhooks sortants', category: 'creation' },
   { parent: 'automatisations', section: 'economie', icon: '🪙', label: 'Economie / boutique', category: 'fun' },
-  { parent: 'automatisations', section: 'automod', icon: '🛡️', label: 'Auto-moderation', category: 'moderation' },
+  { parent: 'automatisations', section: 'automod', icon: '🚫', label: 'Auto-moderation', category: 'moderation' },
   { parent: 'automatisations', section: 'niveaux', icon: '⭐', label: 'Roles de niveau (XP)', category: 'fun' },
   { parent: 'automatisations', section: 'parrainage', icon: '🎗️', label: 'Parrainage', category: 'fun' },
   { parent: 'automatisations', section: 'streamers', icon: '📺', label: 'Streamers lies', category: 'administration' },
@@ -303,7 +303,7 @@ const HOME_MODULES = [
   { parent: 'embedbuilder', icon: '💬', label: 'Generateur embed', category: 'creation' },
   { parent: 'botstatus', icon: '🤖', label: 'Statut du bot', category: 'statistiques' },
   { parent: 'templates', icon: '📁', label: 'Templates', category: 'creation' },
-  { parent: 'customcommands', icon: '🧩', label: 'Commandes personnalisees', category: 'creation' },
+  { parent: 'customcommands', icon: '💻', label: 'Commandes personnalisees', category: 'creation' },
   { parent: 'assistant-ia', icon: '✨', label: 'Assistant IA', category: 'creation' },
 ];
 
@@ -338,7 +338,7 @@ function roleRowHtml(role, members) {
         ${roleColorDot(role)}
         <span class="dp-role-name">${escapeHtml(role.name)}</span>
         <span class="dp-role-count">${roleMembers.length}</span>
-        ${!isEveryone ? `<button type="button" class="dp-role-settings" data-role-settings="${role.id}" title="Configurer">⚙</button>` : ''}
+        ${!isEveryone ? `<button type="button" class="dp-role-settings" data-role-settings="${role.id}" title="Configurer" aria-label="Configurer le role ${escapeHtml(role.name)}">⚙</button>` : ''}
       </div>
       <div class="dp-role-detail">
         ${!isEveryone ? `
@@ -459,6 +459,7 @@ function aiHomeHtml(guild) {
       <div id="dp-ai-tail">${aiConversationHtml()}</div>
     </div>
     <form class="dp-chat-input-bar" id="dp-ai-form">
+      ${aiConversation.length ? '<button type="button" class="btn secondary" id="dp-ai-reset" title="Nouvelle conversation">🔄</button>' : ''}
       <input type="text" id="dp-ai-input" placeholder="Ecris a l'assistant..." maxlength="1000" autocomplete="off" />
       <button type="submit" class="btn" id="dp-ai-send">Envoyer</button>
     </form>
@@ -470,6 +471,13 @@ function wireAiHome(guildId, channels, rolesSorted) {
   const input = document.getElementById('dp-ai-input');
   const sendBtn = document.getElementById('dp-ai-send');
   const chatEl = document.getElementById('dp-ai-chat');
+
+  document.getElementById('dp-ai-reset')?.addEventListener('click', () => {
+    if (!window.confirm('Demarrer une nouvelle conversation avec l\'assistant ? L\'historique actuel sera perdu.')) return;
+    aiConversation = [];
+    aiPendingConfirmation = null;
+    withViewTransition(() => renderPreviewPage(guildId));
+  });
 
   function refreshTail() {
     document.getElementById('dp-ai-tail').innerHTML = aiConversationHtml();
@@ -562,7 +570,7 @@ async function renderPreviewPage(id) {
       <div class="dp-category" data-cat="${cat.id}" draggable="true" data-drag-type="category" data-drag-name="${escapeHtml(cat.name)}">
         <span class="chevron">▾</span>
         <span class="dp-category-name">${escapeHtml(cat.name)}</span>
-        <button type="button" class="dp-category-settings" data-cat-settings="${cat.id}" data-cat-name="${escapeHtml(cat.name)}" title="Configurer">⚙</button>
+        <button type="button" class="dp-category-settings" data-cat-settings="${cat.id}" data-cat-name="${escapeHtml(cat.name)}" title="Configurer" aria-label="Configurer la categorie ${escapeHtml(cat.name)}">⚙</button>
       </div>
       <div class="dp-channels">
         ${children.map(channelRow).join('')}
@@ -580,6 +588,9 @@ async function renderPreviewPage(id) {
             <span class="name">${escapeHtml(guild?.name || 'Serveur')}</span>
             <span class="caret">▾</span>
           </div>
+          <div class="dp-sidebar-search">
+            <input type="text" id="dp-channel-search" placeholder="🔎 Filtrer les salons..." autocomplete="off" />
+          </div>
           <div class="dp-channel-list">
             ${uncategorized.map(channelRow).join('')}
             ${categories.map(categoryBlock).join('')}
@@ -590,6 +601,9 @@ async function renderPreviewPage(id) {
         </div>
         <div class="dp-roles-panel">
           <div class="dp-roles-header">Roles — ${rolesSorted.length}</div>
+          <div class="dp-sidebar-search">
+            <input type="text" id="dp-role-search" placeholder="🔎 Filtrer les roles..." autocomplete="off" />
+          </div>
           <div class="dp-roles-list">${rolesSorted.map((r) => roleRowHtml(r, members)).join('')}</div>
         </div>
       </div>
@@ -597,6 +611,27 @@ async function renderPreviewPage(id) {
   `;
 
   wireAiHome(id, channels, rolesSorted);
+
+  document.getElementById('dp-channel-search').addEventListener('input', (e) => {
+    const q = e.target.value.trim().toLowerCase();
+    app.querySelectorAll('.dp-channel[data-channel]').forEach((chEl) => {
+      chEl.classList.toggle('dp-filtered-out', Boolean(q) && !(chEl.dataset.name || '').toLowerCase().includes(q));
+    });
+    app.querySelectorAll('.dp-category').forEach((catEl) => {
+      const list = catEl.nextElementSibling;
+      if (!list || !list.classList.contains('dp-channels')) return;
+      const anyVisible = [...list.querySelectorAll('.dp-channel[data-channel]')].some((c) => !c.classList.contains('dp-filtered-out'));
+      catEl.classList.toggle('dp-filtered-out', Boolean(q) && !anyVisible);
+      if (q) catEl.classList.toggle('collapsed', !anyVisible);
+    });
+  });
+
+  document.getElementById('dp-role-search').addEventListener('input', (e) => {
+    const q = e.target.value.trim().toLowerCase();
+    app.querySelectorAll('.dp-role-row[data-role]').forEach((row) => {
+      row.classList.toggle('dp-filtered-out', Boolean(q) && !(row.dataset.roleName || '').toLowerCase().includes(q));
+    });
+  });
 
   app.querySelectorAll('.dp-category').forEach((catEl) => {
     catEl.addEventListener('click', () => catEl.classList.toggle('collapsed'));
@@ -781,8 +816,17 @@ async function renderPreviewPage(id) {
             <div class="dp-block">
               <p class="dp-block-title">➕ Nouvelle categorie</p>
               <input type="text" id="dp-home-new-cat-name" placeholder="Nom de la categorie" maxlength="80" />
+              <div class="row" style="flex-wrap:wrap; gap:4px; margin-top:6px;">
+                ${CHANNEL_EMOJI_PICKS.slice(0, 12).map((e) => `<button type="button" class="btn secondary dp-home-new-cat-emoji-pick" data-emoji="${e}" style="font-size:0.95rem; padding:4px 8px;">${e}</button>`).join('')}
+              </div>
               <button class="btn" id="dp-home-create-cat-btn" style="margin-top:10px;">Creer</button>
             </div>`;
+          area.querySelectorAll('.dp-home-new-cat-emoji-pick').forEach((btn) => {
+            btn.addEventListener('click', () => {
+              const input = area.querySelector('#dp-home-new-cat-name');
+              if (!input.value.startsWith(btn.dataset.emoji)) input.value = `${btn.dataset.emoji} ${input.value}`.trim();
+            });
+          });
           area.querySelector('#dp-home-create-cat-btn').addEventListener('click', async () => {
             const name = area.querySelector('#dp-home-new-cat-name').value.trim();
             if (!name) { showToast('Nom requis.', 'error'); return; }
@@ -802,6 +846,9 @@ async function renderPreviewPage(id) {
               <div>
                 <label>Nom du salon</label>
                 <input type="text" id="dp-home-new-channel-name" placeholder="Nom du salon" maxlength="80" />
+                <div class="row" style="flex-wrap:wrap; gap:4px; margin-top:6px;">
+                  ${CHANNEL_EMOJI_PICKS.slice(0, 12).map((e) => `<button type="button" class="btn secondary dp-home-new-channel-emoji-pick" data-emoji="${e}" style="font-size:0.95rem; padding:4px 8px;">${e}</button>`).join('')}
+                </div>
               </div>
               <div>
                 <label>Type</label>
@@ -828,6 +875,12 @@ async function renderPreviewPage(id) {
               </div>
               <button class="btn dp-form-full" id="dp-home-create-channel-btn" style="margin-top:12px;">Creer le salon</button>
             </div>`;
+          area.querySelectorAll('.dp-home-new-channel-emoji-pick').forEach((btn) => {
+            btn.addEventListener('click', () => {
+              const input = area.querySelector('#dp-home-new-channel-name');
+              if (!input.value.startsWith(btn.dataset.emoji)) input.value = `${btn.dataset.emoji} ${input.value}`.trim();
+            });
+          });
           area.querySelector('#dp-home-create-channel-btn').addEventListener('click', async () => {
             const chName = area.querySelector('#dp-home-new-channel-name').value.trim();
             if (!chName) { showToast('Nom du salon requis.', 'error'); return; }
@@ -1274,6 +1327,9 @@ function categoryActionDetailHtml(key, ctx) {
         <div>
           <label>Nom du salon</label>
           <input type="text" id="dp-cat-new-channel-name" placeholder="Nom du salon" maxlength="80" />
+          <div class="row" style="flex-wrap:wrap; gap:4px; margin-top:6px;">
+            ${CHANNEL_EMOJI_PICKS.slice(0, 12).map((e) => `<button type="button" class="btn secondary dp-cat-new-channel-emoji-pick" data-emoji="${e}" style="font-size:0.95rem; padding:4px 8px;">${e}</button>`).join('')}
+          </div>
         </div>
         <div>
           <label>Type</label>
@@ -1383,6 +1439,12 @@ function renderCategoryPanel(guildId, categoryId, name, config, channels, roles)
 
   function wireDetail(scope, key) {
     if (key === 'create-channel') {
+      scope.querySelectorAll('.dp-cat-new-channel-emoji-pick').forEach((btn) => {
+        btn.addEventListener('click', () => {
+          const input = scope.querySelector('#dp-cat-new-channel-name');
+          if (!input.value.startsWith(btn.dataset.emoji)) input.value = `${btn.dataset.emoji} ${input.value}`.trim();
+        });
+      });
       scope.querySelector('#dp-cat-create-channel').addEventListener('click', async () => {
         const chName = scope.querySelector('#dp-cat-new-channel-name').value.trim();
         if (!chName) { showToast('Nom du salon requis.', 'error'); return; }
@@ -3864,6 +3926,14 @@ async function init() {
       window.UISound?.click();
     });
   }
+
+  // Echap = retour, ou qu'on soit (panneau salon/categorie/role ou module
+  // de reglages) : un seul listener global plutot qu'un par re-rendu.
+  document.addEventListener('keydown', (e) => {
+    if (e.key !== 'Escape') return;
+    const backBtn = document.getElementById('dp-settings-back') || document.getElementById('dp-actionchat-back');
+    backBtn?.click();
+  });
 
   allGuilds = await Api.guilds();
   renderRail();

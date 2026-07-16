@@ -16,8 +16,9 @@ async function kvGet(key) {
   return text ? JSON.parse(text) : null;
 }
 
-async function kvPut(key, value) {
-  const res = await fetch(kvUrl(key), {
+async function kvPut(key, value, { ttlSeconds } = {}) {
+  const url = ttlSeconds ? `${kvUrl(key)}?expiration_ttl=${ttlSeconds}` : kvUrl(key);
+  const res = await fetch(url, {
     method: 'PUT',
     headers: {
       Authorization: `Bearer ${env.cloudflare.apiToken}`,

@@ -2,6 +2,7 @@ const { Events, EmbedBuilder } = require('discord.js');
 const client = require('../client');
 const guildConfigStore = require('../../kv/guildConfigStore');
 const webhookDispatcher = require('../automation/webhookDispatcher');
+const memberAgeStore = require('../../kv/memberAgeStore');
 const { applyPlaceholders } = require('../../shared/placeholders');
 const logger = require('../../shared/logger');
 
@@ -12,6 +13,9 @@ client.on(Events.GuildMemberRemove, async (member) => {
     tag: member.user.tag,
     memberCount: member.guild.memberCount,
   }).catch(() => {});
+
+  // Le statut majeur/mineur ne doit pas survivre au depart du membre.
+  memberAgeStore.remove(member.guild.id, member.id).catch(() => {});
 
   try {
     const config = await guildConfigStore.find(member.guild.id);

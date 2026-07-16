@@ -3,9 +3,36 @@
 <head>
   <meta charset="utf-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1" />
-  <title>Discord Serveur Creator</title>
+  <title>Discord Serveur Creator — Bot Discord de creation et gestion de serveur</title>
+  <meta name="description" content="Discord Serveur Creator genere automatiquement la structure complete de ton serveur Discord (salons, roles, permissions, reglement) puis le gere au quotidien : moderation, economie, tickets, roles de jeu, et un assistant IA integre au dashboard." />
+  <link rel="canonical" href="https://yolscript.github.io/DiscordServeurCreator/" />
+  <meta name="robots" content="index, follow" />
+
+  <meta property="og:type" content="website" />
+  <meta property="og:site_name" content="Discord Serveur Creator" />
+  <meta property="og:title" content="Discord Serveur Creator — Bot Discord de creation et gestion de serveur" />
+  <meta property="og:description" content="Genere et gere automatiquement ton serveur Discord : salons, roles, permissions, moderation, economie, assistant IA. Dashboard web complet inclus." />
+  <meta property="og:url" content="https://yolscript.github.io/DiscordServeurCreator/" />
+  <meta property="og:image" content="https://yolscript.github.io/DiscordServeurCreator/assets/logo-512.png" />
+  <meta name="twitter:card" content="summary" />
+  <meta name="twitter:title" content="Discord Serveur Creator — Bot Discord de creation et gestion de serveur" />
+  <meta name="twitter:description" content="Genere et gere automatiquement ton serveur Discord : salons, roles, permissions, moderation, economie, assistant IA." />
+  <meta name="twitter:image" content="https://yolscript.github.io/DiscordServeurCreator/assets/logo-512.png" />
+
   <link rel="icon" type="image/png" href="assets/favicon-64.png" />
-  <link rel="stylesheet" href="assets/style.css?v=26" />
+  <link rel="stylesheet" href="assets/style.css?v=27" />
+  <script type="application/ld+json">
+  {
+    "@context": "https://schema.org",
+    "@type": "SoftwareApplication",
+    "name": "Discord Serveur Creator",
+    "applicationCategory": "Discord Bot",
+    "operatingSystem": "Discord",
+    "description": "Bot Discord qui genere automatiquement la structure complete d'un serveur (salons, roles, permissions, reglement) puis le gere au quotidien : moderation, economie, tickets, roles de jeu, assistant IA integre au dashboard web.",
+    "url": "https://yolscript.github.io/DiscordServeurCreator/",
+    "offers": { "@type": "Offer", "price": "0", "priceCurrency": "EUR" }
+  }
+  </script>
   <script>
     (function () {
       var t = localStorage.getItem('theme');
@@ -24,7 +51,7 @@
     <div class="auth-box">
       <div class="brand" title="Discord Serveur Creator">
         <img class="brand-icon" src="assets/logo-512.png" alt="Discord Serveur Creator" />
-        <span class="brand-text">Discord Serveur Creator</span>
+        <h1 class="brand-text">Discord Serveur Creator</h1>
       </div>
       <p class="lede">Panel d'administration des serveurs generes par le bot.</p>
       <div class="card">
@@ -46,11 +73,7 @@
 
     // Si deja connecte, saute directement au dashboard.
     Api.me().then(() => { window.location.href = 'app.html'; }).catch(() => {});
-
-    document.querySelectorAll('.bg-video').forEach((v) => {
-      v.play().catch(() => {});
-      v.addEventListener('pause', () => v.play().catch(() => {}));
-    });
   </script>
+  <script src="assets/bgvideo.js?v=1"></script>
 </body>
 </html>

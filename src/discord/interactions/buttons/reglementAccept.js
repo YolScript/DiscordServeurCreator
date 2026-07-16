@@ -4,6 +4,7 @@ const {
 } = require('discord.js');
 const guildConfigStore = require('../../../kv/guildConfigStore');
 const captchaStore = require('../../../kv/captchaStore');
+const captchaAttemptStore = require('../../../kv/captchaAttemptStore');
 const memberAgeStore = require('../../../kv/memberAgeStore');
 const { randomCode, generateCaptchaImage } = require('../../moderation/captchaImage');
 const { parseBirthdate, computeAge } = require('../../moderation/ageVerification');
@@ -30,6 +31,15 @@ async function handleReglementAccept(interaction) {
   if (config.captchaEnabled === false) {
     await interaction.member.roles.add(config.reglementValidatedRoleId).catch(() => {});
     await interaction.reply({ content: 'Reglement accepte, bienvenue !', flags: MessageFlags.Ephemeral });
+    return;
+  }
+
+  const lock = await captchaAttemptStore.getLockStatus(interaction.guild.id, interaction.user.id);
+  if (lock.locked) {
+    await interaction.reply({
+      content: `Trop d'echecs a la verification anti-bot. Reessaie dans ${Math.ceil(lock.retryAfterSeconds / 60)} min.`,
+      flags: MessageFlags.Ephemeral,
+    });
     return;
   }
 
@@ -69,9 +79,17 @@ async function handleReglementAccept(interaction) {
 
 async function handleCaptchaResult(interaction, success) {
   if (!success) {
-    await interaction.reply({ content: 'Rate ! Reclique sur "J\'accepte le reglement" pour reessayer.', flags: MessageFlags.Ephemeral });
+    const failCount = await captchaAttemptStore.recordFailure(interaction.guild.id, interaction.user.id);
+    const remaining = captchaAttemptStore.MAX_FAILS - failCount;
+    await interaction.reply({
+      content: remaining > 0
+        ? `Rate ! Reclique sur "J'accepte le reglement" pour reessayer (${remaining} essai(s) restant(s)).`
+        : "Trop d'echecs. Reessaie dans quelques minutes.",
+      flags: MessageFlags.Ephemeral,
+    });
     return;
   }
+  await captchaAttemptStore.reset(interaction.guild.id, interaction.user.id);
 
   const config = await guildConfigStore.find(interaction.guild.id);
   if (!config?.reglementValidatedRoleId) {
@@ -103,9 +121,17 @@ async function handleCaptchaImageModal(interaction) {
   const ok = await captchaStore.verify(interaction.guild.id, interaction.user.id, code);
 
   if (!ok) {
-    await interaction.reply({ content: 'Code incorrect ou expire. Reclique sur "J\'accepte le reglement" pour reessayer.', flags: MessageFlags.Ephemeral });
+    const failCount = await captchaAttemptStore.recordFailure(interaction.guild.id, interaction.user.id);
+    const remaining = captchaAttemptStore.MAX_FAILS - failCount;
+    await interaction.reply({
+      content: remaining > 0
+        ? `Code incorrect ou expire. Reclique sur "J'accepte le reglement" pour reessayer (${remaining} essai(s) restant(s)).`
+        : "Trop d'echecs. Reessaie dans quelques minutes.",
+      flags: MessageFlags.Ephemeral,
+    });
     return;
   }
+  await captchaAttemptStore.reset(interaction.guild.id, interaction.user.id);
 
   const config = await guildConfigStore.find(interaction.guild.id);
   if (!config?.reglementValidatedRoleId) {

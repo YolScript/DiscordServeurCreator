@@ -1,6 +1,6 @@
 const { MessageFlags } = require('discord.js');
 const {
-  REGLEMENT_ACCEPT, REGLEMENT_TRANSLATE, AGE_PLUS16, AGE_MINUS16,
+  REGLEMENT_ACCEPT, REGLEMENT_TRANSLATE,
   GAME_SELECT_PREFIX, GAME_PSEUDO_MODAL_PREFIX, GAME_PSEUDO_BUTTON_PREFIX, POLL_VOTE_PREFIX, GIVEAWAY_ENTER_PREFIX,
   CAPTCHA_OK, CAPTCHA_NO, TICKET_OPEN, POLL_CREATE_OPEN, POLL_CREATE_MODAL, TICKET_RATE_PREFIX,
   SUGGESTION_VOTE_PREFIX, SUGGESTION_APPROVE_PREFIX, SUGGESTION_DENY_PREFIX, SHOP_BUY_PREFIX,
@@ -19,7 +19,6 @@ const {
   handleAgeVerifyButton, handleAgeVerifyModal,
 } = require('./buttons/reglementAccept');
 const { handleReglementTranslate, handleReglementTranslateSelect } = require('./buttons/reglementTranslate');
-const handleAgeButton = require('./buttons/ageButtons');
 const handleGamePseudoButton = require('./buttons/gamePseudoButton');
 const handleGameRoleSelect = require('./selectMenus/gameRoleSelect');
 const handleReactionRoleSelect = require('./selectMenus/reactionRoleSelect');
@@ -139,8 +138,6 @@ async function routeInteraction(interaction) {
         await handleReglementAccept(interaction);
       } else if (interaction.customId === REGLEMENT_TRANSLATE) {
         await handleReglementTranslate(interaction);
-      } else if (interaction.customId === AGE_PLUS16 || interaction.customId === AGE_MINUS16) {
-        await handleAgeButton(interaction);
       } else if (interaction.customId.startsWith(GAME_PSEUDO_BUTTON_PREFIX)) {
         await handleGamePseudoButton(interaction);
       } else if (interaction.customId.startsWith(POLL_VOTE_PREFIX)) {

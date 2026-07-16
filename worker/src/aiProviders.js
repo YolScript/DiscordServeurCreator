@@ -7,6 +7,17 @@
 //   { role: 'assistant', content, toolCalls?: [{ id, name, args }] }
 //   { role: 'tool', toolCallId, name, result }
 
+// Traduit les erreurs HTTP des fournisseurs en messages exploitables en
+// francais, sans dependre du JSON brut (souvent en anglais et peu lisible)
+// que chaque API renvoie dans le corps de sa reponse.
+function describeProviderError(providerLabel, status, bodyText) {
+  if (status === 401 || status === 403) return `${providerLabel} : cle API invalide ou refusee.`;
+  if (status === 429) return `${providerLabel} : quota depasse. Verifie ton forfait/facturation chez le fournisseur.`;
+  if (status === 400) return `${providerLabel} : requete refusee (400). ${(bodyText || '').slice(0, 200)}`;
+  if (status >= 500) return `${providerLabel} : service indisponible (${status}). Reessaie plus tard.`;
+  return `${providerLabel} (${status}) : ${(bodyText || '').slice(0, 200)}`;
+}
+
 async function callAnthropic({
   apiKey, systemPrompt, messages, tools,
 }) {
@@ -47,7 +58,7 @@ async function callAnthropic({
       tools: tools.map((t) => ({ name: t.name, description: t.description, input_schema: t.parameters })),
     }),
   });
-  if (!res.ok) throw new Error(`Anthropic ${res.status}: ${(await res.text()).slice(0, 300)}`);
+  if (!res.ok) throw new Error(describeProviderError('Claude', res.status, await res.text()));
   const data = await res.json();
   const content = (data.content || []).filter((b) => b.type === 'text').map((b) => b.text).join('\n').trim();
   const toolCalls = (data.content || [])
@@ -85,7 +96,7 @@ async function callOpenAi({
       tools: tools.map((t) => ({ type: 'function', function: { name: t.name, description: t.description, parameters: t.parameters } })),
     }),
   });
-  if (!res.ok) throw new Error(`OpenAI ${res.status}: ${(await res.text()).slice(0, 300)}`);
+  if (!res.ok) throw new Error(describeProviderError('GPT', res.status, await res.text()));
   const data = await res.json();
   const message = data.choices?.[0]?.message || {};
   const toolCalls = (message.tool_calls || []).map((tc) => ({
@@ -137,7 +148,7 @@ async function callGemini({
       tools: [{ function_declarations: tools.map((t) => ({ name: t.name, description: t.description, parameters: toGeminiSchema(t.parameters) })) }],
     }),
   });
-  if (!res.ok) throw new Error(`Gemini ${res.status}: ${(await res.text()).slice(0, 300)}`);
+  if (!res.ok) throw new Error(describeProviderError('Gemini', res.status, await res.text()));
   const data = await res.json();
   const parts = data.candidates?.[0]?.content?.parts || [];
   const content = parts.filter((p) => p.text).map((p) => p.text).join('\n').trim();

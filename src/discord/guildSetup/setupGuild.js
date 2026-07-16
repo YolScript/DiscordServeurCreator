@@ -1,12 +1,9 @@
-const {
-  ChannelType, EmbedBuilder, ActionRowBuilder, ButtonBuilder, ButtonStyle,
-} = require('discord.js');
+const { ChannelType } = require('discord.js');
 const guildConfigStore = require('../../kv/guildConfigStore');
 const gameRoleStore = require('../../kv/gameRoleStore');
 const moderationConfigStore = require('../../kv/moderationConfigStore');
 const { getTemplate } = require('./templates');
 const { DEFAULT_REGLEMENT_TEXT } = require('./defaultReglement');
-const { AGE_PLUS16, AGE_MINUS16 } = require('../interactions/customIds');
 const { postReglementPanel } = require('../roles/reglementPanel');
 const { ensureStaffCategory } = require('../roles/staffCategory');
 const { ensureGamesCategory, syncGameChannels } = require('../roles/gameChannels');
@@ -127,20 +124,9 @@ async function setupGuild({
   const arrivalChannel = channelObjects[template.specialKeys.arrivalDeparture];
   const rolesChannel = channelObjects[template.specialKeys.roles];
 
-  // Boutons +16/-16 (le reglement lui-meme est poste plus bas, une fois la
-  // config enregistree, via postReglementPanel).
-  const ageEmbed = new EmbedBuilder()
-    .setTitle('Verification age (obligatoire)')
-    .setDescription("Selectionne ta tranche d'age pour acceder au serveur.")
-    .setColor(0x5a189a);
-  const ageRow = new ActionRowBuilder().addComponents(
-    new ButtonBuilder().setCustomId(AGE_PLUS16).setLabel('+16').setStyle(ButtonStyle.Primary),
-    new ButtonBuilder().setCustomId(AGE_MINUS16).setLabel('-16').setStyle(ButtonStyle.Secondary),
-  );
-  if (rolesChannel) {
-    await rolesChannel.send({ embeds: [ageEmbed], components: [ageRow] });
-    onStep({ kind: 'reglement', label: 'Verification age postee' });
-  }
+  // Le +16/-16 n'est plus auto-declaratif : il est deduit automatiquement de
+  // la date de naissance saisie lors de la validation du reglement (voir
+  // reglementAccept.js). Aucun message a poster ici.
 
   const finalReglementText = reglementText || template.content?.reglementText || DEFAULT_REGLEMENT_TEXT;
 
