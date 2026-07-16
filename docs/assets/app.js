@@ -1123,7 +1123,36 @@ app.addEventListener('keydown', (e) => {
   }
 });
 
-function aiHomeHtml(guild) {
+// Checklist de configuration (roadmap n°169) : 8 verifications basees sur
+// la config deja chargee, avec lien direct vers le module concerne.
+const CONFIG_CHECKLIST = [
+  { label: 'Salon de bienvenue', done: (c) => Boolean(c?.arrivalDepartureChannelId), goto: ['creator', ''] },
+  { label: 'Journal de moderation', done: (c) => Boolean(c?.modLogChannelId), goto: ['creator', ''] },
+  { label: 'Salon annonces', done: (c) => Boolean(c?.announceChannelId), goto: ['creator', ''] },
+  { label: 'Salon suggestions', done: (c) => Boolean(c?.suggestionChannelId), goto: ['creator', ''] },
+  { label: 'Salon avis (tickets)', done: (c) => Boolean(c?.reviewChannelId), goto: ['creator', ''] },
+  { label: 'Role automatique a l\'arrivee', done: (c) => Boolean(c?.autoRoleId), goto: ['automatisations', ''] },
+  { label: 'Une regle si → alors', done: (c) => (c?.autoRules || []).length > 0, goto: ['automatisations', 'regles'] },
+  { label: 'Twitch ou calendrier lie', done: (c) => Boolean(c?.twitchBroadcasterLogin || c?.calendarToken), goto: ['automatisations', 'streamers'] },
+];
+
+function configChecklistHtml(config) {
+  if (localStorage.getItem('dsc-checklist-hidden') === '1') return '';
+  const doneCount = CONFIG_CHECKLIST.filter((item) => item.done(config)).length;
+  if (doneCount === CONFIG_CHECKLIST.length) return '';
+  const todo = CONFIG_CHECKLIST.filter((item) => !item.done(config)).slice(0, 4);
+  return `
+    <div class="dp-checklist">
+      <div class="dp-checklist-head">
+        <span>🚀 Configuration du serveur — ${doneCount}/${CONFIG_CHECKLIST.length}</span>
+        <button type="button" class="dp-checklist-hide" id="dp-checklist-hide" title="Masquer definitivement" aria-label="Masquer la checklist">✕</button>
+      </div>
+      <div class="bar" style="height:6px; background:var(--bg-input); border-radius:999px; overflow:hidden; margin:6px 0 8px;"><i style="display:block; height:100%; width:${Math.round((doneCount / CONFIG_CHECKLIST.length) * 100)}%; background:var(--success); border-radius:999px;"></i></div>
+      ${todo.map((item) => `<button type="button" class="dp-checklist-item" data-goto-settings="${item.goto[0]}" ${item.goto[1] ? `data-goto-settings-section="${item.goto[1]}"` : ''}>○ ${escapeHtml(item.label)} →</button>`).join('')}
+    </div>`;
+}
+
+function aiHomeHtml(guild, config) {
   return `
     <div class="dp-chat" id="dp-ai-chat">
       <div class="dp-chat-msg bot">
@@ -1131,6 +1160,7 @@ function aiHomeHtml(guild) {
         <div class="dp-chat-bubble">
           <div class="dp-chat-author">ServeurCreator Bot</div>
           <div class="dp-chat-text">Salut, je suis le bot de configuration de ${escapeHtml(guild?.name || 'ton serveur')} ! Glisse un salon, une categorie ou un role ici pour le configurer, ou choisis une categorie d'outils ci-dessous.</div>
+          ${configChecklistHtml(config)}
           ${(() => {
     const favs = getFavModuleKeys()
       .map((key) => HOME_MODULES.find((m) => favModuleKey(m) === key))
@@ -1443,7 +1473,7 @@ function renderPreviewContent(id, { channels, config, roles, members }) {
           </div>
         </div>
         <div class="dp-main" id="dp-main">
-          ${aiHomeHtml(guild)}
+          ${aiHomeHtml(guild, config)}
         </div>
         <div class="dp-roles-panel">
           <div class="dp-roles-header${rolesSorted.length >= 230 ? ' near-limit' : ''}" title="${rolesSorted.length >= 230 ? 'Limite Discord : 250 roles par serveur' : ''}">
@@ -1466,6 +1496,13 @@ function renderPreviewContent(id, { channels, config, roles, members }) {
   // Les cartes favoris de l'accueil (n°021) vivent hors de la grille de
   // modules : cablage direct.
   wireHomeModuleCards(document.getElementById('dp-ai-chat'));
+
+  // Checklist de configuration (roadmap n°169) : masquage definitif.
+  document.getElementById('dp-checklist-hide')?.addEventListener('click', (e) => {
+    e.stopPropagation();
+    localStorage.setItem('dsc-checklist-hidden', '1');
+    e.currentTarget.closest('.dp-checklist')?.remove();
+  });
 
   // Debounce (roadmap n°054) : le surlignage re-rend chaque ligne, inutile
   // de le faire a chaque frappe.

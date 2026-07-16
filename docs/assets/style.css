@@ -1552,6 +1552,24 @@ button.embed-json-jump { background: none; border: none; padding: 0; font-family
 
 .dp-empty-state { text-align: center; padding: 22px 12px; }
 
+/* Checklist de configuration (n°169). */
+.dp-checklist {
+  margin: 12px 0 4px; padding: 10px 12px; border: 1px solid var(--border);
+  border-radius: 8px; background: var(--bg-input); font-size: 0.82rem;
+}
+.dp-checklist-head { display: flex; justify-content: space-between; align-items: center; font-weight: 700; }
+.dp-checklist-hide {
+  background: none; border: none; color: var(--text-faint); cursor: pointer;
+  font-size: 0.8rem; padding: 2px 6px; border-radius: 4px;
+}
+.dp-checklist-hide:hover { color: var(--text); background: var(--border); }
+.dp-checklist-item {
+  display: block; width: 100%; text-align: left; background: none; border: none;
+  color: var(--text); cursor: pointer; padding: 4px 2px; font-size: 0.8rem;
+  border-radius: 4px;
+}
+.dp-checklist-item:hover { color: var(--accent); background: var(--accent-soft); }
+
 /* Multi-selection Ctrl+clic (n°119). */
 .dp-channel.multi-selected { background: var(--accent-soft); box-shadow: inset 0 0 0 1px var(--accent); }
 #dp-multibar {
