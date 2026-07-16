@@ -983,6 +983,8 @@ const AI_TOOL_LABELS = {
   rename_role: 'Renommage du role',
   set_role_color: 'Changement de couleur du role',
   delete_role: 'Suppression du role',
+  get_module_config: 'Lecture de la configuration',
+  set_module_config: 'Modification de la configuration',
 };
 
 function aiConversationHtml() {
@@ -5006,7 +5008,12 @@ async function renderGiveawaysPage(id, container = app) {
       `, { alwaysOpen: true })}
 
       ${sectionHtml('Giveaways', `
-        <div id="giveaways-list">${sorted.map(rowHtml).join('') || '<p class="muted">Aucun giveaway pour le moment.</p>'}</div>
+        <div id="giveaways-list">${sorted.map(rowHtml).join('') || `
+          <div class="dp-empty-state">
+            <span style="font-size:1.6rem;">🎁</span>
+            <p class="muted" style="margin:6px 0 10px;">Aucun giveaway pour le moment. Lance le premier : les membres participent en un clic dans Discord.</p>
+            <button type="button" class="btn secondary" id="gw-empty-cta">Creer le premier giveaway</button>
+          </div>`}</div>
       `, { alwaysOpen: true })}
     </div>
   `;
@@ -5043,6 +5050,13 @@ async function renderGiveawaysPage(id, container = app) {
         showToast(err.message, 'error');
       }
     });
+  });
+
+  // Etat vide avec action (roadmap n°115) : focus direct sur le formulaire.
+  container.querySelector('#gw-empty-cta')?.addEventListener('click', () => {
+    const input = container.querySelector('#gw-prize');
+    input.scrollIntoView({ behavior: 'smooth', block: 'center' });
+    input.focus();
   });
 
   // Retirage (roadmap n°161) : nouveau gagnant annonce dans le salon.

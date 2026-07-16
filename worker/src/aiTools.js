@@ -1,7 +1,23 @@
 import { botFetch, botFetchJson } from './discordApi.js';
 import { createCustomChannel, createCustomCategory } from './customChannels.js';
-import { getGuildConfig } from './kvStore.js';
+import { getGuildConfig, putGuildConfig } from './kvStore.js';
 import { logAudit } from './auditLog.js';
+
+// Cles de configuration exposees a l'IA (roadmap n°135) : uniquement des
+// reglages de modules surs et reversibles — JAMAIS les tokens, les listes
+// d'acces dashboard ni aucun secret.
+const AI_CONFIG_KEYS = {
+  xpRate: { type: 'number', min: 0.5, max: 3, description: 'Multiplicateur de vitesse XP (0.5 a 3)' },
+  starboardThreshold: { type: 'number', min: 2, max: 50, description: 'Nombre d etoiles requises pour le starboard' },
+  autoCrosspost: { type: 'boolean', description: 'Publication croisee automatique dans les salons annonces' },
+  arrivalDepartureChannelId: { type: 'channel', description: 'Salon des arrivees/departs et annonces de live' },
+  modLogChannelId: { type: 'channel', description: 'Salon des logs de moderation' },
+  announceChannelId: { type: 'channel', description: 'Salon des annonces' },
+  suggestionChannelId: { type: 'channel', description: 'Salon des suggestions' },
+  giveawayChannelId: { type: 'channel', description: 'Salon des giveaways' },
+  reviewChannelId: { type: 'channel', description: 'Salon des avis de tickets' },
+  starboardChannelId: { type: 'channel', description: 'Salon du starboard (hall of fame)' },
+};
 
 // Schemas exposes aux 3 fournisseurs IA (traduits par aiProviders.js dans le
 // format propre a chacun). `destructive: true` = jamais execute directement,
@@ -99,6 +115,25 @@ export const AI_TOOLS = [
     destructive: true,
     description: 'Supprime definitivement un role. Action irreversible.',
     parameters: { type: 'object', properties: { roleId: { type: 'string' } }, required: ['roleId'] },
+  },
+  {
+    name: 'get_module_config',
+    destructive: false,
+    description: 'Lit la configuration des modules du serveur : vitesse XP, seuil starboard, crosspost automatique, salons assignes aux modules (annonces, suggestions, giveaways, avis, logs, bienvenue). A appeler avant toute modification.',
+    parameters: { type: 'object', properties: {}, required: [] },
+  },
+  {
+    name: 'set_module_config',
+    destructive: false,
+    description: "Modifie UN reglage de module du serveur. Cles autorisees : xpRate (0.5-3), starboardThreshold (2-50), autoCrosspost (true/false), arrivalDepartureChannelId, modLogChannelId, announceChannelId, suggestionChannelId, giveawayChannelId, reviewChannelId, starboardChannelId (ID de salon obtenu via list_channels).",
+    parameters: {
+      type: 'object',
+      properties: {
+        key: { type: 'string', description: 'Nom exact de la cle a modifier' },
+        value: { type: 'string', description: 'Nouvelle valeur : nombre, true/false, ou ID de salon selon la cle' },
+      },
+      required: ['key', 'value'],
+    },
   },
 ];
 
@@ -202,6 +237,36 @@ export async function executeAiTool(env, guildId, session, name, args) {
       await botFetch(env, `/guilds/${guildId}/roles/${args.roleId}`, { method: 'DELETE' });
       await logAudit(env, guildId, { title: 'Role supprime (IA)', description: `${session.username} a supprime le role ${role.name} via l'assistant IA.` });
       return { deleted: args.roleId };
+    }
+    case 'get_module_config': {
+      const out = {};
+      for (const [key, spec] of Object.entries(AI_CONFIG_KEYS)) {
+        out[key] = { value: config[key] ?? null, description: spec.description };
+      }
+      if (config.twitchBroadcasterLogin) {
+        out.twitchBroadcasterLogin = { value: config.twitchBroadcasterLogin, description: 'Compte Twitch lie (lecture seule)' };
+      }
+      return out;
+    }
+    case 'set_module_config': {
+      const spec = AI_CONFIG_KEYS[args.key];
+      if (!spec) throw new Error(`Cle inconnue ou non autorisee : ${args.key}`);
+      let value;
+      if (spec.type === 'number') {
+        value = Number(args.value);
+        if (!Number.isFinite(value) || value < spec.min || value > spec.max) {
+          throw new Error(`Valeur invalide pour ${args.key} (attendu : ${spec.min} a ${spec.max}).`);
+        }
+      } else if (spec.type === 'boolean') {
+        value = String(args.value) === 'true';
+      } else {
+        await assertChannelInGuild(env, guildId, String(args.value));
+        value = String(args.value);
+      }
+      const fresh = (await getGuildConfig(env, guildId)) || {};
+      await putGuildConfig(env, guildId, { ...fresh, [args.key]: value });
+      await logAudit(env, guildId, { title: 'Config modifiee (IA)', description: `${session.username} a change ${args.key} via l'assistant IA.` });
+      return { key: args.key, value, saved: true };
     }
     default:
       throw new Error(`Outil inconnu : ${name}`);
