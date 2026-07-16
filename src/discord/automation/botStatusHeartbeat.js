@@ -4,7 +4,11 @@ const { version } = require('../../../package.json');
 const logger = require('../../shared/logger');
 
 const startedAt = Date.now();
-const TICK_MS = 60_000;
+// 10 min et pas 60 s : le KV Cloudflare gratuit est limite a 1000 put()/jour
+// et un heartbeat par minute en consommait 1440 a lui seul, ce qui cassait
+// TOUT le dashboard ("Erreur interne.") une fois le quota du jour epuise.
+// Le dashboard considere le bot en ligne si updatedAt < 25 min.
+const TICK_MS = 10 * 60_000;
 
 async function tick() {
   try {

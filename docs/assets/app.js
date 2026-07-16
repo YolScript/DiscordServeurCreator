@@ -4919,7 +4919,9 @@ async function renderBotStatusPage(container = app) {
     return;
   }
 
-  const isOnline = Date.now() - status.updatedAt < 3 * 60_000;
+  // Le heartbeat ecrit toutes les 10 min (economie du quota KV) : on tolere
+  // deux ticks manques avant de declarer le bot hors ligne.
+  const isOnline = Date.now() - status.updatedAt < 25 * 60_000;
   const ping = typeof status.ping === 'number' && status.ping >= 0 ? `${status.ping} ms` : 'N/A';
 
   container.innerHTML = `

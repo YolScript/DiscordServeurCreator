@@ -98,10 +98,15 @@ export async function refreshTokenIfNeeded(env, session) {
 // Retourne {id, name, icon} pour les guildes ou l'utilisateur a la permission
 // Administrator (cache 60s en KV pour eviter de marteler l'API Discord — 60s
 // est le TTL minimum accepte par Cloudflare KV, en dessous ca renvoie 400).
+// Cache en MEMOIRE d'isolate (et plus en KV) : le KV gratuit est limite a
+// 1000 put()/jour et ce cache 60 s en consommait un par visite — il a
+// participe a l'epuisement du quota qui rendait tout le dashboard en
+// "Erreur interne.". La memoire d'isolate suffit largement pour 60 s.
+const adminGuildsMemCache = new Map(); // userId -> { data, expires }
+
 export async function getUserAdminGuilds(env, session) {
-  const cacheKey = `admin_guilds:${session.userId}`;
-  const cached = await env.GUILD_KV.get(cacheKey);
-  if (cached) return JSON.parse(cached);
+  const cached = adminGuildsMemCache.get(session.userId);
+  if (cached && cached.expires > Date.now()) return cached.data;
 
   const res = await fetch(`${DISCORD_API}/users/@me/guilds`, {
     headers: { Authorization: `Bearer ${session.accessToken}` },
@@ -116,7 +121,7 @@ export async function getUserAdminGuilds(env, session) {
     .filter((g) => (BigInt(g.permissions) & 8n) === 8n) // 8 = Administrator
     .map((g) => ({ id: g.id, name: g.name, icon: g.icon }));
 
-  await env.GUILD_KV.put(cacheKey, JSON.stringify(adminGuilds), { expirationTtl: 60 });
+  adminGuildsMemCache.set(session.userId, { data: adminGuilds, expires: Date.now() + 60000 });
   return adminGuilds;
 }
 
