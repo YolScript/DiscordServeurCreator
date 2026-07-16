@@ -25,6 +25,20 @@ const logger = require('../../shared/logger');
 client.once(Events.ClientReady, async (readyClient) => {
   logger.info(`Connecte en tant que ${readyClient.user.tag} (${readyClient.guilds.cache.size} serveur(s))`);
 
+  // Alerte de demarrage (roadmap n°105) : MP au proprietaire de l'application
+  // a chaque (re)demarrage - un crash-redemarrage inattendu se voit ainsi
+  // immediatement, sans surveiller les logs Render.
+  try {
+    const appInfo = await readyClient.application.fetch();
+    const owner = appInfo.owner?.user ?? appInfo.owner;
+    if (typeof owner?.send === 'function') {
+      const version = (process.env.RENDER_GIT_COMMIT || 'locale').slice(0, 7);
+      await owner.send(`🤖 Bot demarre — ${readyClient.guilds.cache.size} serveur(s), version \`${version}\`.`);
+    }
+  } catch (err) {
+    logger.error('alerte demarrage', err);
+  }
+
   for (const guild of readyClient.guilds.cache.values()) {
     await guild.members.fetch().catch(() => {});
     const config = await guildConfigStore.find(guild.id).catch(() => null);

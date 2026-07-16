@@ -4,13 +4,20 @@ const client = require('./discord/client');
 require('./discord/events');
 const logger = require('./shared/logger');
 
-// Serveur HTTP minimal : sert uniquement de cible aux hebergeurs de type
-// "Web Service" (ex. Render) qui exigent un port ouvert, et au ping de
-// maintien en vie (le bot lui-meme communique avec Discord via WebSocket,
-// pas via ce port).
+// Serveur HTTP minimal : cible des hebergeurs de type "Web Service" (Render)
+// et du ping de maintien en vie. Healthcheck enrichi (roadmap n°104) :
+// latence gateway, serveurs, memoire et version en JSON.
 http.createServer((req, res) => {
-  res.writeHead(200, { 'Content-Type': 'text/plain' });
-  res.end('OK');
+  const payload = {
+    status: client.isReady() ? 'ok' : 'starting',
+    uptimeMin: Math.floor(process.uptime() / 60),
+    wsPingMs: client.ws?.ping ?? null,
+    guilds: client.guilds?.cache?.size ?? 0,
+    memoryMb: Math.round(process.memoryUsage().rss / 1048576),
+    version: (process.env.RENDER_GIT_COMMIT || '').slice(0, 7) || null,
+  };
+  res.writeHead(200, { 'Content-Type': 'application/json' });
+  res.end(JSON.stringify(payload));
 }).listen(process.env.PORT || 3000);
 
 client.login(env.discordToken).catch((err) => {

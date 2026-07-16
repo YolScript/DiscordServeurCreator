@@ -160,6 +160,18 @@ app.addEventListener('click', async (e) => {
   }, true);
 }());
 
+// Version deployee (roadmap n°110) : commit courant en infobulle sur le logo
+// - "le fix est-il en ligne ?" se verifie d'un survol.
+fetch('https://api.github.com/repos/YolScript/DiscordServeurCreator/commits/master')
+  .then((r) => (r.ok ? r.json() : null))
+  .then((c) => {
+    if (!c?.sha) return;
+    const brand = document.querySelector('.topbar-brand');
+    const when = new Date(c.commit.committer.date).toLocaleString('fr-FR', { day: '2-digit', month: '2-digit', hour: '2-digit', minute: '2-digit' });
+    if (brand) brand.title = `Discord Serveur Creator — version ${c.sha.slice(0, 7)} du ${when}`;
+  })
+  .catch(() => {});
+
 const params = new URLSearchParams(location.search);
 const guildId = params.get('guild');
 

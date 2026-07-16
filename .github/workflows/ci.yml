@@ -1,0 +1,28 @@
+name: CI
+
+on:
+  push:
+    branches: [master]
+  pull_request:
+
+jobs:
+  syntax:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 20
+
+      - name: Syntaxe frontend (docs/assets)
+        run: |
+          for f in docs/assets/*.js; do
+            echo "check $f"
+            node --check "$f"
+          done
+
+      - name: Syntaxe bot (src, CommonJS)
+        run: find src -name '*.js' -print0 | xargs -0 -n 1 node --check
+
+      - name: Syntaxe worker (ESM via worker/package.json)
+        run: find worker/src -name '*.js' -print0 | xargs -0 -n 1 node --check
