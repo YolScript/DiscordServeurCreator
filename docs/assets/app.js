@@ -1157,8 +1157,12 @@ function renderPreviewContent(id, { channels, config, roles, members }) {
       <div class="discord-preview" style="position:relative;">
         <div class="dp-sidebar">
           <div class="dp-server-header">
-            <span class="name">${escapeHtml(guild?.name || 'Serveur')}</span>
+            <button type="button" class="dp-server-switch" id="dp-server-switch" title="Changer de serveur" aria-haspopup="menu" aria-expanded="false">
+              <span class="name">${escapeHtml(guild?.name || 'Serveur')}</span>
+              <span class="caret">▾</span>
+            </button>
             <button type="button" class="dp-pin-btn" id="dp-pin-left" title="Epingler le panneau (toujours visible)" aria-pressed="false">📌</button>
+            <div class="dp-server-menu" id="dp-server-menu" role="menu" hidden></div>
           </div>
           <div class="dp-sidebar-search">
             <input type="text" id="dp-channel-search" placeholder="🔎 Filtrer les salons..." aria-label="Filtrer les salons" autocomplete="off" />
@@ -1452,6 +1456,45 @@ function renderPreviewContent(id, { channels, config, roles, members }) {
   };
   pinInit('dp-pin-left', '.dp-sidebar', 'dsc-pin-left');
   pinInit('dp-pin-right', '.dp-roles-panel', 'dsc-pin-right');
+
+  // Bascule de serveur rapide (roadmap n°023) : menu sur le nom du serveur,
+  // sans repasser par l'accueil. L'URL est mise a jour pour que F5 reste
+  // sur le bon serveur.
+  const switchBtn = document.getElementById('dp-server-switch');
+  const switchMenu = document.getElementById('dp-server-menu');
+  if (switchBtn && switchMenu) {
+    switchBtn.addEventListener('click', (e) => {
+      e.stopPropagation();
+      const open = switchMenu.hidden;
+      if (open) {
+        const others = allGuilds.filter((g) => g.botPresent && g.guildId !== id);
+        switchMenu.innerHTML = others.length
+          ? others.map((g) => `<button type="button" role="menuitem" class="dp-server-menu-item" data-goto-guild="${g.guildId}">${escapeHtml(g.name)}</button>`).join('')
+          : '<p class="muted" style="margin:6px 10px; font-size:0.8rem;">Aucun autre serveur.</p>';
+        switchMenu.querySelectorAll('[data-goto-guild]').forEach((btn) => {
+          btn.addEventListener('click', () => {
+            const gid = btn.dataset.gotoGuild;
+            history.replaceState(null, '', `app.html?guild=${gid}`);
+            withViewTransition(() => renderPreviewPage(gid));
+          });
+        });
+      }
+      switchMenu.hidden = !open;
+      switchBtn.setAttribute('aria-expanded', String(open));
+    });
+    // Fermeture au clic exterieur : listener global unique (renderPreview
+    // re-rend souvent, un addEventListener par rendu fuiterait).
+    if (!window.__dpServerMenuCloser) {
+      window.__dpServerMenuCloser = true;
+      document.addEventListener('click', () => {
+        const menu = document.getElementById('dp-server-menu');
+        if (menu && !menu.hidden) {
+          menu.hidden = true;
+          document.getElementById('dp-server-switch')?.setAttribute('aria-expanded', 'false');
+        }
+      });
+    }
+  }
 
   // Tiroirs tactiles (roadmap n°044) : sur mobile le survol n'existe pas,
   // deux boutons flottants ouvrent/ferment les panneaux lateraux.

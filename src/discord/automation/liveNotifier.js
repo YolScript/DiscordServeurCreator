@@ -48,6 +48,31 @@ async function isYoutubeLive(channelId) {
   return (data.items ?? []).length > 0;
 }
 
+// Nouvelles videos YouTube (roadmap n°097) via le flux RSS public du
+// channel : AUCUNE cle API requise, contrairement a la detection de live.
+async function latestYoutubeVideo(channelId) {
+  const res = await fetch(`https://www.youtube.com/feeds/videos.xml?channel_id=${encodeURIComponent(channelId)}`);
+  if (!res.ok) return null;
+  const xml = await res.text();
+  const entry = xml.match(/<entry>([\s\S]*?)<\/entry>/);
+  if (!entry) return null;
+  const videoId = entry[1].match(/<yt:videoId>([^<]+)<\/yt:videoId>/)?.[1];
+  const title = entry[1].match(/<title>([^<]+)<\/title>/)?.[1] || 'Nouvelle video';
+  if (!videoId) return null;
+  return {
+    videoId,
+    title: title.replace(/&amp;/g, '&').replace(/&lt;/g, '<').replace(/&gt;/g, '>').replace(/&quot;/g, '"').replace(/&#39;/g, "'"),
+  };
+}
+
+async function announceNewVideo(guild, config, streamer, video) {
+  const channelId = config.announceChannelId || config.arrivalDepartureChannelId;
+  if (!channelId) return;
+  const channel = await guild.channels.fetch(channelId).catch(() => null);
+  if (!channel) return;
+  await channel.send(`📺 Nouvelle video de <@${streamer.discordUserId}> : **${video.title}**\nhttps://youtu.be/${video.videoId}`).catch(() => {});
+}
+
 async function ensureLiveRole(guild, config) {
   if (config?.liveRoleId) {
     const existing = await guild.roles.fetch(config.liveRoleId).catch(() => null);
@@ -96,6 +121,23 @@ async function tick() {
     for (const streamer of streamers) {
       if (streamer.platform === 'youtube' && !checkYoutube) continue;
 
+      // Nouvelles videos YouTube (RSS, sans cle). La premiere verification
+      // memorise l'etat sans annoncer (evite de spammer la derniere video
+      // deja publiee au moment du lien).
+      if (streamer.platform === 'youtube') {
+        try {
+          const video = await latestYoutubeVideo(streamer.identifier);
+          if (video && video.videoId !== streamer.lastVideoId) {
+            const isFirstCheck = !streamer.lastVideoId;
+            streamer.lastVideoId = video.videoId;
+            changed = true;
+            if (!isFirstCheck) await announceNewVideo(guild, config, streamer, video);
+          }
+        } catch (err) {
+          logger.error('liveNotifier.youtubeRss', err);
+        }
+      }
+
       let live;
       try {
         live = streamer.platform === 'twitch'
@@ -122,9 +164,11 @@ async function tick() {
 }
 
 function start() {
+  // Demarre toujours : les nouvelles videos YouTube passent par le RSS
+  // public (aucune cle requise) ; les checks live sans cle renvoient null
+  // et sont simplement ignores.
   if (!env.twitch.clientId && !env.youtube.apiKey) {
-    logger.info('liveNotifier: aucune cle Twitch/YouTube configuree, notifications live inactives.');
-    return;
+    logger.info('liveNotifier: pas de cle Twitch/YouTube — seules les nouvelles videos YouTube (RSS) seront annoncees.');
   }
   setInterval(() => { tick().catch((err) => logger.error('liveNotifier.tick', err)); }, TICK_MS);
   logger.info('liveNotifier demarre');
