@@ -39,6 +39,7 @@
             <button class="search-box-toggle" id="search-box-toggle" aria-label="Ouvrir la recherche">⌕</button>
             <input type="text" id="search-input" placeholder="Rechercher un serveur..." aria-label="Rechercher un serveur" />
           </div>
+          <button class="video-toggle" id="pwa-install-btn" title="Installer l'application" aria-label="Installer l'application" style="display:none;">📲</button>
           <button class="video-toggle" id="video-toggle-btn" title="Couper la video de fond" aria-label="Couper la video de fond">🎬</button>
           <button class="theme-toggle" id="theme-toggle-btn" title="Changer de theme" aria-label="Changer de theme">🌙</button>
           <button class="user-chip" id="logout-btn" title="Se deconnecter">
@@ -68,6 +69,29 @@
     if ('serviceWorker' in navigator) {
       navigator.serviceWorker.register('sw.js').catch(function () {});
     }
+    // Bouton d'installation PWA : visible seulement quand le navigateur
+    // propose l'installation (beforeinstallprompt) et pas deja installe.
+    (function () {
+      var deferredPrompt = null;
+      window.addEventListener('beforeinstallprompt', function (e) {
+        e.preventDefault();
+        deferredPrompt = e;
+        var btn = document.getElementById('pwa-install-btn');
+        if (btn && !window.matchMedia('(display-mode: standalone)').matches) btn.style.display = '';
+      });
+      document.addEventListener('click', function (e) {
+        if (!e.target.closest || !e.target.closest('#pwa-install-btn') || !deferredPrompt) return;
+        deferredPrompt.prompt();
+        deferredPrompt.userChoice.finally(function () {
+          deferredPrompt = null;
+          document.getElementById('pwa-install-btn').style.display = 'none';
+        });
+      });
+      window.addEventListener('appinstalled', function () {
+        var btn = document.getElementById('pwa-install-btn');
+        if (btn) btn.style.display = 'none';
+      });
+    })();
   </script>
 </body>
 </html>
