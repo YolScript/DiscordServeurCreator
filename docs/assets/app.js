@@ -3256,6 +3256,16 @@ async function renderPermissionsPage(id, container = app) {
         <p class="muted" style="margin-top:8px;">Corrige-les via l'edition en masse ci-dessus ou l'editeur de salons.</p>
       `, { id: 'perm-issues' }) : ''}
 
+      ${sectionHtml('Matrice salons × roles', `
+        <p class="muted">Visibilite (ViewChannel) croisee : clique une case pour basculer ✅ autorise → ❌ refuse → ─ herite. Applique immediatement.</p>
+        <label>Roles a afficher (6 max)</label>
+        <div class="channel-picker" style="max-height:120px;">
+          ${roles.filter((r) => r.name !== '@everyone').map((r) => `<label><input type="checkbox" class="matrix-role" value="${r.id}" /> ${escapeHtml(r.name)}</label>`).join('')}
+        </div>
+        <button class="btn secondary" id="matrix-build" style="margin-top:8px;">Afficher la matrice</button>
+        <div id="matrix-out" style="margin-top:10px; overflow-x:auto;"></div>
+      `, { id: 'perm-matrix' })}
+
       ${sectionHtml('Voir comme un role', `
         <p class="muted">Affiche le serveur tel que ce role le voit : les salons barres lui sont invisibles.</p>
         <label for="viewas-role">Role</label>
@@ -3331,6 +3341,82 @@ async function renderPermissionsPage(id, container = app) {
     }
     return can;
   };
+
+  // Matrice salons × roles (roadmap n°144) : etat du bit ViewChannel par
+  // cellule, cycle allow → deny → neutral au clic, mise a jour optimiste.
+  const cellState = (channel, roleId) => {
+    const ov = (channel.permission_overwrites || []).find((o) => o.id === roleId);
+    if (!ov) return 'neutral';
+    if (BigInt(ov.deny || 0) & 1024n) return 'deny';
+    if (BigInt(ov.allow || 0) & 1024n) return 'allow';
+    return 'neutral';
+  };
+  const CELL_ICONS = { allow: '✅', deny: '❌', neutral: '─' };
+  const NEXT_STATE = { neutral: 'allow', allow: 'deny', deny: 'neutral' };
+
+  document.getElementById('matrix-build').addEventListener('click', () => {
+    const selected = [...container.querySelectorAll('.matrix-role:checked')].map((el) => el.value).slice(0, 6);
+    const out = document.getElementById('matrix-out');
+    if (!selected.length) { out.innerHTML = '<p class="muted">Choisis au moins un role.</p>'; return; }
+    const selRoles = selected.map((rid) => roles.find((r) => r.id === rid)).filter(Boolean);
+    const realChannels = channels.filter((c) => c.type === 0 || c.type === 2);
+    const rowHtml = (c) => `
+      <tr>
+        <td style="white-space:nowrap;">${c.type === 2 ? '🔊' : '#'} ${escapeHtml(c.name)}</td>
+        ${selRoles.map((r) => {
+    const state = cellState(c, r.id);
+    return `<td style="text-align:center;"><button type="button" class="matrix-cell" data-channel="${c.id}" data-role="${r.id}" data-state="${state}" title="${escapeHtml(r.name)} / ${escapeHtml(c.name)}" aria-label="Basculer la visibilite de ${escapeHtml(c.name)} pour ${escapeHtml(r.name)}">${CELL_ICONS[state]}</button></td>`;
+  }).join('')}
+      </tr>`;
+    const groups = [];
+    const uncat = realChannels.filter((c) => !c.parent_id).sort((a, b) => a.position - b.position);
+    if (uncat.length) groups.push({ name: null, chans: uncat });
+    for (const cat of channels.filter((c) => c.type === 4).sort((a, b) => a.position - b.position)) {
+      const chans = realChannels.filter((c) => c.parent_id === cat.id).sort((a, b) => a.position - b.position);
+      if (chans.length) groups.push({ name: cat.name, chans });
+    }
+    out.innerHTML = `
+      <table class="perm-matrix-table">
+        <thead><tr><th>Salon</th>${selRoles.map((r) => `<th>${escapeHtml(r.name)}</th>`).join('')}</tr></thead>
+        <tbody>
+          ${groups.map((g) => `
+            ${g.name ? `<tr><td colspan="${selRoles.length + 1}" style="font-weight:700; font-size:0.72rem; text-transform:uppercase; padding-top:10px;">📁 ${escapeHtml(g.name)}</td></tr>` : ''}
+            ${g.chans.map(rowHtml).join('')}
+          `).join('')}
+        </tbody>
+      </table>`;
+
+    out.querySelectorAll('.matrix-cell').forEach((cell) => {
+      cell.addEventListener('click', async () => {
+        const next = NEXT_STATE[cell.dataset.state];
+        const prev = cell.dataset.state;
+        cell.dataset.state = next;
+        cell.textContent = CELL_ICONS[next];
+        cell.disabled = true;
+        try {
+          await Api.setPermissionCell(id, cell.dataset.channel, cell.dataset.role, next);
+          // Garde la copie locale coherente pour cellState/voir-comme.
+          const ch = channels.find((c) => c.id === cell.dataset.channel);
+          if (ch) {
+            ch.permission_overwrites = ch.permission_overwrites || [];
+            let ov = ch.permission_overwrites.find((o) => o.id === cell.dataset.role);
+            if (!ov) { ov = { id: cell.dataset.role, type: 0, allow: '0', deny: '0' }; ch.permission_overwrites.push(ov); }
+            let allow = BigInt(ov.allow || 0) & ~1024n;
+            let deny = BigInt(ov.deny || 0) & ~1024n;
+            if (next === 'allow') allow |= 1024n;
+            if (next === 'deny') deny |= 1024n;
+            ov.allow = allow.toString();
+            ov.deny = deny.toString();
+          }
+        } catch (err) {
+          cell.dataset.state = prev;
+          cell.textContent = CELL_ICONS[prev];
+          showToast(err.message, 'error');
+        }
+        cell.disabled = false;
+      });
+    });
+  });
 
   document.getElementById('viewas-role').addEventListener('change', (e) => {
     const out = document.getElementById('viewas-result');

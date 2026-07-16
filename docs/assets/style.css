@@ -1552,6 +1552,17 @@ button.embed-json-jump { background: none; border: none; padding: 0; font-family
 
 .dp-empty-state { text-align: center; padding: 22px 12px; }
 
+/* Matrice salons × roles (n°144). */
+.perm-matrix-table { border-collapse: collapse; font-size: 0.82rem; min-width: 100%; }
+.perm-matrix-table th { text-align: center; padding: 4px 8px; font-size: 0.72rem; color: var(--text-muted, var(--text-faint)); border-bottom: 1px solid var(--border); }
+.perm-matrix-table th:first-child { text-align: left; }
+.perm-matrix-table td { padding: 2px 8px; border-bottom: 1px solid var(--border); }
+.matrix-cell {
+  background: none; border: 1px solid transparent; border-radius: 5px;
+  min-width: 34px; min-height: 26px; cursor: pointer; font-size: 0.85rem;
+}
+.matrix-cell:hover { border-color: var(--accent); background: var(--accent-soft); }
+
 /* Point orange « modifications non enregistrees » (n°120). */
 .section-panel { position: relative; }
 .section-panel.dirty::before {

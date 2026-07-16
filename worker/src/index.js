@@ -1071,6 +1071,39 @@ async function router(request, env) {
       }
     }
 
+    // Matrice de permissions (roadmap n°144) : bascule le seul bit
+    // ViewChannel d'un overwrite de role, sans toucher aux autres bits.
+    // Overwrite entierement vide apres l'operation = supprime.
+    if (sub === 'permissions' && parts[4] === 'cell' && method === 'POST') {
+      const session = await requireGuildAccess(env, request, guildId);
+      const { channelId, roleId, state } = await readJson(request);
+      if (!channelId || !roleId || !['allow', 'deny', 'neutral'].includes(state)) {
+        throw new HttpError(400, 'channelId, roleId et state (allow/deny/neutral) requis.');
+      }
+      const channel = await botFetchJson(env, `/channels/${channelId}`);
+      if (channel.guild_id !== guildId) throw new HttpError(403, 'Salon hors du serveur.');
+      const existingOv = (channel.permission_overwrites || []).find((o) => o.id === roleId);
+      const VIEW = 1024n;
+      let allow = BigInt(existingOv?.allow || 0) & ~VIEW;
+      let deny = BigInt(existingOv?.deny || 0) & ~VIEW;
+      if (state === 'allow') allow |= VIEW;
+      if (state === 'deny') deny |= VIEW;
+      if (allow === 0n && deny === 0n) {
+        await botFetch(env, `/channels/${channelId}/permissions/${roleId}`, { method: 'DELETE' });
+      } else {
+        const res = await botFetch(env, `/channels/${channelId}/permissions/${roleId}`, {
+          method: 'PUT',
+          body: JSON.stringify({ type: 0, allow: allow.toString(), deny: deny.toString() }),
+        });
+        if (!res.ok) throw new HttpError(502, 'Discord a refuse la modification.');
+      }
+      await logAudit(env, guildId, {
+        title: 'Permission modifiee (matrice)',
+        description: `${session.username} a mis ViewChannel sur ${state} pour <@&${roleId}> dans <#${channelId}>.`,
+      });
+      return json({ ok: true }, env);
+    }
+
     if (sub === 'permissions' && parts[4] === 'bulk' && method === 'POST') {
       const session = await requireGuildAccess(env, request, guildId);
       const { channelIds, roleId, allow, deny } = await readJson(request);
