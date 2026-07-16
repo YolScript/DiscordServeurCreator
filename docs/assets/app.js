@@ -1053,14 +1053,14 @@ async function renderPreviewPage(id) {
             <div class="dp-block dp-form-grid">
               <p class="dp-block-title">➕ Nouveau salon (hors categorie)</p>
               <div>
-                <label>Nom du salon</label>
+                <label for="dp-home-new-channel-name">Nom du salon</label>
                 <input type="text" id="dp-home-new-channel-name" placeholder="Nom du salon" maxlength="80" data-charcount />
                 <div class="row" style="flex-wrap:wrap; gap:4px; margin-top:6px;">
                   ${CHANNEL_EMOJI_PICKS.slice(0, 12).map((e) => `<button type="button" class="btn secondary dp-home-new-channel-emoji-pick" data-emoji="${e}" aria-label="Emoji ${e}" style="font-size:0.95rem; padding:4px 8px;">${e}</button>`).join('')}
                 </div>
               </div>
               <div>
-                <label>Type</label>
+                <label for="dp-home-new-channel-type">Type</label>
                 <select id="dp-home-new-channel-type">
                   <option value="text">💬 Texte</option>
                   <option value="voice">🔊 Vocal</option>
@@ -1069,14 +1069,14 @@ async function renderPreviewPage(id) {
                 </select>
               </div>
               <div>
-                <label>Visibilite</label>
+                <label for="dp-home-new-channel-visibility">Visibilite</label>
                 <select id="dp-home-new-channel-visibility">
                   <option value="private">🔒 Prive (reserve aux membres ayant valide le reglement)</option>
                   <option value="public">🌐 Public</option>
                 </select>
               </div>
               <div>
-                <label>Importer les permissions d'un salon existant (optionnel)</label>
+                <label for="dp-home-new-channel-import">Importer les permissions d'un salon existant (optionnel)</label>
                 <select id="dp-home-new-channel-import">
                   <option value="">Aucune (permissions par defaut)</option>
                   ${otherChannels.map((c) => `<option value="${c.id}">${c.type === 2 ? '🔊' : '#'}${escapeHtml(c.name)}</option>`).join('')}
@@ -1219,13 +1219,13 @@ function contextualChannelSettingsHtml(channelId, config) {
     return `
       <div class="dp-block">
         <p class="dp-block-title">📜 Reglement</p>
-        <label>Texte du reglement</label>
+        <label for="dp-ctx-reglement">Texte du reglement</label>
         <textarea id="dp-ctx-reglement">${escapeHtml(config?.reglementText)}</textarea>
         <label class="dp-toggle-row" style="margin-top:8px;">
           <span>Verification anti-bot avant validation</span>
           <input type="checkbox" id="dp-ctx-captcha" ${config?.captchaEnabled === false ? '' : 'checked'} />
         </label>
-        <label style="margin-top:10px;">Type de captcha</label>
+        <label style="margin-top:10px;" for="dp-ctx-captcha-type">Type de captcha</label>
         <select id="dp-ctx-captcha-type">
           <option value="emoji" ${config?.captchaType === 'image' ? '' : 'selected'}>Emoji (clique sur le bon symbole)</option>
           <option value="image" ${config?.captchaType === 'image' ? 'selected' : ''}>Image (recopier un code)</option>
@@ -1240,9 +1240,9 @@ function contextualChannelSettingsHtml(channelId, config) {
     return `
       <div class="dp-block">
         <p class="dp-block-title">👋 Messages bienvenue / depart</p>
-        <label>Message de bienvenue</label>
+        <label for="dp-ctx-welcome">Message de bienvenue</label>
         <textarea id="dp-ctx-welcome">${escapeHtml(config?.welcomeMessageTemplate)}</textarea>
-        <label>Message de depart</label>
+        <label for="dp-ctx-leave">Message de depart</label>
         <textarea id="dp-ctx-leave">${escapeHtml(config?.leaveMessageTemplate)}</textarea>
         <p class="muted">Variables disponibles : {user} {username} {server} {membercount}</p>
         <button class="btn secondary" id="dp-ctx-save-welcome" style="margin-top:12px;">Enregistrer les messages</button>
@@ -1428,9 +1428,9 @@ function channelActionDetailHtml(key, ctx) {
     return `
       <div class="dp-block">
         <p class="dp-block-title">🔐 Modifier pour un role</p>
-        <label>Role</label>
+        <label for="dp-perm-role">Role</label>
         <select id="dp-perm-role">${roleOptions}</select>
-        <label>Action</label>
+        <label for="dp-perm-preset">Action</label>
         <select id="dp-perm-preset">
           ${PERMISSION_PRESETS.map((p) => `<option value="${p.key}">${escapeHtml(p.label)}</option>`).join('')}
         </select>
@@ -1540,14 +1540,14 @@ function categoryActionDetailHtml(key, ctx) {
       <div class="dp-block dp-form-grid">
         <p class="dp-block-title">➕ Creer un salon dans "${escapeHtml(name)}"</p>
         <div>
-          <label>Nom du salon</label>
+          <label for="dp-cat-new-channel-name">Nom du salon</label>
           <input type="text" id="dp-cat-new-channel-name" placeholder="Nom du salon" maxlength="80" data-charcount />
           <div class="row" style="flex-wrap:wrap; gap:4px; margin-top:6px;">
             ${CHANNEL_EMOJI_PICKS.slice(0, 12).map((e) => `<button type="button" class="btn secondary dp-cat-new-channel-emoji-pick" data-emoji="${e}" aria-label="Emoji ${e}" style="font-size:0.95rem; padding:4px 8px;">${e}</button>`).join('')}
           </div>
         </div>
         <div>
-          <label>Type</label>
+          <label for="dp-cat-new-channel-type">Type</label>
           <select id="dp-cat-new-channel-type">
             <option value="text">💬 Texte</option>
             <option value="voice">🔊 Vocal</option>
@@ -1556,14 +1556,14 @@ function categoryActionDetailHtml(key, ctx) {
           </select>
         </div>
         <div>
-          <label>Visibilite</label>
+          <label for="dp-cat-new-channel-visibility">Visibilite</label>
           <select id="dp-cat-new-channel-visibility">
             <option value="private">🔒 Prive (reserve aux membres ayant valide le reglement)</option>
             <option value="public">🌐 Public (herite de la categorie)</option>
           </select>
         </div>
         <div>
-          <label>Importer les permissions d'un salon existant (optionnel)</label>
+          <label for="dp-cat-new-channel-import">Importer les permissions d'un salon existant (optionnel)</label>
           <select id="dp-cat-new-channel-import">
             <option value="">Aucune (permissions par defaut)</option>
             ${otherChannels.map((c) => `<option value="${c.id}">${c.type === 2 ? '🔊' : '#'}${escapeHtml(c.name)}</option>`).join('')}
@@ -1609,9 +1609,9 @@ function categoryActionDetailHtml(key, ctx) {
     return `
       <div class="dp-block">
         <p class="dp-block-title">🔐 Modifier pour un role</p>
-        <label>Role</label>
+        <label for="dp-cat-perm-role">Role</label>
         <select id="dp-cat-perm-role">${roleOptions}</select>
-        <label>Action</label>
+        <label for="dp-cat-perm-preset">Action</label>
         <select id="dp-cat-perm-preset">
           ${PERMISSION_PRESETS.map((p) => `<option value="${p.key}">${escapeHtml(p.label)}</option>`).join('')}
         </select>
@@ -2199,22 +2199,22 @@ async function renderPermissionsPage(id, container = app) {
         <p class="muted">Choisis les salons, le role, et une action rapide a appliquer partout en un clic.</p>
         <label>Salons</label>
         <div class="channel-picker">${channelCheckboxes}</div>
-        <label>Role</label>
+        <label for="perm-role">Role</label>
         <select id="perm-role">${roleOptions}</select>
-        <label>Action</label>
+        <label for="perm-preset">Action</label>
         <select id="perm-preset">${presetOptions}</select>
         <button class="btn" id="apply-bulk" style="margin-top:12px;">Appliquer</button>
       `, { id: 'perm-bulk' })}
 
       ${sectionHtml('Export / Import (copier-coller)', `
-        <label>Salon a exporter</label>
+        <label for="export-channel">Salon a exporter</label>
         <select id="export-channel">${channelOptionsSimple}</select>
         <button class="btn secondary" id="export-btn" style="margin-top:8px;">Exporter</button>
         <textarea id="export-output" placeholder="Le JSON exporte apparait ici, copie-le."></textarea>
 
-        <label>Coller ici pour importer</label>
+        <label for="import-input">Coller ici pour importer</label>
         <textarea id="import-input" placeholder="Colle ici le JSON exporte depuis un autre salon/serveur"></textarea>
-        <label>Salon cible</label>
+        <label for="import-channel">Salon cible</label>
         <select id="import-channel">${channelOptionsSimple}</select>
         <button class="btn secondary" id="import-btn" style="margin-top:8px;">Importer</button>
       `, { id: 'perm-io' })}
@@ -2417,9 +2417,9 @@ async function renderGameRolesPage(id, container = app) {
       ${sectionHtml('Roles-reaction personnalises', `
         <p class="muted">Groupes de roles au choix (pas limites aux jeux), poses en salon via un menu de selection. Clic droit sur un role dans Discord (mode developpeur) &gt; Copier l'ID.</p>
         <div id="reaction-groups-list">${reactionGroupRows}</div>
-        <label style="margin-top:14px;">Titre du groupe</label>
+        <label style="margin-top:14px;" for="rr-title">Titre du groupe</label>
         <input type="text" id="rr-title" placeholder="Ex: Notifications" maxlength="100" data-charcount />
-        <label>Salon de destination</label>
+        <label for="rr-channel">Salon de destination</label>
         <select id="rr-channel">${textChannelOptions}</select>
         <label>Roles proposes</label>
         <div id="reaction-role-rows"></div>
@@ -2608,26 +2608,26 @@ async function renderAutomationsPage(id, container = app) {
       `, { id: 'bots' })}
 
       ${sectionHtml('Arrivee & statut du bot', `
-        <label>Role attribue automatiquement a l'arrivee (en plus du reglement)</label>
+        <label for="auto-role-select">Role attribue automatiquement a l'arrivee (en plus du reglement)</label>
         <select id="auto-role-select">
           <option value="">Aucun</option>
           ${roleOptions(config?.autoRoleId)}
         </select>
         <button class="btn secondary" id="save-auto-role" style="margin-top:8px;">Enregistrer</button>
 
-        <label style="margin-top:18px;">Statuts du bot (un par ligne, tournent automatiquement)</label>
+        <label style="margin-top:18px;" for="bot-statuses">Statuts du bot (un par ligne, tournent automatiquement)</label>
         <textarea id="bot-statuses" placeholder="Regarde ServeurCreator&#10;/setup pour demarrer&#10;{membercount} membres">${escapeHtml((config?.botStatuses || []).join('\n'))}</textarea>
         <p class="muted">Variable disponible : {membercount}</p>
         <button class="btn secondary" id="save-bot-statuses" style="margin-top:8px;">Enregistrer</button>
 
-        <label style="margin-top:18px;">Salon des annonces d'anniversaire (/birthday)</label>
+        <label style="margin-top:18px;" for="birthday-channel-select">Salon des annonces d'anniversaire (/birthday)</label>
         <select id="birthday-channel-select">
           <option value="">Meme salon que bienvenue/depart</option>
           ${textChannelOptions}
         </select>
         <button class="btn secondary" id="save-birthday-channel" style="margin-top:8px;">Enregistrer</button>
 
-        <label style="margin-top:18px;">Salon des suggestions (/suggest)</label>
+        <label style="margin-top:18px;" for="suggestions-channel-select">Salon des suggestions (/suggest)</label>
         <select id="suggestions-channel-select">
           <option value="">Aucun</option>
           ${textChannelOptions}
@@ -2676,14 +2676,14 @@ async function renderAutomationsPage(id, container = app) {
         <label class="dp-toggle-row"><span>Auto-moderation active</span><input type="checkbox" id="am-enabled" ${modConfig.autoModEnabled ? 'checked' : ''} /></label>
         <label class="dp-toggle-row" style="margin-top:6px;"><span>Bloquer les liens d'invitation Discord</span><input type="checkbox" id="am-invites" ${modConfig.blockInvites ? 'checked' : ''} /></label>
         <label class="dp-toggle-row" style="margin-top:6px;"><span>Bloquer tous les liens</span><input type="checkbox" id="am-links" ${modConfig.blockLinks ? 'checked' : ''} /></label>
-        <label>Seuil anti-spam (messages)</label>
+        <label for="am-spam-threshold">Seuil anti-spam (messages)</label>
         <input type="number" id="am-spam-threshold" value="${modConfig.spamMessageThreshold}" min="1" />
-        <label>Mots bannis (separes par des virgules, prefixe "re:" pour une regex)</label>
+        <label for="am-banned-words">Mots bannis (separes par des virgules, prefixe "re:" pour une regex)</label>
         <textarea id="am-banned-words">${escapeHtml((modConfig.bannedWords || []).join(', '))}</textarea>
-        <label>Domaines autorises meme si "Bloquer tous les liens" est actif (separes par des virgules)</label>
+        <label for="am-link-whitelist">Domaines autorises meme si "Bloquer tous les liens" est actif (separes par des virgules)</label>
         <textarea id="am-link-whitelist" placeholder="youtube.com, twitch.tv">${escapeHtml((modConfig.linkWhitelist || []).join(', '))}</textarea>
         <label class="dp-toggle-row" style="margin-top:6px;"><span>Anti-raid actif</span><input type="checkbox" id="am-antiraid" ${modConfig.antiRaidEnabled ? 'checked' : ''} /></label>
-        <label>Seuil anti-raid (arrivees rapprochees)</label>
+        <label for="am-antiraid-threshold">Seuil anti-raid (arrivees rapprochees)</label>
         <input type="number" id="am-antiraid-threshold" value="${modConfig.antiRaidJoinThreshold}" min="1" />
         <button class="btn" id="save-modconfig" style="margin-top:12px;">Enregistrer</button>
       `, { id: 'automod' })}
@@ -2725,11 +2725,11 @@ async function renderAutomationsPage(id, container = app) {
       ${sectionHtml('Annonces programmees', `
         <div id="scheduled-list">${scheduledRows}</div>
         <div style="margin-top:10px;">
-          <label>Salon</label>
+          <label for="new-scheduled-channel">Salon</label>
           <select id="new-scheduled-channel">${textChannelOptions}</select>
-          <label>Message</label>
+          <label for="new-scheduled-message">Message</label>
           <textarea id="new-scheduled-message"></textarea>
-          <label>Date et heure</label>
+          <label for="new-scheduled-date">Date et heure</label>
           <input type="datetime-local" id="new-scheduled-date" />
           <label class="dp-toggle-row" style="margin-top:10px;">
             <span>Repeter tous les jours a cette heure</span>
@@ -3093,7 +3093,7 @@ async function renderSecurityPage(id, container = app) {
       ${sectionHtml('Export / Restauration manuelle', `
         <p class="muted">Exporte la structure (noms/couleurs des roles, categories, salons) en fichier JSON. La restauration est additive : elle recree uniquement ce qui manque, sans jamais toucher a l'existant.</p>
         <button class="btn secondary" id="export-structure">⬇️ Telecharger la structure (.json)</button>
-        <label>Restaurer depuis un fichier</label>
+        <label for="structure-file-input">Restaurer depuis un fichier</label>
         <input type="file" id="structure-file-input" accept="application/json" />
         <button class="btn secondary" id="restore-structure" style="margin-top:8px;">Restaurer depuis ce fichier</button>
       `, { id: 'sec-export' })}
@@ -3496,36 +3496,36 @@ async function renderEmbedBuilderPage(id, container = app) {
         <div class="embed-builder-form">
           <div class="dp-block">
             <p class="dp-block-title">📨 Message</p>
-            <label>Texte au-dessus des embeds (optionnel)</label>
+            <label for="embed-content">Texte au-dessus des embeds (optionnel)</label>
             <textarea id="embed-content" placeholder="Texte simple, en plus des embeds"></textarea>
 
             <div class="row" id="embed-tabs" style="flex-wrap:wrap; gap:6px; margin:14px 0 4px;"></div>
 
             <div class="dp-subsection-divider"></div>
             <p class="dp-block-title">📝 Contenu principal</p>
-            <label>Titre</label>
+            <label for="embed-title">Titre</label>
             <input type="text" id="embed-title" maxlength="256" placeholder="Titre de l'embed" data-charcount />
-            <label>Lien du titre</label>
+            <label for="embed-url">Lien du titre</label>
             <input type="text" id="embed-url" placeholder="https://..." />
-            <label>Description</label>
+            <label for="embed-description">Description</label>
             <textarea id="embed-description" maxlength="4096" placeholder="Texte principal (markdown Discord supporte)" data-charcount></textarea>
-            <label>Couleur</label>
+            <label for="embed-color">Couleur</label>
             <input type="color" id="embed-color" value="#5865f2" />
 
             <div class="dp-subsection-divider"></div>
             <p class="dp-block-title">👤 Auteur</p>
-            <label>Nom</label>
+            <label for="embed-author-name">Nom</label>
             <input type="text" id="embed-author-name" maxlength="256" placeholder="Nom affiche en haut" data-charcount />
-            <label>Lien</label>
+            <label for="embed-author-url">Lien</label>
             <input type="text" id="embed-author-url" placeholder="https://..." />
-            <label>Icone (URL)</label>
+            <label for="embed-author-icon">Icone (URL)</label>
             <input type="text" id="embed-author-icon" placeholder="https://..." />
 
             <div class="dp-subsection-divider"></div>
             <p class="dp-block-title">🖼️ Images</p>
-            <label>Miniature (petite image, en haut a droite)</label>
+            <label for="embed-thumbnail">Miniature (petite image, en haut a droite)</label>
             <input type="text" id="embed-thumbnail" placeholder="https://..." />
-            <label>Image (grande image, en bas)</label>
+            <label for="embed-image">Image (grande image, en bas)</label>
             <input type="text" id="embed-image" placeholder="https://..." />
 
             <div class="dp-subsection-divider"></div>
@@ -3535,9 +3535,9 @@ async function renderEmbedBuilderPage(id, container = app) {
 
             <div class="dp-subsection-divider"></div>
             <p class="dp-block-title">🔻 Pied de page</p>
-            <label>Texte</label>
+            <label for="embed-footer-text">Texte</label>
             <input type="text" id="embed-footer-text" maxlength="2048" placeholder="Texte du pied de page" data-charcount />
-            <label>Icone (URL)</label>
+            <label for="embed-footer-icon">Icone (URL)</label>
             <input type="text" id="embed-footer-icon" placeholder="https://..." />
             <label class="dp-toggle-row" style="margin-top:10px;">
               <span>Inclure la date/heure actuelles</span>
@@ -3562,9 +3562,9 @@ async function renderEmbedBuilderPage(id, container = app) {
         <div class="embed-builder-preview-wrap">
           <p class="muted" style="margin-top:0;">Apercu en direct</p>
           <div id="embed-preview-slot"></div>
-          <label style="margin-top:14px;">Salon de destination</label>
+          <label style="margin-top:14px;" for="embed-target-channel">Salon de destination</label>
           <select id="embed-target-channel">${channelOptions}</select>
-          <label style="margin-top:10px;">ID du message a editer (optionnel — laisse vide pour poster un nouveau message)</label>
+          <label style="margin-top:10px;" for="embed-target-message-id">ID du message a editer (optionnel — laisse vide pour poster un nouveau message)</label>
           <input type="text" id="embed-target-message-id" placeholder="Clic droit sur le message > Copier l'ID" />
           <button class="btn secondary" id="embed-load-message-btn" style="margin-top:8px; width:100%;">📥 Charger le contenu de ce message</button>
           <button class="btn" id="embed-post-btn" style="margin-top:10px; width:100%;">🚀 Poster dans Discord</button>
@@ -3575,7 +3575,7 @@ async function renderEmbedBuilderPage(id, container = app) {
             <input type="checkbox" id="embed-schedule-toggle" />
           </label>
           <div id="embed-schedule-fields" style="display:none; margin-top:8px;">
-            <label>Date et heure</label>
+            <label for="embed-schedule-date">Date et heure</label>
             <input type="datetime-local" id="embed-schedule-date" />
             <label class="dp-toggle-row" style="margin-top:8px;">
               <span>Repeter tous les jours a cette heure</span>
@@ -3771,11 +3771,11 @@ async function renderAiConfigPage(guildId, container = app) {
             ? `Cle configuree (${AI_PROVIDERS.find((p) => p.value === config.provider)?.label || config.provider}). La cle n'est jamais raffichee apres enregistrement.`
             : "Aucune cle configuree pour l'instant. Sans cle, l'assistant ne peut pas repondre."}
         </p>
-        <label>Fournisseur</label>
+        <label for="ai-provider">Fournisseur</label>
         <select id="ai-provider">
           ${AI_PROVIDERS.map((p) => `<option value="${p.value}" ${config?.provider === p.value ? 'selected' : ''}>${escapeHtml(p.label)}</option>`).join('')}
         </select>
-        <label>Cle API</label>
+        <label for="ai-apikey">Cle API</label>
         <input type="password" id="ai-apikey" placeholder="${config?.hasKey ? 'Laisser vide pour ne pas changer' : 'sk-...'}" autocomplete="off" />
         <div class="row" style="margin-top:12px;">
           <button class="btn" id="ai-save">Enregistrer</button>
@@ -3939,13 +3939,13 @@ async function renderCustomCommandsPage(guildId, container = app) {
       ${sectionHtml('Commandes slash personnalisees (no-code)', `
         <p class="muted">Cree une commande /nom qui repond avec un texte fixe. Variables disponibles dans la reponse : {user}, {username}, {server}, {membercount}. Disponible en quelques minutes apres creation (Discord met a jour son cache de commandes).</p>
         <div id="custom-commands-list">${rows}</div>
-        <label style="margin-top:14px;">Nom (minuscules, sans espace)</label>
+        <label style="margin-top:14px;" for="new-cmd-name">Nom (minuscules, sans espace)</label>
         <input type="text" id="new-cmd-name" placeholder="regles" maxlength="32" data-charcount />
-        <label>Description</label>
+        <label for="new-cmd-description">Description</label>
         <input type="text" id="new-cmd-description" placeholder="Affiche les regles du serveur" maxlength="100" data-charcount />
-        <label>Reponse</label>
+        <label for="new-cmd-response">Reponse</label>
         <textarea id="new-cmd-response" placeholder="Bienvenue {user} ! Consulte les regles dans #reglement."></textarea>
-        <label>Role requis (optionnel)</label>
+        <label for="new-cmd-role">Role requis (optionnel)</label>
         <select id="new-cmd-role">
           <option value="">Aucun</option>
           ${roleOptions}
@@ -4006,11 +4006,11 @@ async function renderGenerateChoice(guildId, guildName) {
         <p class="muted">Choisis un template : sa structure (roles, salons, permissions, textes) sera recreee en direct sur ce serveur.</p>
         <div class="gen-layout">
           <div class="gen-layout-form">
-            <label>Template</label>
+            <label for="gen-template">Template</label>
             <select id="gen-template">
               ${templateOptions.map((t) => `<option value="${t.key}">${escapeHtml(t.label)}</option>`).join('')}
             </select>
-            <label>Texte du reglement (optionnel, sinon celui du template)</label>
+            <label for="gen-reglement">Texte du reglement (optionnel, sinon celui du template)</label>
             <textarea id="gen-reglement" placeholder="Laisse vide pour utiliser le reglement du template"></textarea>
             <div class="row" style="margin-top:16px;">
               <button class="btn secondary" id="gen-cancel">Annuler</button>
