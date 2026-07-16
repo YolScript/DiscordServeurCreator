@@ -6,7 +6,7 @@
   <title>Discord Serveur Creator - Dashboard</title>
   <meta name="robots" content="noindex, nofollow" />
   <link rel="icon" type="image/png" href="assets/favicon-64.png" />
-  <link rel="stylesheet" href="assets/style.css?v=33" />
+  <link rel="stylesheet" href="assets/style.css?v=35" />
   <script>
     (function () {
       var t = localStorage.getItem('theme');
@@ -16,8 +16,8 @@
 </head>
 <body>
   <div class="bg-video-wrap">
-    <video class="bg-video" autoplay muted loop playsinline poster="assets/bg-video-poster.jpg">
-      <source src="assets/bg-video.mp4" type="video/mp4" />
+    <video class="bg-video" autoplay muted loop playsinline poster="assets/bg-video-poster.jpg?v=2">
+      <source src="assets/bg-video.mp4?v=2" type="video/mp4" />
     </video>
     <div class="bg-overlay"></div>
   </div>
@@ -25,7 +25,10 @@
     <main class="content">
       <div class="content-topbar">
         <a href="app.html" class="topbar-brand" title="Discord Serveur Creator">
-          <img class="brand-icon" src="assets/logo-512.png" alt="Accueil" />
+          <picture>
+            <source srcset="assets/logo-512.webp" type="image/webp" />
+            <img class="brand-icon" src="assets/logo-512.png" alt="Accueil" width="30" height="30" />
+          </picture>
         </a>
         <div class="topbar-guilds" id="topbar-guilds"></div>
         <div class="topbar-right">
@@ -40,16 +43,20 @@
         </div>
       </div>
       <div class="content-body" id="app">
-        <p class="muted">Chargement...</p>
+        <div class="skeleton-block">
+          <div class="skeleton-line" style="width:100%"></div>
+          <div class="skeleton-line" style="width:92%"></div>
+          <div class="skeleton-line" style="width:60%"></div>
+        </div>
       </div>
     </main>
   </div>
 
-  <script src="assets/config.js?v=5"></script>
-  <script src="assets/sounds.js?v=1"></script>
-  <script src="assets/api.js?v=18"></script>
-  <script src="assets/app.js?v=55"></script>
-  <script src="assets/microinteractions.js?v=1"></script>
-  <script src="assets/bgvideo.js?v=1"></script>
+  <script src="assets/config.js?v=5" defer></script>
+  <script src="assets/sounds.js?v=1" defer></script>
+  <script src="assets/api.js?v=18" defer></script>
+  <script src="assets/app.js?v=56" defer></script>
+  <script src="assets/microinteractions.js?v=1" defer></script>
+  <script src="assets/bgvideo.js?v=1" defer></script>
 </body>
 </html>

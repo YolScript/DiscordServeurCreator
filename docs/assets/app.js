@@ -99,6 +99,11 @@ function escapeHtml(str) {
   }[c]));
 }
 
+function skeletonHtml(lines = 3) {
+  const widths = ['100%', '92%', '60%'];
+  return `<div class="skeleton-block">${Array.from({ length: lines }, (_, i) => `<div class="skeleton-line" style="width:${widths[i % widths.length]}"></div>`).join('')}</div>`;
+}
+
 function guildIconUrl(g) {
   return g.icon ? `https://cdn.discordapp.com/icons/${g.guildId}/${g.icon}.png?size=64` : null;
 }
@@ -539,7 +544,7 @@ function wireAiHome(guildId, channels, rolesSorted) {
 
 async function renderPreviewPage(id) {
   app.classList.add('preview-fullbleed');
-  app.innerHTML = '<p class="muted">Chargement...</p>';
+  app.innerHTML = skeletonHtml();
   const guild = allGuilds.find((g) => g.guildId === id);
   const [channels, config, roles, members] = await Promise.all([
     Api.channels(id),
@@ -1967,7 +1972,7 @@ function dashboardAccessRows(userIds) {
 }
 
 async function renderPermissionsPage(id, container = app) {
-  container.innerHTML = '<p class="muted">Chargement...</p>';
+  container.innerHTML = skeletonHtml();
   const [channels, roles, config] = await Promise.all([Api.channels(id), Api.roles(id), Api.config(id)]);
   const editableChannels = channels.filter((c) => c.type === 0 || c.type === 2 || c.type === 4);
   const roleOptions = roles.filter((r) => r.name !== '@everyone').map((r) => `<option value="${r.id}">${escapeHtml(r.name)}</option>`).join('');
@@ -2146,7 +2151,7 @@ function reactionRoleRowHtml(row = {}) {
 }
 
 async function renderGameRolesPage(id, container = app) {
-  container.innerHTML = '<p class="muted">Chargement...</p>';
+  container.innerHTML = skeletonHtml();
   const [roles, catalog, allRoles, channels, reactionGroups] = await Promise.all([
     Api.gameRoles(id), Api.gameRoleCatalog(), Api.roles(id).catch(() => []),
     Api.channels(id).catch(() => []), Api.reactionRoleGroups(id).catch(() => []),
@@ -2302,7 +2307,7 @@ async function renderGameRolesPage(id, container = app) {
 /* ---------- Pages: automatisations ---------- */
 
 async function renderAutomationsPage(id, container = app) {
-  container.innerHTML = '<p class="muted">Chargement...</p>';
+  container.innerHTML = skeletonHtml();
   const [
     modConfig, roles, channels, levelRoles, referralRoles, referralCounts, streamers, scheduled, tickets, config,
     shopItems, economyAccounts,
@@ -2854,7 +2859,7 @@ async function renderAutomationsPage(id, container = app) {
 /* ---------- Pages: securite ---------- */
 
 async function renderSecurityPage(id, container = app) {
-  container.innerHTML = '<p class="muted">Chargement...</p>';
+  container.innerHTML = skeletonHtml();
   const snapshots = await Api.securitySnapshots(id);
 
   const snapshotRows = snapshots.map((s, idx) => `
@@ -2972,7 +2977,7 @@ function resolveMentions(text, members, roles) {
 }
 
 async function renderAuditLogPage(id, container = app) {
-  container.innerHTML = '<p class="muted">Chargement...</p>';
+  container.innerHTML = skeletonHtml();
   const [logs, members, roles] = await Promise.all([
     Api.auditLog(id), Api.members(id).catch(() => []), Api.roles(id).catch(() => []),
   ]);
@@ -3029,7 +3034,7 @@ function lineChartSvg(points, { width = 560, height = 140, color = '#5865f2' } =
 }
 
 async function renderStatsPage(id, container = app) {
-  container.innerHTML = '<p class="muted">Chargement...</p>';
+  container.innerHTML = skeletonHtml();
   const stats = await Api.stats(id);
 
   const memberPoints = stats.map((s) => s.memberCount);
@@ -3238,7 +3243,7 @@ function wireEmbedFieldRows(root) {
 }
 
 async function renderEmbedBuilderPage(id, container = app) {
-  container.innerHTML = '<p class="muted">Chargement...</p>';
+  container.innerHTML = skeletonHtml();
   const [channels, templates] = await Promise.all([Api.channels(id), Api.embedTemplates(id).catch(() => [])]);
   const textChannels = channels.filter((c) => c.type === 0);
   const channelOptions = textChannels.map((c) => `<option value="${c.id}">#${escapeHtml(c.name)}</option>`).join('');
@@ -3522,7 +3527,7 @@ const AI_PROVIDERS = [
 ];
 
 async function renderAiConfigPage(guildId, container = app) {
-  container.innerHTML = '<p class="muted">Chargement...</p>';
+  container.innerHTML = skeletonHtml();
   const config = await Api.aiConfig(guildId).catch(() => null);
 
   container.innerHTML = `
@@ -3586,7 +3591,7 @@ async function renderAiConfigPage(guildId, container = app) {
 }
 
 async function renderBotStatusPage(container = app) {
-  container.innerHTML = '<p class="muted">Chargement...</p>';
+  container.innerHTML = skeletonHtml();
   const status = await Api.botStatus().catch(() => null);
 
   if (!status) {
@@ -3633,7 +3638,7 @@ async function renderBotStatusPage(container = app) {
 }
 
 async function renderTemplatesPage(guildId, container = app) {
-  container.innerHTML = '<p class="muted">Chargement...</p>';
+  container.innerHTML = skeletonHtml();
   const templates = await Api.templates().catch(() => []);
 
   const rows = templates.map((t) => `
@@ -3682,7 +3687,7 @@ async function renderTemplatesPage(guildId, container = app) {
 }
 
 async function renderCustomCommandsPage(guildId, container = app) {
-  container.innerHTML = '<p class="muted">Chargement...</p>';
+  container.innerHTML = skeletonHtml();
   const [commands, roles] = await Promise.all([
     Api.customCommands(guildId).catch(() => []), Api.roles(guildId).catch(() => []),
   ]);
@@ -3755,7 +3760,7 @@ const GEN_STEP_ICONS = {
 };
 
 async function renderGenerateChoice(guildId, guildName) {
-  app.innerHTML = '<p class="muted">Chargement...</p>';
+  app.innerHTML = skeletonHtml();
   const savedTemplates = await Api.templates().catch(() => []);
   const templateOptions = [
     { key: 'live', label: 'Copie de ServeurCreator (a jour)' },
@@ -3828,6 +3833,7 @@ function templatePreviewChannelKind(ch, preview) {
   if (ch.id === preview.specialChannelIds.reglement) return 'reglement';
   if (ch.id === preview.specialChannelIds.arrivalDeparture) return 'arrivalDeparture';
   if (ch.id === preview.specialChannelIds.roles) return 'roles';
+  if (ch.id === preview.specialChannelIds.support) return 'support';
   return null;
 }
 
@@ -3922,6 +3928,15 @@ function templatePreviewEmbedHtml(kind, preview) {
   }
   if (kind === 'roles') {
     return `<p class="tplprev-embed-note">Menu de selection des roles de jeu, genere et mis a jour automatiquement selon les jeux configures sur ${label}.</p>`;
+  }
+  if (kind === 'support') {
+    return `
+      <div class="tplprev-embed" style="--ec:#5b8def">
+        <div class="tplprev-embed-title">🎫 Support</div>
+        <div class="tplprev-embed-desc">Besoin d'aide ou d'une question ? Clique sur le bouton ci-dessous pour ouvrir un ticket prive avec le staff.</div>
+      </div>
+      <p class="tplprev-embed-hint">+ bouton "Ouvrir un ticket" (cree un salon prive dedie a la demande)</p>
+    `;
   }
   return '<p class="tplprev-embed-note">Aucun contenu automatique pour ce salon.</p>';
 }

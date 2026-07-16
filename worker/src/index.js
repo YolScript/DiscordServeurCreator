@@ -290,6 +290,7 @@ async function router(request, env) {
           reglement: sourceConfig.rulesChannelId || null,
           arrivalDeparture: sourceConfig.arrivalDepartureChannelId || null,
           roles: sourceConfig.rolesChannelId || null,
+          support: sourceConfig.ticketPanelChannelId || null,
         },
         content: {
           reglementText: sourceConfig.reglementText || null,
