@@ -188,6 +188,20 @@ async function routeInteraction(interaction) {
         await handleCaptchaImageVerifyButton(interaction);
       } else if (interaction.customId === AGE_VERIFY_BUTTON) {
         await handleAgeVerifyButton(interaction);
+      } else if (interaction.customId.startsWith('selfrole:')) {
+        // Bouton de role auto-attribue (generateur d'embed du dashboard,
+        // roadmap n°003) : donne le role au clic, le retire au clic suivant.
+        const roleId = interaction.customId.slice('selfrole:'.length);
+        const role = await interaction.guild.roles.fetch(roleId).catch(() => null);
+        if (!role) {
+          await interaction.reply({ content: 'Ce role n\'existe plus.', flags: MessageFlags.Ephemeral });
+        } else if (interaction.member.roles.cache.has(roleId)) {
+          await interaction.member.roles.remove(roleId);
+          await interaction.reply({ content: `Role ${role.name} retire.`, flags: MessageFlags.Ephemeral });
+        } else {
+          await interaction.member.roles.add(roleId);
+          await interaction.reply({ content: `Role ${role.name} ajoute !`, flags: MessageFlags.Ephemeral });
+        }
       }
       return;
     }

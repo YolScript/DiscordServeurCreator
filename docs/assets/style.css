@@ -1395,6 +1395,22 @@ button.embed-json-jump { background: none; border: none; padding: 0; font-family
 }
 .creator-assign-btn:hover { border-color: var(--accent); color: var(--accent); }
 .creator-assign-btn.has-role { background: var(--accent-soft); border-color: var(--accent); color: var(--accent); }
+
+/* Boutons sous le message (generateur d'embed, n°003) */
+.embed-btn-row {
+  display: grid; grid-template-columns: 96px 1fr 52px 1.2fr auto; gap: 6px;
+  align-items: center; margin-bottom: 6px;
+}
+.embed-btn-row .embed-btn-role { grid-column: 4; }
+.embed-btn-row select, .embed-btn-row input { margin-bottom: 0 !important; }
+.embed-btn-row .embed-btn-remove { padding: 5px 9px; }
+.embed-preview-buttons { display: flex; flex-wrap: wrap; gap: 6px; margin-top: 6px; }
+.embed-preview-btn {
+  display: inline-flex; align-items: center; gap: 5px; font-size: 0.8rem; font-weight: 500;
+  padding: 6px 14px; border-radius: 4px; color: #fff; background: #4e5058; cursor: default;
+}
+.embed-preview-btn.role { background: #5865f2; }
+.embed-preview-btn.link { background: #4e5058; }
 input[type=text].drag-over, textarea.drag-over { border-color: var(--accent); box-shadow: 0 0 0 3px var(--accent-soft); }
 
 .embed-field-row {

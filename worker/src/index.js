@@ -1186,9 +1186,31 @@ async function router(request, env) {
           else delete embed.timestamp;
           return embed;
         });
+        // Boutons sous le message (roadmap n°003) : definitions validees ici,
+        // jamais de components bruts venus du client. Les boutons "role"
+        // utilisent custom_id selfrole:<id>, gere par le bot (toggle).
+        let components;
+        if (Array.isArray(body.buttons) && body.buttons.length) {
+          if (body.buttons.length > 5) throw new HttpError(400, '5 boutons maximum.');
+          const built = body.buttons.map((b) => {
+            const label = String(b.label || '').trim().slice(0, 80);
+            if (!label) throw new HttpError(400, 'Chaque bouton doit avoir un texte.');
+            const emoji = b.emoji ? { name: String(b.emoji).slice(0, 32) } : undefined;
+            if (b.kind === 'link') {
+              if (!/^https?:\/\/\S+$/i.test(b.url || '')) throw new HttpError(400, `URL invalide pour le bouton "${label}".`);
+              return { type: 2, style: 5, label, url: b.url, ...(emoji ? { emoji } : {}) };
+            }
+            if (b.kind === 'role') {
+              if (!/^\d{5,25}$/.test(b.roleId || '')) throw new HttpError(400, `Role invalide pour le bouton "${label}".`);
+              return { type: 2, style: 1, label, custom_id: `selfrole:${b.roleId}`, ...(emoji ? { emoji } : {}) };
+            }
+            throw new HttpError(400, 'Type de bouton inconnu.');
+          });
+          components = [{ type: 1, components: built }];
+        }
         await botFetchJson(env, `/channels/${body.channelId}/messages`, {
           method: 'POST',
-          body: JSON.stringify({ content: body.content || undefined, embeds: prepared }),
+          body: JSON.stringify({ content: body.content || undefined, embeds: prepared, ...(components ? { components } : {}) }),
         });
         await logAudit(env, guildId, { title: 'Embed poste', description: `${session.username} a poste un embed dans <#${body.channelId}>.` });
         return json({ ok: true }, env);

@@ -4432,10 +4432,13 @@ function embedPreviewHtml(embed) {
 // Habillage "vrai message Discord" autour du/des embed(s) : avatar + nom du
 // bot + badge BOT + heure, puis le texte simple, puis les embeds - au lieu
 // de montrer les cartes d'embed nues sans contexte.
-function messagePreviewHtml(content, embeds) {
+function messagePreviewHtml(content, embeds, buttons = []) {
   const now = new Date().toLocaleTimeString('fr-FR', { hour: '2-digit', minute: '2-digit' });
   const embedsHtml = embeds.map(embedPreviewHtml).join('');
   const contentHtml = content ? `<div class="embed-preview-content">${renderMarkdownLite(content)}</div>` : '';
+  const buttonsHtml = buttons.length
+    ? `<div class="embed-preview-buttons">${buttons.map((b) => `<span class="embed-preview-btn ${b.kind}">${b.emoji ? `${escapeHtml(b.emoji)} ` : ''}${escapeHtml(b.label)}${b.kind === 'link' ? ' ↗' : ''}</span>`).join('')}</div>`
+    : '';
   if (!contentHtml && !embedsHtml) {
     return `
       <div class="embed-preview-msg">
@@ -4453,6 +4456,7 @@ function messagePreviewHtml(content, embeds) {
         <div class="embed-preview-msg-header"><strong>ServeurCreator Bot</strong><span class="embed-preview-bot-tag">BOT</span><span class="embed-preview-time">${now}</span></div>
         ${contentHtml}
         ${embedsHtml}
+        ${buttonsHtml}
       </div>
     </div>`;
 }
@@ -4517,12 +4521,25 @@ function substituteEmbedVars(embed) {
   return out;
 }
 
+function buildButtonsFromForm(root) {
+  return [...root.querySelectorAll('.embed-btn-row')].map((row) => {
+    const kind = row.querySelector('.embed-btn-kind').value;
+    return {
+      kind,
+      label: row.querySelector('.embed-btn-label').value.trim(),
+      emoji: row.querySelector('.embed-btn-emoji').value.trim() || undefined,
+      url: kind === 'link' ? row.querySelector('.embed-btn-url').value.trim() : undefined,
+      roleId: kind === 'role' ? row.querySelector('.embed-btn-role').value : undefined,
+    };
+  }).filter((b) => b.label);
+}
+
 function updateEmbedPreview(root) {
   const { embed, content } = buildEmbedFromForm(root);
   const state = root.__mb;
   if (state) state.embeds[state.active] = embed;
   const embeds = state ? state.embeds : [embed];
-  root.querySelector('#embed-preview-slot').innerHTML = messagePreviewHtml(resolveEmbedVars(content), embeds.map(substituteEmbedVars));
+  root.querySelector('#embed-preview-slot').innerHTML = messagePreviewHtml(resolveEmbedVars(content), embeds.map(substituteEmbedVars), buildButtonsFromForm(root));
 
   // Brouillon auto (n°007) : sauvegarde debouncee du travail en cours.
   if (root.__draftKey) {
@@ -4667,10 +4684,11 @@ function wireEmbedFieldRows(root) {
 
 async function renderEmbedBuilderPage(id, container = app) {
   container.innerHTML = skeletonHtml();
-  const [channels, templates, members] = await Promise.all([
+  const [channels, templates, members, embedRoles] = await Promise.all([
     Api.channels(id),
     Api.embedTemplates(id).catch(() => []),
     Api.members(id).catch(() => null),
+    Api.roles(id).catch(() => []),
   ]);
   const textChannels = channels.filter((c) => c.type === 0);
   const channelOptions = textChannels.map((c) => `<option value="${c.id}">#${escapeHtml(c.name)}</option>`).join('');
@@ -4783,6 +4801,12 @@ async function renderEmbedBuilderPage(id, container = app) {
               <span>Inclure la date/heure actuelles</span>
               <input type="checkbox" id="embed-timestamp" />
             </label>
+
+            <div class="dp-subsection-divider"></div>
+            <p class="dp-block-title">🔘 Boutons sous le message</p>
+            <p class="muted" style="font-size:0.78rem; margin:0 0 6px;">Lien = ouvre une page. Role = donne/retire le role au clic (max 5, non inclus dans les envois programmes).</p>
+            <div id="embed-buttons-list"></div>
+            <button type="button" class="btn secondary" id="embed-add-button" style="margin-top:8px;">+ Ajouter un bouton</button>
 
             <div class="dp-subsection-divider"></div>
             <p class="dp-block-title">💾 Modeles</p>
@@ -4972,6 +4996,44 @@ async function renderEmbedBuilderPage(id, container = app) {
     updateEmbedPreview(container);
   });
 
+  // Boutons sous le message (roadmap n°003) : lien ou role auto-attribue.
+  const embedRoleOptions = embedRoles
+    .filter((r) => r.name !== '@everyone')
+    .sort((a, b) => b.position - a.position)
+    .map((r) => `<option value="${r.id}">${escapeHtml(r.name)}</option>`).join('');
+  const embedButtonRowHtml = () => `
+    <div class="embed-btn-row">
+      <select class="embed-btn-kind" aria-label="Type de bouton">
+        <option value="link">🔗 Lien</option>
+        <option value="role">🏷️ Role</option>
+      </select>
+      <input type="text" class="embed-btn-label" placeholder="Texte du bouton" maxlength="80" aria-label="Texte du bouton" />
+      <input type="text" class="embed-btn-emoji" placeholder="😀" maxlength="4" aria-label="Emoji du bouton (optionnel)" />
+      <input type="text" class="embed-btn-url" placeholder="https://..." aria-label="URL du lien" />
+      <select class="embed-btn-role" aria-label="Role a attribuer" style="display:none;">${embedRoleOptions}</select>
+      <button type="button" class="btn danger embed-btn-remove" title="Supprimer ce bouton" aria-label="Supprimer ce bouton">✕</button>
+    </div>`;
+  const wireButtonRows = () => {
+    container.querySelectorAll('.embed-btn-row').forEach((row) => {
+      const kind = row.querySelector('.embed-btn-kind');
+      kind.onchange = () => {
+        const isLink = kind.value === 'link';
+        row.querySelector('.embed-btn-url').style.display = isLink ? '' : 'none';
+        row.querySelector('.embed-btn-role').style.display = isLink ? 'none' : '';
+        updateEmbedPreview(container);
+      };
+      row.querySelector('.embed-btn-remove').onclick = () => { row.remove(); updateEmbedPreview(container); };
+    });
+  };
+  container.querySelector('#embed-add-button').addEventListener('click', () => {
+    if (container.querySelectorAll('.embed-btn-row').length >= 5) { showToast('5 boutons maximum (limite Discord par rangee).', 'error'); return; }
+    container.querySelector('#embed-buttons-list').insertAdjacentHTML('beforeend', embedButtonRowHtml());
+    wireButtonRows();
+    updateEmbedPreview(container);
+  });
+  container.querySelector('#embed-buttons-list').addEventListener('input', () => updateEmbedPreview(container));
+  container.querySelector('#embed-buttons-list').addEventListener('change', () => updateEmbedPreview(container));
+
   container.querySelector('#embed-load-message-btn').addEventListener('click', async () => {
     const channelId = container.querySelector('#embed-target-channel').value;
     const messageId = container.querySelector('#embed-target-message-id').value.trim();
@@ -5005,7 +5067,8 @@ async function renderEmbedBuilderPage(id, container = app) {
         await Api.editEmbedMessage(id, channelId, messageId, embeds, content);
         showToast('Message mis a jour.');
       } else {
-        await Api.postEmbed(id, channelId, embeds, content);
+        const buttons = buildButtonsFromForm(container);
+        await Api.postEmbed(id, channelId, embeds, content, buttons.length ? buttons : undefined);
         showToast(`Embed${embeds.length > 1 ? 's' : ''} poste dans Discord.`);
       }
       localStorage.removeItem(container.__draftKey);
