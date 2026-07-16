@@ -1467,6 +1467,26 @@ button.embed-json-jump { background: none; border: none; padding: 0; font-family
   border-radius: 4px; cursor: pointer; overflow: hidden; text-overflow: ellipsis; white-space: nowrap;
 }
 .dp-server-menu-item:hover { background: var(--accent-soft); }
+
+/* Aide raccourcis (n°026) + visite guidee (n°027) */
+#shortcut-help-overlay, #onboarding-overlay {
+  position: fixed; inset: 0; z-index: 200; background: rgba(0, 0, 0, 0.55);
+  display: flex; align-items: center; justify-content: center; padding: 20px;
+}
+.shortcut-help-rows { display: flex; flex-direction: column; gap: 8px; }
+.shortcut-help-rows > div { display: flex; align-items: center; gap: 8px; font-size: 0.85rem; }
+.shortcut-help-rows span { color: var(--text-muted); margin-left: auto; text-align: right; }
+.shortcut-help-rows kbd {
+  background: var(--bg-input); border: 1px solid var(--border-strong); border-bottom-width: 2px;
+  border-radius: 4px; padding: 1px 7px; font-family: ui-monospace, Consolas, monospace; font-size: 0.75rem;
+}
+.onboarding-box { width: min(420px, 92vw); padding: 24px; text-align: center; }
+.onboarding-icon { font-size: 2.2rem; margin-bottom: 8px; }
+.onboarding-box h2 { margin: 0 0 8px; font-size: 1.05rem; }
+.onboarding-box p { margin: 0; line-height: 1.5; }
+.onboarding-dots { display: flex; justify-content: center; gap: 6px; margin-top: 14px; }
+.onboarding-dots span { width: 7px; height: 7px; border-radius: 50%; background: var(--border-strong); }
+.onboarding-dots span.active { background: var(--accent); }
 input[type=text].drag-over, textarea.drag-over { border-color: var(--accent); box-shadow: 0 0 0 3px var(--accent-soft); }
 
 .embed-field-row {

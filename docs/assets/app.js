@@ -264,10 +264,106 @@ document.addEventListener('keydown', (e) => {
   }
 });
 
+// ---------- Raccourcis clavier (roadmap n°026) ----------
+// Sequences "g puis lettre" (comme Gmail/GitHub) + "?" pour l'aide-memoire.
+// Inactifs pendant la saisie dans un champ.
+let shortcutPending = false;
+let shortcutTimer = null;
+
+function showShortcutHelp() {
+  if (document.getElementById('shortcut-help-overlay')) return;
+  const overlay = document.createElement('div');
+  overlay.id = 'shortcut-help-overlay';
+  overlay.innerHTML = `
+    <div class="cmdk-box" role="dialog" aria-modal="true" aria-label="Raccourcis clavier" style="padding:18px 20px;">
+      <h2 style="margin:0 0 12px; font-size:1rem;">⌨️ Raccourcis clavier</h2>
+      <div class="shortcut-help-rows">
+        <div><kbd>Ctrl</kbd>+<kbd>K</kbd><span>Recherche globale (modules, salons, roles)</span></div>
+        <div><kbd>g</kbd> puis <kbd>h</kbd><span>Accueil du serveur</span></div>
+        <div><kbd>g</kbd> puis <kbd>s</kbd><span>Reveler le panneau des salons</span></div>
+        <div><kbd>g</kbd> puis <kbd>r</kbd><span>Reveler le panneau des roles</span></div>
+        <div><kbd>g</kbd> puis <kbd>e</kbd><span>Generateur d'embed</span></div>
+        <div><kbd>g</kbd> puis <kbd>a</kbd><span>Logs d'audit</span></div>
+        <div><kbd>?</kbd><span>Cette aide</span></div>
+        <div><kbd>Echap</kbd><span>Fermer</span></div>
+      </div>
+    </div>`;
+  document.body.appendChild(overlay);
+  const close = () => overlay.remove();
+  overlay.addEventListener('click', close);
+  document.addEventListener('keydown', function esc(e) {
+    if (e.key === 'Escape') { close(); document.removeEventListener('keydown', esc); }
+  });
+}
+
+document.addEventListener('keydown', (e) => {
+  if (e.target.matches?.('input, textarea, select, [contenteditable]')) return;
+  if (e.ctrlKey || e.metaKey || e.altKey) return;
+  if (shortcutPending) {
+    shortcutPending = false;
+    clearTimeout(shortcutTimer);
+    const gid = paletteCtx.guildId;
+    if (!gid) return;
+    const actions = {
+      h: () => { currentPanelRef = null; panelNavStack.length = 0; withViewTransition(() => renderPreviewPage(gid)); },
+      s: () => revealInSidebar('.dp-channel[data-channel]', '.dp-sidebar'),
+      r: () => revealInSidebar('.dp-role-row[data-role]', '.dp-roles-panel'),
+      e: () => withViewTransition(() => renderSettingsPanel(gid, 'embedbuilder')),
+      a: () => withViewTransition(() => renderSettingsPanel(gid, 'auditlog')),
+    };
+    if (actions[e.key]) { e.preventDefault(); actions[e.key](); }
+    return;
+  }
+  if (e.key === 'g') {
+    shortcutPending = true;
+    shortcutTimer = setTimeout(() => { shortcutPending = false; }, 1200);
+    return;
+  }
+  if (e.key === '?') { e.preventDefault(); showShortcutHelp(); }
+});
+
 // Pile de navigation entre modules (roadmap n°028) : "Retour" ramene au
 // module precedent (utile apres un saut via Ctrl+K), sinon a l'accueil.
 let currentPanelRef = null;
 const panelNavStack = [];
+
+// ---------- Visite guidee au premier lancement (roadmap n°027) ----------
+function showOnboarding() {
+  if (document.getElementById('onboarding-overlay')) return;
+  const steps = [
+    { icon: '🗂️', title: "Tout part de l'accueil", text: 'Choisis une categorie puis un module : chaque outil du bot se configure en 2 clics. Etoile ☆ tes modules preferes pour les epingler en haut.' },
+    { icon: '↔️', title: 'Salons et roles sur les bords', text: 'Survole le bord gauche pour les salons, le bord droit pour les roles. La punaise 📌 les garde ouverts. Glisse un salon ou un role au centre pour le configurer.' },
+    { icon: '⌨️', title: 'Va plus vite', text: 'Ctrl+K ouvre la recherche globale (modules, salons, roles). Tape ? pour voir tous les raccourcis clavier.' },
+  ];
+  let step = 0;
+  const overlay = document.createElement('div');
+  overlay.id = 'onboarding-overlay';
+  const finish = () => {
+    try { localStorage.setItem('dsc-onboarded', '1'); } catch { /* stockage indisponible */ }
+    overlay.remove();
+  };
+  const render = () => {
+    const s = steps[step];
+    overlay.innerHTML = `
+      <div class="cmdk-box onboarding-box" role="dialog" aria-modal="true" aria-label="Visite guidee">
+        <div class="onboarding-icon">${s.icon}</div>
+        <h2>${s.title}</h2>
+        <p class="muted">${s.text}</p>
+        <div class="onboarding-dots" aria-hidden="true">${steps.map((_, i) => `<span class="${i === step ? 'active' : ''}"></span>`).join('')}</div>
+        <div class="row" style="justify-content:space-between; margin-top:14px;">
+          <button type="button" class="btn secondary" id="onboarding-skip">Passer</button>
+          <button type="button" class="btn" id="onboarding-next">${step === steps.length - 1 ? "C'est parti !" : 'Suivant'}</button>
+        </div>
+      </div>`;
+    overlay.querySelector('#onboarding-skip').addEventListener('click', finish);
+    overlay.querySelector('#onboarding-next').addEventListener('click', () => {
+      if (step === steps.length - 1) finish();
+      else { step += 1; render(); }
+    });
+  };
+  render();
+  document.body.appendChild(overlay);
+}
 
 // Version deployee (roadmap n°110) : commit courant en infobulle sur le logo
 // - "le fix est-il en ligne ?" se verifie d'un survol.
@@ -1514,6 +1610,9 @@ function renderPreviewContent(id, { channels, config, roles, members }) {
   document.getElementById('dp-main')?.addEventListener('click', () => {
     app.querySelectorAll('.touch-open').forEach((p) => p.classList.remove('touch-open'));
   });
+
+  // Visite guidee au tout premier lancement (roadmap n°027).
+  if (!localStorage.getItem('dsc-onboarded')) showOnboarding();
 
   async function applyRoleColor(roleId, colorHex, scope) {
     try {
