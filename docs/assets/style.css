@@ -552,6 +552,12 @@ input::placeholder, textarea::placeholder { color: var(--text-faint); }
 .game-role-row:last-child { border-bottom: none; }
 .swatch { width: 10px; height: 10px; border-radius: 2px; display: inline-block; margin-right: 10px; flex: none; }
 
+.char-counter {
+  display: block; text-align: right; font-size: 0.72rem; color: var(--text-faint);
+  font-variant-numeric: tabular-nums; margin: 3px 2px 0;
+}
+.char-counter-near { color: var(--warning); }
+
 /* ---------- Toast ---------- */
 
 .toast {
@@ -576,7 +582,7 @@ input::placeholder, textarea::placeholder { color: var(--text-faint); }
 /* ---------- Utility ---------- */
 
 .muted { color: var(--text-muted); font-size: 0.85rem; }
-.row { display: flex; gap: 10px; align-items: center; flex-wrap: wrap; }
+.row { display: flex; gap: 10px; align-items: center; flex-wrap: wrap; font-variant-numeric: tabular-nums; }
 .spacer { flex: 1; }
 
 /* ---------- Module (grille de cartes + un seul module affiche) ---------- */
@@ -856,7 +862,7 @@ input::placeholder, textarea::placeholder { color: var(--text-faint); }
   border-radius: 6px; cursor: pointer; font-family: inherit; color: var(--text); overflow: hidden;
   transition: border-color 0.15s ease, background 0.15s ease, transform 0.15s cubic-bezier(.16,1,.3,1);
 }
-.dp-action-card:hover { border-color: #4752c4; transform: translateY(-1px); }
+.dp-action-card:hover { border-color: var(--accent); transform: translateY(-1px); }
 .dp-action-card.active { border-color: var(--accent); background: rgba(173, 89, 64, 0.14); }
 .dp-action-card.danger:hover { border-color: rgba(237,66,69,0.6); background: rgba(237,66,69,0.08); }
 .dp-action-card .icon { font-size: 1.3rem; line-height: 1; flex: none; }

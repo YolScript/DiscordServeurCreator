@@ -3,6 +3,43 @@ const railEl = document.getElementById('topbar-guilds');
 const searchBox = document.getElementById('search-box');
 const searchInput = document.getElementById('search-input');
 
+// Compteur de caracteres generique pour les champs a limite Discord
+// (data-charcount). L'app re-rend #app.innerHTML en continu (pas de
+// framework), donc un seul MutationObserver + une seule delegation
+// d'evenement suffisent pour tout le site au lieu de re-cabler a chaque
+// re-rendu individuel.
+(function initCharCounters() {
+  function updateCounter(el) {
+    const counter = el.nextElementSibling;
+    if (!counter || !counter.classList.contains('char-counter')) return;
+    const max = Number(el.getAttribute('maxlength'));
+    const len = el.value.length;
+    counter.textContent = `${len}/${max}`;
+    counter.classList.toggle('char-counter-near', len >= max * 0.9);
+  }
+  function wire(el) {
+    if (el.dataset.charcountWired) return;
+    el.dataset.charcountWired = '1';
+    const counter = document.createElement('span');
+    counter.className = 'char-counter';
+    el.insertAdjacentElement('afterend', counter);
+    updateCounter(el);
+  }
+  const observer = new MutationObserver((mutations) => {
+    for (const m of mutations) {
+      m.addedNodes.forEach((node) => {
+        if (node.nodeType !== 1) return;
+        if (node.matches?.('[data-charcount]')) wire(node);
+        node.querySelectorAll?.('[data-charcount]').forEach(wire);
+      });
+    }
+  });
+  observer.observe(app, { childList: true, subtree: true });
+  app.addEventListener('input', (e) => {
+    if (e.target.matches('[data-charcount]')) updateCounter(e.target);
+  });
+}());
+
 const params = new URLSearchParams(location.search);
 const guildId = params.get('guild');
 
@@ -396,7 +433,7 @@ const HOME_MODULES = [
 function customChannelFormHtml(catId) {
   return `
     <div class="dp-custom-form" data-form-for="${catId}" style="display:none;">
-      <input type="text" class="dp-custom-name" placeholder="Nom du salon" maxlength="80" />
+      <input type="text" class="dp-custom-name" placeholder="Nom du salon" maxlength="80" data-charcount />
       <select class="dp-custom-type">
         <option value="text">Texte</option>
         <option value="voice">Vocal</option>
@@ -545,7 +582,7 @@ function aiHomeHtml(guild) {
       <div id="dp-ai-tail">${aiConversationHtml()}</div>
     </div>
     <form class="dp-chat-input-bar" id="dp-ai-form">
-      ${aiConversation.length ? '<button type="button" class="btn secondary" id="dp-ai-reset" title="Nouvelle conversation">🔄</button>' : ''}
+      ${aiConversation.length ? '<button type="button" class="btn secondary" id="dp-ai-reset" title="Nouvelle conversation" aria-label="Nouvelle conversation">🔄</button>' : ''}
       <input type="text" id="dp-ai-input" placeholder="Ecris a l'assistant..." maxlength="1000" autocomplete="off" />
       <button type="submit" class="btn" id="dp-ai-send">Envoyer</button>
     </form>
@@ -905,7 +942,7 @@ async function renderPreviewPage(id) {
           area.innerHTML = `
             <div class="dp-block">
               <p class="dp-block-title">➕ Nouvelle categorie</p>
-              <input type="text" id="dp-home-new-cat-name" placeholder="Nom de la categorie" maxlength="80" />
+              <input type="text" id="dp-home-new-cat-name" placeholder="Nom de la categorie" maxlength="80" data-charcount />
               <div class="row" style="flex-wrap:wrap; gap:4px; margin-top:6px;">
                 ${CHANNEL_EMOJI_PICKS.slice(0, 12).map((e) => `<button type="button" class="btn secondary dp-home-new-cat-emoji-pick" data-emoji="${e}" style="font-size:0.95rem; padding:4px 8px;">${e}</button>`).join('')}
               </div>
@@ -935,7 +972,7 @@ async function renderPreviewPage(id) {
               <p class="dp-block-title">➕ Nouveau salon (hors categorie)</p>
               <div>
                 <label>Nom du salon</label>
-                <input type="text" id="dp-home-new-channel-name" placeholder="Nom du salon" maxlength="80" />
+                <input type="text" id="dp-home-new-channel-name" placeholder="Nom du salon" maxlength="80" data-charcount />
                 <div class="row" style="flex-wrap:wrap; gap:4px; margin-top:6px;">
                   ${CHANNEL_EMOJI_PICKS.slice(0, 12).map((e) => `<button type="button" class="btn secondary dp-home-new-channel-emoji-pick" data-emoji="${e}" style="font-size:0.95rem; padding:4px 8px;">${e}</button>`).join('')}
                 </div>
@@ -1416,7 +1453,7 @@ function categoryActionDetailHtml(key, ctx) {
         <p class="dp-block-title">➕ Creer un salon dans "${escapeHtml(name)}"</p>
         <div>
           <label>Nom du salon</label>
-          <input type="text" id="dp-cat-new-channel-name" placeholder="Nom du salon" maxlength="80" />
+          <input type="text" id="dp-cat-new-channel-name" placeholder="Nom du salon" maxlength="80" data-charcount />
           <div class="row" style="flex-wrap:wrap; gap:4px; margin-top:6px;">
             ${CHANNEL_EMOJI_PICKS.slice(0, 12).map((e) => `<button type="button" class="btn secondary dp-cat-new-channel-emoji-pick" data-emoji="${e}" style="font-size:0.95rem; padding:4px 8px;">${e}</button>`).join('')}
           </div>
@@ -2231,7 +2268,7 @@ function reactionRoleRowHtml(row = {}) {
       <input type="text" class="rr-role-id" placeholder="ID du role" maxlength="32" value="${escapeHtml(row.roleId || '')}" />
       <input type="text" class="rr-label" placeholder="Libelle affiche" maxlength="100" value="${escapeHtml(row.label || '')}" />
       <input type="text" class="rr-emoji" placeholder="Emoji" maxlength="8" value="${escapeHtml(row.emoji || '')}" />
-      <button type="button" class="btn danger rr-remove" title="Supprimer">✕</button>
+      <button type="button" class="btn danger rr-remove" title="Supprimer" aria-label="Supprimer cette ligne">✕</button>
     </div>`;
 }
 
@@ -2290,7 +2327,7 @@ async function renderGameRolesPage(id, container = app) {
         <p class="muted">Groupes de roles au choix (pas limites aux jeux), poses en salon via un menu de selection. Clic droit sur un role dans Discord (mode developpeur) &gt; Copier l'ID.</p>
         <div id="reaction-groups-list">${reactionGroupRows}</div>
         <label style="margin-top:14px;">Titre du groupe</label>
-        <input type="text" id="rr-title" placeholder="Ex: Notifications" maxlength="100" />
+        <input type="text" id="rr-title" placeholder="Ex: Notifications" maxlength="100" data-charcount />
         <label>Salon de destination</label>
         <select id="rr-channel">${textChannelOptions}</select>
         <label>Roles proposes</label>
@@ -3098,7 +3135,7 @@ async function renderAuditLogPage(id, container = app) {
 
 /* ---------- Pages: statistiques ---------- */
 
-function lineChartSvg(points, { width = 560, height = 140, color = '#5865f2' } = {}) {
+function lineChartSvg(points, { width = 560, height = 140, color = 'var(--accent)', gradId = `lc${Math.random().toString(36).slice(2, 8)}` } = {}) {
   if (!points.length) return '<p class="muted">Pas encore de donnees.</p>';
   const max = Math.max(1, ...points);
   const min = Math.min(0, ...points);
@@ -3110,11 +3147,21 @@ function lineChartSvg(points, { width = 560, height = 140, color = '#5865f2' } =
     return [x, y];
   });
   const path = coords.map(([x, y], i) => `${i === 0 ? 'M' : 'L'}${x.toFixed(1)},${y.toFixed(1)}`).join(' ');
-  const dots = coords.map(([x, y]) => `<circle cx="${x.toFixed(1)}" cy="${y.toFixed(1)}" r="2.5" fill="${color}" />`).join('');
+  const [lastX, lastY] = coords[coords.length - 1];
+  const areaPath = `${path} L${lastX.toFixed(1)},${height} L${coords[0][0].toFixed(1)},${height} Z`;
+  const dots = coords.slice(0, -1).map(([x, y]) => `<circle cx="${x.toFixed(1)}" cy="${y.toFixed(1)}" r="2" fill="${color}" opacity="0.5" />`).join('');
   return `
     <svg viewBox="0 0 ${width} ${height}" class="stats-chart" preserveAspectRatio="none">
-      <path d="${path}" fill="none" stroke="${color}" stroke-width="2" />
+      <defs>
+        <linearGradient id="${gradId}" x1="0" y1="0" x2="0" y2="1">
+          <stop offset="0%" stop-color="${color}" stop-opacity="0.28" />
+          <stop offset="100%" stop-color="${color}" stop-opacity="0" />
+        </linearGradient>
+      </defs>
+      <path d="${areaPath}" fill="url(#${gradId})" stroke="none" />
+      <path d="${path}" fill="none" stroke="${color}" stroke-width="2" stroke-linejoin="round" stroke-linecap="round" />
       ${dots}
+      <circle cx="${lastX.toFixed(1)}" cy="${lastY.toFixed(1)}" r="4" fill="${color}" stroke="var(--bg-elevated)" stroke-width="2" />
     </svg>`;
 }
 
@@ -3131,12 +3178,12 @@ async function renderStatsPage(id, container = app) {
     <div class="inner">
       ${sectionHtml('Membres', `
         <p class="muted">Evolution du nombre de membres (${stats.length} jour(s) enregistre(s)${firstDate ? `, depuis le ${firstDate}` : ''}).</p>
-        ${lineChartSvg(memberPoints, { color: '#5865f2' })}
+        ${lineChartSvg(memberPoints, { color: 'var(--accent)' })}
         ${lastDate ? `<p class="muted" style="margin-top:8px;">Dernier releve : ${lastDate} — ${memberPoints[memberPoints.length - 1]} membre(s)</p>` : ''}
       `, { id: 'stats-members' })}
       ${sectionHtml('Activite (messages/jour)', `
         <p class="muted">Nombre de messages envoyes par jour (hors bots).</p>
-        ${lineChartSvg(messagePoints, { color: '#43aa8b' })}
+        ${lineChartSvg(messagePoints, { color: 'var(--success)' })}
       `, { id: 'stats-activity' })}
     </div>
   `;
@@ -3157,7 +3204,7 @@ function embedFieldRowHtml(field = {}) {
       <input type="text" class="embed-field-name" placeholder="Nom du champ" maxlength="256" value="${escapeHtml(field.name || '')}" />
       <textarea class="embed-field-value" placeholder="Valeur du champ" maxlength="1024">${escapeHtml(field.value || '')}</textarea>
       <label class="embed-field-inline"><input type="checkbox" class="embed-field-inline-input" ${field.inline ? 'checked' : ''} /> Cote a cote</label>
-      <button type="button" class="btn danger embed-field-remove" title="Supprimer ce champ">✕</button>
+      <button type="button" class="btn danger embed-field-remove" title="Supprimer ce champ" aria-label="Supprimer ce champ">✕</button>
     </div>`;
 }
 
@@ -3357,18 +3404,18 @@ async function renderEmbedBuilderPage(id, container = app) {
             <div class="dp-subsection-divider"></div>
             <p class="dp-block-title">📝 Contenu principal</p>
             <label>Titre</label>
-            <input type="text" id="embed-title" maxlength="256" placeholder="Titre de l'embed" />
+            <input type="text" id="embed-title" maxlength="256" placeholder="Titre de l'embed" data-charcount />
             <label>Lien du titre</label>
             <input type="text" id="embed-url" placeholder="https://..." />
             <label>Description</label>
-            <textarea id="embed-description" maxlength="4096" placeholder="Texte principal (markdown Discord supporte)"></textarea>
+            <textarea id="embed-description" maxlength="4096" placeholder="Texte principal (markdown Discord supporte)" data-charcount></textarea>
             <label>Couleur</label>
             <input type="color" id="embed-color" value="#5865f2" />
 
             <div class="dp-subsection-divider"></div>
             <p class="dp-block-title">👤 Auteur</p>
             <label>Nom</label>
-            <input type="text" id="embed-author-name" maxlength="256" placeholder="Nom affiche en haut" />
+            <input type="text" id="embed-author-name" maxlength="256" placeholder="Nom affiche en haut" data-charcount />
             <label>Lien</label>
             <input type="text" id="embed-author-url" placeholder="https://..." />
             <label>Icone (URL)</label>
@@ -3389,7 +3436,7 @@ async function renderEmbedBuilderPage(id, container = app) {
             <div class="dp-subsection-divider"></div>
             <p class="dp-block-title">🔻 Pied de page</p>
             <label>Texte</label>
-            <input type="text" id="embed-footer-text" maxlength="2048" placeholder="Texte du pied de page" />
+            <input type="text" id="embed-footer-text" maxlength="2048" placeholder="Texte du pied de page" data-charcount />
             <label>Icone (URL)</label>
             <input type="text" id="embed-footer-icon" placeholder="https://..." />
             <div class="dp-toggle-row" style="margin-top:10px;">
@@ -3793,9 +3840,9 @@ async function renderCustomCommandsPage(guildId, container = app) {
         <p class="muted">Cree une commande /nom qui repond avec un texte fixe. Variables disponibles dans la reponse : {user}, {username}, {server}, {membercount}. Disponible en quelques minutes apres creation (Discord met a jour son cache de commandes).</p>
         <div id="custom-commands-list">${rows}</div>
         <label style="margin-top:14px;">Nom (minuscules, sans espace)</label>
-        <input type="text" id="new-cmd-name" placeholder="regles" maxlength="32" />
+        <input type="text" id="new-cmd-name" placeholder="regles" maxlength="32" data-charcount />
         <label>Description</label>
-        <input type="text" id="new-cmd-description" placeholder="Affiche les regles du serveur" maxlength="100" />
+        <input type="text" id="new-cmd-description" placeholder="Affiche les regles du serveur" maxlength="100" data-charcount />
         <label>Reponse</label>
         <textarea id="new-cmd-response" placeholder="Bienvenue {user} ! Consulte les regles dans #reglement."></textarea>
         <label>Role requis (optionnel)</label>
