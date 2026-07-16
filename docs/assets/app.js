@@ -7504,7 +7504,9 @@ async function init() {
   // un serveur est ouvert.
   const tabbar = document.getElementById('mobile-tabbar');
   if (tabbar) {
-    const mobileQuery = window.matchMedia('(hover: none), (max-width: 700px)');
+    // (hover: none) seul matche sur certains PC (ecran tactile, pilotes) :
+    // on exige un pointeur grossier EN PLUS, ou un ecran etroit.
+    const mobileQuery = window.matchMedia('(max-width: 700px), (hover: none) and (pointer: coarse)');
     const updateTabbar = () => {
       tabbar.hidden = !mobileQuery.matches || !guildId;
       document.body.classList.toggle('has-tabbar', !tabbar.hidden);
