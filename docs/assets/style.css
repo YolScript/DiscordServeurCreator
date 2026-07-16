@@ -655,8 +655,16 @@ input::placeholder, textarea::placeholder { color: var(--text-faint); }
   transition: transform 0.16s ease;
   box-shadow: 6px 0 18px -6px rgba(0,0,0,0.55);
 }
+.dp-sidebar::after {
+  content: ''; position: absolute; right: 3px; top: 50%; translate: 0 -50%;
+  width: 4px; height: 46px; border-radius: 3px; background: var(--accent);
+  opacity: 0.6; transition: opacity 0.15s ease;
+}
 .dp-sidebar:hover, .dp-sidebar:focus-within {
   transform: translateX(0);
+}
+.dp-sidebar:hover::after, .dp-sidebar:focus-within::after {
+  opacity: 0;
 }
 .dp-server-header {
   flex: none; height: 48px; display: flex; align-items: center; justify-content: space-between;
@@ -987,8 +995,16 @@ input::placeholder, textarea::placeholder { color: var(--text-faint); }
   transition: transform 0.16s ease;
   box-shadow: -6px 0 18px -6px rgba(0,0,0,0.55);
 }
+.dp-roles-panel::after {
+  content: ''; position: absolute; left: 3px; top: 50%; translate: 0 -50%;
+  width: 4px; height: 46px; border-radius: 3px; background: var(--accent);
+  opacity: 0.6; transition: opacity 0.15s ease;
+}
 .dp-roles-panel:hover, .dp-roles-panel:focus-within {
   transform: translateX(0);
+}
+.dp-roles-panel:hover::after, .dp-roles-panel:focus-within::after {
+  opacity: 0;
 }
 .dp-roles-header {
   flex: none; height: 48px; display: flex; align-items: center; padding: 0 14px;
