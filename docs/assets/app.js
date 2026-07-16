@@ -865,6 +865,7 @@ const HOME_MODULES = [
   { parent: 'jeux', section: 'game-catalog', icon: '📚', label: 'Catalogue de jeux', category: 'creation' },
   { parent: 'jeux', section: 'game-reaction', icon: '🎭', label: 'Roles-reaction', category: 'creation' },
   { parent: 'automatisations', section: 'annonces', icon: '📅', label: 'Annonces programmees', category: 'creation' },
+  { parent: 'automatisations', section: 'regles', icon: '⚡', label: 'Regles si → alors', category: 'administration' },
   { parent: 'embedbuilder', icon: '💬', label: 'Generateur embed', category: 'creation' },
   { parent: 'templates', icon: '📁', label: 'Templates', category: 'creation' },
   { parent: 'customcommands', icon: '💻', label: 'Commandes personnalisees', category: 'creation' },
@@ -4151,6 +4152,66 @@ async function renderAutomationsPage(id, container = app) {
     : '<button class="btn secondary" id="toggle-calendar-feed" data-enable="true">Activer le flux calendrier</button>'}
       `, { id: 'annonces' })}
 
+      ${sectionHtml('Regles si → alors', `
+        <p class="muted">Quand un evenement se produit, le bot agit automatiquement. 10 regles maximum.</p>
+        <div id="rules-list">${(config?.autoRules || []).map((r) => {
+    const trigLabel = r.trigger?.type === 'member_join' ? 'Un membre arrive' : `Message contenant « ${escapeHtml(r.trigger?.keyword || '')} »${r.trigger?.channelId ? ` dans #${escapeHtml(channels.find((c) => c.id === r.trigger.channelId)?.name || '?')}` : ''}`;
+    const actLabel = r.action?.type === 'add_role'
+      ? `donner le role ${escapeHtml(roles.find((ro) => ro.id === r.action.roleId)?.name || '?')}`
+      : r.action?.type === 'react'
+        ? `reagir ${escapeHtml(r.action.emoji || '')}`
+        : `envoyer un message dans #${escapeHtml(channels.find((c) => c.id === r.action?.channelId)?.name || '?')}`;
+    return `
+          <div class="row" style="justify-content:space-between; margin-bottom:6px;">
+            <span style="font-size:0.85rem;">⚡ Si <strong>${trigLabel}</strong> → ${actLabel}</span>
+            <button class="btn danger delete-rule" data-rule-id="${r.id}">Supprimer</button>
+          </div>`;
+  }).join('') || '<p class="muted">Aucune regle pour le moment.</p>'}</div>
+        <div class="dp-form-grid" style="margin-top:10px;">
+          <div>
+            <label for="rule-trigger">Si...</label>
+            <select id="rule-trigger">
+              <option value="member_join">Un membre arrive</option>
+              <option value="keyword">Un message contient un mot-cle</option>
+            </select>
+          </div>
+          <div id="rule-keyword-wrap" style="display:none;">
+            <label for="rule-keyword">Mot-cle</label>
+            <input type="text" id="rule-keyword" maxlength="50" placeholder="ex : bienvenue" />
+          </div>
+          <div id="rule-trigchan-wrap" style="display:none;">
+            <label for="rule-trigchan">Dans le salon (optionnel)</label>
+            <select id="rule-trigchan"><option value="">Tous les salons</option>${textChannelOptions}</select>
+          </div>
+          <div>
+            <label for="rule-action">Alors...</label>
+            <select id="rule-action">
+              <option value="add_role">Donner un role</option>
+              <option value="send_message">Envoyer un message</option>
+              <option value="react">Reagir avec un emoji</option>
+            </select>
+          </div>
+          <div id="rule-role-wrap">
+            <label for="rule-role">Role a donner</label>
+            <select id="rule-role">${roles.filter((r) => r.name !== '@everyone').map((r) => `<option value="${r.id}">${escapeHtml(r.name)}</option>`).join('')}</select>
+          </div>
+          <div id="rule-chan-wrap" style="display:none;">
+            <label for="rule-chan">Salon du message</label>
+            <select id="rule-chan">${textChannelOptions}</select>
+          </div>
+          <div id="rule-emoji-wrap" style="display:none;">
+            <label for="rule-emoji">Emoji</label>
+            <input type="text" id="rule-emoji" maxlength="8" placeholder="👍" />
+          </div>
+          <div id="rule-msg-wrap" class="dp-form-full" style="display:none;">
+            <label for="rule-msg">Message ({user} et {server} disponibles)</label>
+            <textarea id="rule-msg" maxlength="1000" placeholder="Bienvenue {user} sur {server} !"></textarea>
+          </div>
+        </div>
+        <button class="btn secondary" id="rule-add" style="margin-top:8px;">Ajouter la regle</button>
+        <p class="muted" style="font-size:0.76rem; margin-top:6px;">Le bot applique les changements sous 1 minute. Anti-spam : une regle mot-cle ne se declenche qu'une fois toutes les 30 s.</p>
+      `, { id: 'regles' })}
+
       ${sectionHtml('Service (Staff en service)', `
         <p class="muted">Le salon vocal SERVICE STAFF (categorie 🛡️ Staff) sert d'interrupteur : un membre du staff qui s'y connecte est immediatement deconnecte et bascule son statut "en service", qui revele la categorie Staff et les categories/salons choisis ci-dessous.</p>
 
@@ -4590,6 +4651,77 @@ async function renderAutomationsPage(id, container = app) {
       try {
         await Api.deleteStreamer(id, btn.dataset.user, btn.dataset.platform);
         showToast('Streamer retire.');
+        await renderAutomationsPage(id, container);
+      } catch (err) {
+        showToast(err.message, 'error');
+      }
+    });
+  });
+
+  // Regles si → alors (roadmap n°151) : formulaire dynamique + CRUD via
+  // config.autoRules (le bot les lit avec un cache de 60 s).
+  const ruleTriggerSel = document.getElementById('rule-trigger');
+  const ruleActionSel = document.getElementById('rule-action');
+  const refreshRuleForm = () => {
+    const isKeyword = ruleTriggerSel.value === 'keyword';
+    const action = ruleActionSel.value;
+    document.getElementById('rule-keyword-wrap').style.display = isKeyword ? '' : 'none';
+    document.getElementById('rule-trigchan-wrap').style.display = isKeyword ? '' : 'none';
+    document.getElementById('rule-role-wrap').style.display = action === 'add_role' ? '' : 'none';
+    document.getElementById('rule-chan-wrap').style.display = action === 'send_message' ? '' : 'none';
+    document.getElementById('rule-msg-wrap').style.display = action === 'send_message' ? '' : 'none';
+    document.getElementById('rule-emoji-wrap').style.display = action === 'react' ? '' : 'none';
+  };
+  ruleTriggerSel.addEventListener('change', refreshRuleForm);
+  ruleActionSel.addEventListener('change', refreshRuleForm);
+  refreshRuleForm();
+
+  document.getElementById('rule-add').addEventListener('click', async () => {
+    const existingRules = config?.autoRules || [];
+    if (existingRules.length >= 10) { showToast('10 regles maximum.', 'error'); return; }
+    const triggerType = ruleTriggerSel.value;
+    const actionType = ruleActionSel.value;
+    const trigger = { type: triggerType };
+    if (triggerType === 'keyword') {
+      trigger.keyword = document.getElementById('rule-keyword').value.trim();
+      if (!trigger.keyword) { showToast('Mot-cle requis.', 'error'); return; }
+      const trigChan = document.getElementById('rule-trigchan').value;
+      if (trigChan) trigger.channelId = trigChan;
+    }
+    if (actionType === 'react' && triggerType !== 'keyword') {
+      showToast('« Reagir » ne marche qu\'avec un declencheur mot-cle.', 'error');
+      return;
+    }
+    const action = { type: actionType };
+    if (actionType === 'add_role') action.roleId = document.getElementById('rule-role').value;
+    if (actionType === 'send_message') {
+      action.channelId = document.getElementById('rule-chan').value;
+      action.message = document.getElementById('rule-msg').value.trim();
+      if (!action.message) { showToast('Message requis.', 'error'); return; }
+    }
+    if (actionType === 'react') {
+      action.emoji = document.getElementById('rule-emoji').value.trim();
+      if (!action.emoji) { showToast('Emoji requis.', 'error'); return; }
+    }
+    try {
+      await Api.updateConfig(id, {
+        autoRules: [...existingRules, {
+          id: `${Date.now().toString(36)}${Math.random().toString(36).slice(2, 5)}`, trigger, action, enabled: true,
+        }],
+      });
+      showToast('Regle ajoutee.');
+      await renderAutomationsPage(id, container);
+    } catch (err) {
+      showToast(err.message, 'error');
+    }
+  });
+
+  container.querySelectorAll('.delete-rule').forEach((btn) => {
+    btn.addEventListener('click', async () => {
+      if (!window.confirm('Supprimer cette regle ?')) return;
+      try {
+        await Api.updateConfig(id, { autoRules: (config?.autoRules || []).filter((r) => r.id !== btn.dataset.ruleId) });
+        showToast('Regle supprimee.');
         await renderAutomationsPage(id, container);
       } catch (err) {
         showToast(err.message, 'error');
