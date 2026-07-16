@@ -1,4 +1,5 @@
 import { parseCookies, randomId, createSession, updateSession, sessionCookie } from './session.js';
+import { HttpError } from './errors.js';
 
 const DISCORD_API = 'https://discord.com/api/v10';
 
@@ -105,7 +106,11 @@ export async function getUserAdminGuilds(env, session) {
   const res = await fetch(`${DISCORD_API}/users/@me/guilds`, {
     headers: { Authorization: `Bearer ${session.accessToken}` },
   });
-  if (!res.ok) return [];
+  // Ne JAMAIS confondre echec et liste vide : un token expire (401) ou un
+  // rate-limit Discord (429) renvoyait [] et le dashboard affichait
+  // "Aucun serveur trouve" a la place d'une erreur exploitable.
+  if (res.status === 401) throw new HttpError(401, 'Session Discord expiree, reconnecte-toi.');
+  if (!res.ok) throw new HttpError(502, `Discord ne repond pas (code ${res.status}), reessaie dans quelques secondes.`);
   const guilds = await res.json();
   const adminGuilds = guilds
     .filter((g) => (BigInt(g.permissions) & 8n) === 8n) // 8 = Administrator

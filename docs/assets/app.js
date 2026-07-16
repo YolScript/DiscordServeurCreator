@@ -873,13 +873,71 @@ function aiConversationHtml() {
   return html;
 }
 
+// Modules favoris (roadmap n°021) : etoile sur chaque carte, epingles en
+// tete de l'accueil, memorises par navigateur.
+function getFavModuleKeys() {
+  try { return JSON.parse(localStorage.getItem('dsc-fav-modules') || '[]'); } catch { return []; }
+}
+function favModuleKey(m) { return `${m.parent}|${m.section || ''}`; }
+
 function homeModuleCardHtml(m) {
+  const key = favModuleKey(m);
+  const isFav = getFavModuleKeys().includes(key);
   return `
     <button type="button" class="dp-action-card" data-goto-settings="${m.parent}"${m.section ? ` data-goto-settings-section="${m.section}"` : ''}>
+      <span class="dp-fav-star${isFav ? ' active' : ''}" role="button" tabindex="0" data-fav-key="${key}" title="${isFav ? 'Retirer des favoris' : 'Ajouter aux favoris'}" aria-label="${isFav ? 'Retirer des favoris' : 'Ajouter aux favoris'} : ${escapeHtml(m.label)}">${isFav ? '★' : '☆'}</span>
       <span class="icon">${m.icon}</span>
       <span class="label">${escapeHtml(m.label)}</span>
     </button>`;
 }
+
+// Bascule d'un favori, deleguee en phase de capture : l'etoile vit DANS le
+// <button> de module, il faut bloquer la navigation du parent.
+app.addEventListener('click', (e) => {
+  const star = e.target.closest('.dp-fav-star');
+  if (!star) return;
+  e.stopPropagation();
+  e.preventDefault();
+  const key = star.dataset.favKey;
+  const favs = getFavModuleKeys();
+  const idx = favs.indexOf(key);
+  if (idx >= 0) favs.splice(idx, 1);
+  else favs.push(key);
+  try { localStorage.setItem('dsc-fav-modules', JSON.stringify(favs)); } catch { /* stockage plein */ }
+  const active = idx < 0;
+  document.querySelectorAll(`.dp-fav-star[data-fav-key="${CSS.escape(key)}"]`).forEach((s) => {
+    s.classList.toggle('active', active);
+    s.textContent = active ? '★' : '☆';
+    s.title = active ? 'Retirer des favoris' : 'Ajouter aux favoris';
+  });
+  showToast(active ? 'Ajoute aux favoris (visible sur l\'accueil).' : 'Retire des favoris.');
+}, true);
+app.addEventListener('keydown', (e) => {
+  if ((e.key === 'Enter' || e.key === ' ') && e.target.classList?.contains('dp-fav-star')) {
+    e.preventDefault();
+    e.stopPropagation();
+    e.target.click();
+  }
+}, true);
+
+// Navigation clavier des grilles de cartes (roadmap n°037) : fleches pour
+// circuler, la disposition en colonnes est deduite de la largeur reelle.
+app.addEventListener('keydown', (e) => {
+  if (!e.target.classList?.contains('dp-action-card')) return;
+  if (!['ArrowRight', 'ArrowLeft', 'ArrowDown', 'ArrowUp'].includes(e.key)) return;
+  const cards = [...e.target.parentElement.querySelectorAll('.dp-action-card')];
+  const idx = cards.indexOf(e.target);
+  const cols = Math.max(1, Math.round(e.target.parentElement.offsetWidth / (e.target.offsetWidth + 10)));
+  let next = idx;
+  if (e.key === 'ArrowRight') next = idx + 1;
+  else if (e.key === 'ArrowLeft') next = idx - 1;
+  else if (e.key === 'ArrowDown') next = idx + cols;
+  else next = idx - cols;
+  if (next >= 0 && next < cards.length && next !== idx) {
+    e.preventDefault();
+    cards[next].focus();
+  }
+});
 
 function aiHomeHtml(guild) {
   return `
@@ -889,6 +947,14 @@ function aiHomeHtml(guild) {
         <div class="dp-chat-bubble">
           <div class="dp-chat-author">ServeurCreator Bot</div>
           <div class="dp-chat-text">Salut, je suis le bot de configuration de ${escapeHtml(guild?.name || 'ton serveur')} ! Glisse un salon, une categorie ou un role ici pour le configurer, ou choisis une categorie d'outils ci-dessous.</div>
+          ${(() => {
+    const favs = getFavModuleKeys()
+      .map((key) => HOME_MODULES.find((m) => favModuleKey(m) === key))
+      .filter(Boolean);
+    return favs.length
+      ? `<p class="dp-block-title" style="margin:12px 0 6px;">⭐ Favoris</p><div class="dp-action-grid">${favs.map(homeModuleCardHtml).join('')}</div><p class="dp-block-title" style="margin:12px 0 6px;">Categories</p>`
+      : '';
+  })()}
           <div class="dp-action-grid">
             ${HOME_CATEGORIES.map((c) => `
               <button type="button" class="dp-action-card" data-home-category="${c.id}">
@@ -1118,8 +1184,18 @@ function renderPreviewContent(id, { channels, config, roles, members }) {
   `;
 
   wireAiHome(id, channels, rolesSorted);
+  // Les cartes favoris de l'accueil (n°021) vivent hors de la grille de
+  // modules : cablage direct.
+  wireHomeModuleCards(document.getElementById('dp-ai-chat'));
 
-  document.getElementById('dp-channel-search').addEventListener('input', (e) => {
+  // Debounce (roadmap n°054) : le surlignage re-rend chaque ligne, inutile
+  // de le faire a chaque frappe.
+  const debounce = (fn, ms = 140) => {
+    let timer = null;
+    return (...args) => { clearTimeout(timer); timer = setTimeout(() => fn(...args), ms); };
+  };
+
+  document.getElementById('dp-channel-search').addEventListener('input', debounce((e) => {
     const q = e.target.value.trim().toLowerCase();
     app.querySelectorAll('.dp-channel[data-channel]').forEach((chEl) => {
       chEl.classList.toggle('dp-filtered-out', Boolean(q) && !(chEl.dataset.name || '').toLowerCase().includes(q));
@@ -1133,16 +1209,16 @@ function renderPreviewContent(id, { channels, config, roles, members }) {
       catEl.classList.toggle('dp-filtered-out', Boolean(q) && !anyVisible);
       if (q) catEl.classList.toggle('collapsed', !anyVisible);
     });
-  });
+  }));
 
-  document.getElementById('dp-role-search').addEventListener('input', (e) => {
+  document.getElementById('dp-role-search').addEventListener('input', debounce((e) => {
     const q = e.target.value.trim().toLowerCase();
     app.querySelectorAll('.dp-role-row[data-role]').forEach((row) => {
       row.classList.toggle('dp-filtered-out', Boolean(q) && !(row.dataset.roleName || '').toLowerCase().includes(q));
       const nameEl = row.querySelector('.dp-role-name');
       if (nameEl) nameEl.innerHTML = highlightMatch(row.dataset.roleName || '', q);
     });
-  });
+  }));
 
   app.querySelectorAll('.dp-category').forEach((catEl) => {
     const toggle = () => {
@@ -3791,6 +3867,11 @@ async function renderMemberLookupPage(id, container = app) {
   ]);
   const roleById = new Map(roles.map((r) => [r.id, r]));
   const sorted = [...members].sort((a, b) => (a.displayName || '').localeCompare(b.displayName || ''));
+  // Bots masques par defaut (demande utilisateur) : flag bot renvoye par le
+  // worker, avec repli sur le role nomme "Bot" pour les donnees en cache.
+  const isBot = (m) => m.bot || (m.roles || []).some((rid) => roleById.get(rid)?.name === 'Bot');
+  const botCount = sorted.filter(isBot).length;
+  let showBots = false;
 
   const rowHtml = (m, q) => {
     const roleChips = (m.roles || [])
@@ -3820,19 +3901,31 @@ async function renderMemberLookupPage(id, container = app) {
   container.innerHTML = `
     <div class="inner">
       ${sectionHtml('Recherche de membres', `
-        <p class="muted">${members.length} membre(s). Recherche par pseudo ou par ID.</p>
-        <input type="text" id="member-search" placeholder="Rechercher un membre..." aria-label="Rechercher un membre" style="margin-bottom:10px;" />
-        <div class="member-lookup-list" id="member-lookup-list">${sorted.map((m) => rowHtml(m, '')).join('') || '<p class="muted">Aucun membre trouve.</p>'}</div>
+        <p class="muted">${members.length - botCount} membre(s)${botCount ? ` + ${botCount} bot(s) masques` : ''}. Recherche par pseudo ou par ID.</p>
+        <div class="row" style="gap:8px; flex-wrap:wrap; margin-bottom:10px; align-items:center;">
+          <input type="text" id="member-search" placeholder="Rechercher un membre..." aria-label="Rechercher un membre" style="flex:1; min-width:180px; margin:0;" />
+          ${botCount ? `<label class="dp-toggle-row" style="margin:0; padding:8px 12px; flex:none;"><span style="font-size:0.82rem;">Afficher les bots (${botCount})</span><input type="checkbox" id="member-show-bots" /></label>` : ''}
+        </div>
+        <div class="member-lookup-list" id="member-lookup-list"></div>
       `, { alwaysOpen: true })}
     </div>
   `;
 
-  document.getElementById('member-search').addEventListener('input', (e) => {
-    const q = e.target.value.trim().toLowerCase();
-    const filtered = q
-      ? sorted.filter((m) => (m.displayName || '').toLowerCase().includes(q) || m.userId.includes(q))
-      : sorted;
-    document.getElementById('member-lookup-list').innerHTML = filtered.map((m) => rowHtml(m, e.target.value.trim())).join('') || '<p class="muted">Aucun resultat.</p>';
+  const repaintMembers = () => {
+    const q = document.getElementById('member-search').value.trim();
+    const ql = q.toLowerCase();
+    const base = showBots ? sorted : sorted.filter((m) => !isBot(m));
+    const filtered = ql
+      ? base.filter((m) => (m.displayName || '').toLowerCase().includes(ql) || m.userId.includes(ql))
+      : base;
+    document.getElementById('member-lookup-list').innerHTML = filtered.map((m) => rowHtml(m, q)).join('')
+      || '<p class="muted">Aucun resultat.</p>';
+  };
+  repaintMembers();
+  document.getElementById('member-search').addEventListener('input', repaintMembers);
+  document.getElementById('member-show-bots')?.addEventListener('change', (e) => {
+    showBots = e.target.checked;
+    repaintMembers();
   });
 
   // Timeout depuis le dashboard (roadmap n°075) : delegation sur la liste
@@ -5408,8 +5501,13 @@ async function init() {
     return;
   }
   try {
-    localStorage.setItem('guilds-cache', JSON.stringify(allGuilds));
-    localStorage.setItem('guilds-cache-at', String(Date.now()));
+    // Une liste vide n'ecrase jamais un cache utile : au pire c'est un
+    // incident cote Discord, au mieux l'ecran vide legitime s'affiche
+    // quand meme (allGuilds fait foi pour le rendu).
+    if (allGuilds.length) {
+      localStorage.setItem('guilds-cache', JSON.stringify(allGuilds));
+      localStorage.setItem('guilds-cache-at', String(Date.now()));
+    }
   } catch { /* quota localStorage depasse, tant pis pour le cache */ }
   renderRail();
 

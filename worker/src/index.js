@@ -6,6 +6,7 @@ import {
 } from './oauth.js';
 import { getSession, destroySession, clearSessionCookie } from './session.js';
 import { botFetch, botFetchJson, notifyGuildOwner } from './discordApi.js';
+import { HttpError } from './errors.js';
 import {
   getGuildConfig, putGuildConfig, getGameRoles, putGameRoles,
   getModConfig, putModConfig,
@@ -60,13 +61,6 @@ function normalizeChannelName(name) {
 }
 function isThirdPartyName(name) {
   return THIRD_PARTY_NAMES.has(normalizeChannelName(name));
-}
-
-class HttpError extends Error {
-  constructor(status, message) {
-    super(message);
-    this.status = status;
-  }
 }
 
 async function requireSession(env, request) {
@@ -538,6 +532,7 @@ async function router(request, env) {
         displayName: m.nick || m.user.global_name || m.user.username,
         avatar: m.user.avatar,
         roles: m.roles,
+        bot: Boolean(m.user.bot),
       })), env);
     }
 
