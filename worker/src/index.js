@@ -541,6 +541,14 @@ async function router(request, env) {
       })), env);
     }
 
+    // Casier de sanctions (roadmap n°072) : lit les warns ecrits par le bot
+    // (automod et manuels) dans le meme namespace KV.
+    if (sub === 'members' && parts[5] === 'warns' && parts.length === 6 && method === 'GET') {
+      await requireGuildAccess(env, request, guildId);
+      const warns = (await env.GUILD_KV.get(`guild:${guildId}:warns:${parts[4]}`, 'json')) || [];
+      return json(warns, env);
+    }
+
     // Timeout d'un membre depuis le dashboard (roadmap n°075).
     // minutes = 0 leve le timeout en cours.
     if (sub === 'members' && parts[5] === 'timeout' && parts.length === 6 && method === 'POST') {

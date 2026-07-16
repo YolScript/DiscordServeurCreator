@@ -3811,6 +3811,7 @@ async function renderMemberLookupPage(id, container = app) {
         </div>
         <div class="member-lookup-roles">${roleChips}</div>
         <div class="member-lookup-actions">
+          <button type="button" class="member-warns-btn" data-warns-user="${m.userId}" title="Voir le casier de sanctions" aria-label="Casier de ${escapeHtml(m.displayName || m.userId)}">📖</button>
           <button type="button" class="member-timeout-btn" data-timeout-user="${m.userId}" data-timeout-name="${escapeHtml(m.displayName || m.userId)}" title="Reduire au silence temporairement" aria-label="Timeout de ${escapeHtml(m.displayName || m.userId)}">🔇</button>
         </div>
       </div>`;
@@ -3838,20 +3839,37 @@ async function renderMemberLookupPage(id, container = app) {
   // (les lignes sont re-rendues a chaque frappe de recherche).
   container.querySelector('#member-lookup-list').closest('.section-panel, .inner')?.addEventListener('click', async (e) => {
     const btn = e.target.closest('.member-timeout-btn');
-    if (!btn) return;
-    const answer = window.prompt(
-      `Timeout de ${btn.dataset.timeoutName} — duree en minutes ?\n(10 = 10 min, 60 = 1 h, 1440 = 24 h, 0 = lever le timeout)`,
-      '10',
-    );
-    if (answer === null) return;
-    const minutes = Number(answer);
-    if (!Number.isFinite(minutes) || minutes < 0) { showToast('Duree invalide.', 'error'); return; }
-    try {
-      await Api.timeoutMember(id, btn.dataset.timeoutUser, minutes);
-      showToast(minutes === 0 ? 'Timeout leve.' : `${btn.dataset.timeoutName} reduit au silence ${minutes} min.`);
-    } catch (err) {
-      showToast(err.message, 'error');
+    if (btn) {
+      const answer = window.prompt(
+        `Timeout de ${btn.dataset.timeoutName} — duree en minutes ?\n(10 = 10 min, 60 = 1 h, 1440 = 24 h, 0 = lever le timeout)`,
+        '10',
+      );
+      if (answer === null) return;
+      const minutes = Number(answer);
+      if (!Number.isFinite(minutes) || minutes < 0) { showToast('Duree invalide.', 'error'); return; }
+      try {
+        await Api.timeoutMember(id, btn.dataset.timeoutUser, minutes);
+        showToast(minutes === 0 ? 'Timeout leve.' : `${btn.dataset.timeoutName} reduit au silence ${minutes} min.`);
+      } catch (err) {
+        showToast(err.message, 'error');
+      }
+      return;
     }
+
+    // Casier de sanctions (roadmap n°072) : liste des warns automod/manuels.
+    const warnsBtn = e.target.closest('.member-warns-btn');
+    if (!warnsBtn) return;
+    const row = warnsBtn.closest('.member-lookup-row');
+    const existing = row.nextElementSibling;
+    if (existing?.classList.contains('member-warns-detail')) { existing.remove(); return; }
+    container.querySelectorAll('.member-warns-detail').forEach((el) => el.remove());
+    const warns = await Api.memberWarns(id, warnsBtn.dataset.warnsUser).catch(() => []);
+    const rows = warns.slice().reverse().map((w) => `
+      <div class="member-warn-row">
+        <span>${escapeHtml(w.reason || 'Sans raison')}</span>
+        <span class="muted">${w.source === 'automod' ? '🤖 automod' : '👮 manuel'} — ${new Date(w.createdAt).toLocaleString('fr-FR')}</span>
+      </div>`).join('');
+    row.insertAdjacentHTML('afterend', `<div class="member-warns-detail">${rows || '<p class="muted" style="margin:0;">Aucune sanction enregistree.</p>'}</div>`);
   });
 }
 

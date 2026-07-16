@@ -53,6 +53,7 @@ window.Api = (function api() {
     roles: (guildId) => request(`/api/guilds/${guildId}/roles`),
     members: (guildId) => request(`/api/guilds/${guildId}/members`),
     timeoutMember: (guildId, userId, minutes) => request(`/api/guilds/${guildId}/members/${userId}/timeout`, { method: 'POST', body: JSON.stringify({ minutes }) }),
+    memberWarns: (guildId, userId) => request(`/api/guilds/${guildId}/members/${userId}/warns`),
     createRole: (guildId, name, color) => request(`/api/guilds/${guildId}/roles`, { method: 'POST', body: JSON.stringify({ name, color }) }),
     config: (guildId) => request(`/api/guilds/${guildId}/config`),
     updateConfig: (guildId, patch) => request(`/api/guilds/${guildId}/config`, { method: 'PATCH', body: JSON.stringify(patch) }),

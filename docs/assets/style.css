@@ -1334,6 +1334,18 @@ button.embed-json-jump { background: none; border: none; padding: 0; font-family
 }
 .member-lookup-row:hover .member-timeout-btn, .member-timeout-btn:focus-visible { opacity: 1; }
 .member-timeout-btn:hover { background: var(--danger-soft); }
+.member-warns-btn {
+  background: none; border: none; cursor: pointer; font-size: 0.9rem;
+  padding: 4px 6px; border-radius: 4px; opacity: 0.4;
+  transition: opacity 0.12s ease, background 0.12s ease;
+}
+.member-lookup-row:hover .member-warns-btn, .member-warns-btn:focus-visible { opacity: 1; }
+.member-warns-btn:hover { background: var(--border); }
+.member-warns-detail {
+  background: var(--bg-input); border: 1px solid var(--border); border-radius: 6px;
+  padding: 10px 12px; margin: -2px 0 8px 46px; display: flex; flex-direction: column; gap: 6px;
+}
+.member-warn-row { display: flex; justify-content: space-between; gap: 12px; font-size: 0.8rem; flex-wrap: wrap; }
 input[type=text].drag-over, textarea.drag-over { border-color: var(--accent); box-shadow: 0 0 0 3px var(--accent-soft); }
 
 .embed-field-row {
