@@ -1,8 +1,10 @@
-const { MessageFlags } = require('discord.js');
+const {
+  MessageFlags, ModalBuilder, TextInputBuilder, TextInputStyle, ActionRowBuilder,
+} = require('discord.js');
 const {
   REGLEMENT_ACCEPT, REGLEMENT_TRANSLATE,
   GAME_SELECT_PREFIX, GAME_PSEUDO_MODAL_PREFIX, GAME_PSEUDO_BUTTON_PREFIX, POLL_VOTE_PREFIX, GIVEAWAY_ENTER_PREFIX,
-  CAPTCHA_OK, CAPTCHA_NO, TICKET_OPEN, POLL_CREATE_OPEN, POLL_CREATE_MODAL, TICKET_RATE_PREFIX,
+  CAPTCHA_OK, CAPTCHA_NO, TICKET_OPEN, TICKET_FORM_MODAL, POLL_CREATE_OPEN, POLL_CREATE_MODAL, TICKET_RATE_PREFIX,
   SUGGESTION_VOTE_PREFIX, SUGGESTION_APPROVE_PREFIX, SUGGESTION_DENY_PREFIX, SHOP_BUY_PREFIX,
   CAPTCHA_IMAGE_VERIFY, CAPTCHA_IMAGE_MODAL, AGE_VERIFY_BUTTON, AGE_VERIFY_MODAL,
 } = require('./customIds');
@@ -160,11 +162,27 @@ async function routeInteraction(interaction) {
       } else if (interaction.customId === TICKET_CLAIM_ID) {
         await claimTicket(interaction);
       } else if (interaction.customId === TICKET_OPEN) {
-        await interaction.deferReply({ flags: MessageFlags.Ephemeral });
-        const { channel, alreadyOpen } = await createTicket(interaction.guild, interaction.member);
-        await interaction.editReply(alreadyOpen
-          ? `Tu as deja un ticket ouvert : <#${channel.id}>`
-          : `Ticket cree : <#${channel.id}>`);
+        // Formulaire d'ouverture (roadmap n°160) : motif + details + urgence
+        // avant la creation du salon, pour donner le contexte au staff.
+        const modal = new ModalBuilder()
+          .setCustomId(TICKET_FORM_MODAL)
+          .setTitle('Ouvrir un ticket')
+          .addComponents(
+            new ActionRowBuilder().addComponents(
+              new TextInputBuilder().setCustomId('ticket_motif').setLabel('Motif de ta demande')
+                .setStyle(TextInputStyle.Short).setMaxLength(100).setRequired(true)
+                .setPlaceholder('Ex : probleme de role, question, signalement...'),
+            ),
+            new ActionRowBuilder().addComponents(
+              new TextInputBuilder().setCustomId('ticket_details').setLabel('Details (optionnel)')
+                .setStyle(TextInputStyle.Paragraph).setMaxLength(1000).setRequired(false),
+            ),
+            new ActionRowBuilder().addComponents(
+              new TextInputBuilder().setCustomId('ticket_urgence').setLabel('Urgence : basse / normale / haute')
+                .setStyle(TextInputStyle.Short).setMaxLength(20).setRequired(false).setPlaceholder('normale'),
+            ),
+          );
+        await interaction.showModal(modal);
       } else if (interaction.customId === POLL_CREATE_OPEN) {
         await handlePollCreateButton(interaction);
       } else if (interaction.customId === CAPTCHA_OK) {
@@ -231,6 +249,18 @@ async function routeInteraction(interaction) {
     }
     if (interaction.isModalSubmit() && interaction.customId === AGE_VERIFY_MODAL) {
       await handleAgeVerifyModal(interaction);
+    }
+    if (interaction.isModalSubmit() && interaction.customId === TICKET_FORM_MODAL) {
+      await interaction.deferReply({ flags: MessageFlags.Ephemeral });
+      const form = {
+        motif: interaction.fields.getTextInputValue('ticket_motif').trim() || 'Non precise',
+        details: interaction.fields.getTextInputValue('ticket_details').trim(),
+        urgence: interaction.fields.getTextInputValue('ticket_urgence').trim(),
+      };
+      const { channel, alreadyOpen } = await createTicket(interaction.guild, interaction.member, form);
+      await interaction.editReply(alreadyOpen
+        ? `Tu as deja un ticket ouvert : <#${channel.id}>`
+        : `Ticket cree : <#${channel.id}>`);
     }
   } catch (err) {
     logger.error('Erreur lors du traitement d\'une interaction', err);

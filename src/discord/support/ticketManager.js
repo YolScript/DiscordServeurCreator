@@ -59,7 +59,9 @@ async function ensureTicketCategory(guild, config) {
   return category;
 }
 
-async function createTicket(guild, member) {
+// form (roadmap n°160) : { motif, details, urgence } saisis dans le modal
+// d'ouverture — affiches en embed pour que le staff ait le contexte direct.
+async function createTicket(guild, member, form = null) {
   const config = await guildConfigStore.find(guild.id);
   const existing = await ticketStore.findOpenByUser(guild.id, member.id);
   if (existing) {
@@ -87,8 +89,15 @@ async function createTicket(guild, member) {
 
   const embed = new EmbedBuilder()
     .setTitle('🎫 Ticket support')
-    .setDescription(`Bonjour <@${member.id}>, un membre du staff va te repondre bientot. Decris ta demande ici.`)
+    .setDescription(`Bonjour <@${member.id}>, un membre du staff va te repondre bientot.${form ? '' : ' Decris ta demande ici.'}`)
     .setColor(0x5b8def);
+  if (form) {
+    embed.addFields(
+      { name: 'Motif', value: form.motif.slice(0, 1024), inline: false },
+      ...(form.details ? [{ name: 'Details', value: form.details.slice(0, 1024), inline: false }] : []),
+      ...(form.urgence ? [{ name: 'Urgence', value: form.urgence.slice(0, 100), inline: true }] : []),
+    );
+  }
   const row = new ActionRowBuilder().addComponents(
     new ButtonBuilder().setCustomId(TICKET_CLAIM_ID).setLabel('Prendre en charge').setEmoji('🙋').setStyle(ButtonStyle.Secondary),
     new ButtonBuilder().setCustomId(TICKET_CLOSE_ID).setLabel('Fermer le ticket').setStyle(ButtonStyle.Danger),

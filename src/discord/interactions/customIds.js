@@ -9,6 +9,7 @@ const GIVEAWAY_ENTER_PREFIX = 'giveaway_enter:';
 const CAPTCHA_OK = 'captcha_ok';
 const CAPTCHA_NO = 'captcha_no';
 const TICKET_OPEN = 'ticket_open';
+const TICKET_FORM_MODAL = 'ticket_form_modal';
 const POLL_CREATE_OPEN = 'poll_create_open';
 const POLL_CREATE_MODAL = 'poll_create_modal';
 const TICKET_RATE_PREFIX = 'ticket_rate:';
@@ -43,6 +44,7 @@ module.exports = {
   CAPTCHA_OK,
   CAPTCHA_NO,
   TICKET_OPEN,
+  TICKET_FORM_MODAL,
   POLL_CREATE_OPEN,
   POLL_CREATE_MODAL,
   TICKET_RATE_PREFIX,
