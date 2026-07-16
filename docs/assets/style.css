@@ -592,7 +592,7 @@ input::placeholder, textarea::placeholder { color: var(--text-faint); }
 @media (max-width: 760px) { .gen-layout { grid-template-columns: 1fr; } }
 .gen-preview-mock {
   background: var(--bg-elevated); border: 1px solid var(--border); border-radius: var(--radius);
-  min-height: 420px; overflow: hidden; display: flex; flex-direction: column;
+  min-height: 620px; overflow: hidden; display: flex; flex-direction: column;
 }
 .gen-preview-mock-placeholder {
   flex: 1; display: flex; align-items: center; justify-content: center; text-align: center; padding: 24px;
@@ -613,7 +613,7 @@ input::placeholder, textarea::placeholder { color: var(--text-faint); }
   font-size: 0.72rem; padding: 3px 8px; border-radius: 999px; background: color-mix(in srgb, var(--rc, var(--accent)) 22%, transparent);
   color: var(--rc, var(--text)); border: 1px solid color-mix(in srgb, var(--rc, var(--accent)) 45%, transparent);
 }
-.tplprev-channels { max-height: 340px; overflow-y: auto; scrollbar-width: none; }
+.tplprev-channels { max-height: 540px; overflow-y: auto; scrollbar-width: none; }
 .tplprev-channels::-webkit-scrollbar { display: none; }
 .tplprev-cat { font-size: 0.72rem; font-weight: 700; text-transform: uppercase; letter-spacing: 0.03em; color: var(--text-faint); margin: 10px 0 4px; }
 .tplprev-cat:first-child { margin-top: 0; }
