@@ -2001,12 +2001,19 @@ function renderPreviewContent(id, { channels, config, roles, members }) {
       const type = form.querySelector('.dp-custom-type').value;
       if (!names.length) { showToast('Nom requis.', 'error'); return; }
       try {
+        const createdIds = [];
         for (const name of names) {
           // eslint-disable-next-line no-await-in-loop
-          await Api.createChannel(id, name, type, btn.dataset.cat || undefined);
+          const created = await Api.createChannel(id, name, type, btn.dataset.cat || undefined);
+          if (created?.id) createdIds.push(created.id);
         }
-        showToast(names.length > 1 ? `${names.length} salons crees.` : 'Salon cree.');
         await renderPreviewPage(id);
+        // Toast cliquable (roadmap n°114) : « Voir » scrolle jusqu'au salon.
+        showToast(
+          names.length > 1 ? `${names.length} salons crees.` : 'Salon cree.',
+          'success',
+          createdIds.length ? { label: 'Voir', onClick: () => revealInSidebar(`.dp-channel[data-channel="${createdIds[0]}"]`, '.dp-sidebar') } : null,
+        );
       } catch (err) {
         showToast(err.message, 'error');
       }
@@ -5575,6 +5582,17 @@ async function renderEmbedBuilderPage(id, container = app) {
               <button type="button" class="embed-var-chip" data-var="{server}" title="Nom du serveur">{server}</button>
               <button type="button" class="embed-var-chip" data-var="{memberCount}" title="Nombre de membres">{memberCount}</button>
               <button type="button" class="embed-var-chip" data-var="{date}" title="Date du jour">{date}</button>
+              <button type="button" class="embed-var-chip" id="embed-ts-btn" aria-expanded="false" title="Inserer un timestamp Discord dynamique">🕒 Timestamp</button>
+            </div>
+            <div class="row" id="embed-ts-row" style="display:none; gap:6px; align-items:center; flex-wrap:wrap;">
+              <input type="datetime-local" id="embed-ts-date" aria-label="Date et heure du timestamp" style="margin:0;" />
+              <select id="embed-ts-format" aria-label="Format du timestamp" style="margin:0; max-width:200px;">
+                <option value="R">Relatif (dans 2 jours)</option>
+                <option value="F">Complet (jour + date + heure)</option>
+                <option value="f">Court (date + heure)</option>
+                <option value="t">Heure seule</option>
+              </select>
+              <button type="button" class="btn secondary" id="embed-ts-insert">Inserer</button>
             </div>
             <label for="embed-color">Couleur</label>
             <div class="dp-role-color-row">
@@ -5779,6 +5797,34 @@ async function renderEmbedBuilderPage(id, container = app) {
       area.focus();
       area.dispatchEvent(new Event('input', { bubbles: true }));
     });
+  });
+
+  // Timestamp Discord (roadmap n°129) : insere <t:unix:format> au curseur.
+  // Discord le rend dans le fuseau de CHAQUE lecteur, d'ou l'interet vs date en dur.
+  container.querySelector('#embed-ts-btn').addEventListener('click', (e) => {
+    const row = container.querySelector('#embed-ts-row');
+    const open = row.style.display === 'none';
+    row.style.display = open ? 'flex' : 'none';
+    e.currentTarget.setAttribute('aria-expanded', String(open));
+    if (open && !container.querySelector('#embed-ts-date').value) {
+      const now = new Date(Date.now() + 3600000);
+      now.setMinutes(0, 0, 0);
+      const pad = (n) => String(n).padStart(2, '0');
+      container.querySelector('#embed-ts-date').value = `${now.getFullYear()}-${pad(now.getMonth() + 1)}-${pad(now.getDate())}T${pad(now.getHours())}:${pad(now.getMinutes())}`;
+    }
+  });
+  container.querySelector('#embed-ts-insert').addEventListener('click', () => {
+    const dateVal = container.querySelector('#embed-ts-date').value;
+    if (!dateVal) { showToast('Choisis une date et une heure.', 'error'); return; }
+    const unix = Math.floor(new Date(dateVal).getTime() / 1000);
+    const token = `<t:${unix}:${container.querySelector('#embed-ts-format').value}>`;
+    const area = container.__lastMdArea || container.querySelector('#embed-description');
+    const start = area.selectionStart ?? area.value.length;
+    area.value = area.value.slice(0, start) + token + area.value.slice(area.selectionEnd ?? start);
+    const pos = start + token.length;
+    area.setSelectionRange(pos, pos);
+    area.focus();
+    area.dispatchEvent(new Event('input', { bubbles: true }));
   });
 
   // Apercu mobile (n°009) : simule la largeur d'un telephone.
@@ -6691,6 +6737,24 @@ async function init() {
     videoToggleBtn.addEventListener('click', () => {
       localStorage.setItem('bgVideoOff', localStorage.getItem('bgVideoOff') === '1' ? '0' : '1');
       applyVideoState();
+      window.UISound?.click();
+    });
+  }
+
+  // Mode compact (roadmap n°111) : densite d'affichage reduite via une
+  // classe sur body, memorisee par appareil.
+  const densityBtn = document.getElementById('density-toggle-btn');
+  if (densityBtn) {
+    const applyDensity = () => {
+      const compact = localStorage.getItem('dsc-density') === 'compact';
+      document.body.classList.toggle('density-compact', compact);
+      densityBtn.setAttribute('aria-pressed', String(compact));
+      densityBtn.title = compact ? 'Repasser en affichage confortable' : 'Mode compact';
+    };
+    applyDensity();
+    densityBtn.addEventListener('click', () => {
+      localStorage.setItem('dsc-density', localStorage.getItem('dsc-density') === 'compact' ? 'normal' : 'compact');
+      applyDensity();
       window.UISound?.click();
     });
   }

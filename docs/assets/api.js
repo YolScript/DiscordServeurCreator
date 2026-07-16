@@ -219,12 +219,26 @@ window.Api = (function api() {
   };
 }());
 
-window.showToast = function showToast(message, type = 'success') {
+// action optionnelle (roadmap n°114) : { label, onClick } ajoute un bouton
+// dans le toast (ex. « Voir » qui scrolle jusqu'a l'element cree).
+window.showToast = function showToast(message, type = 'success', action = null) {
   const toast = document.createElement('div');
   toast.className = `toast ${type}`;
   const icon = type === 'error' ? '⚠' : '✓';
   const safeMessage = window.escapeHtml ? window.escapeHtml(message) : String(message ?? '');
   toast.innerHTML = `<span class="toast-icon" aria-hidden="true">${icon}</span><span>${safeMessage}</span>`;
+  if (action && action.label && typeof action.onClick === 'function') {
+    const btn = document.createElement('button');
+    btn.type = 'button';
+    btn.className = 'toast-undo-btn';
+    btn.textContent = action.label;
+    btn.addEventListener('click', () => {
+      action.onClick();
+      toast.classList.add('leaving');
+      setTimeout(() => toast.remove(), 220);
+    });
+    toast.appendChild(btn);
+  }
   toast.setAttribute('role', 'status');
   document.body.appendChild(toast);
   window.UISound?.[type === 'error' ? 'error' : 'success']?.();

@@ -1540,6 +1540,15 @@ button.embed-json-jump { background: none; border: none; padding: 0; font-family
   transition: border-color 0.12s ease, background 0.12s ease;
 }
 .dp-ai-suggestion:hover { border-color: var(--accent); background: var(--accent-soft); }
+
+/* Mode compact (n°111) : densite reduite, opt-in via bouton topbar. */
+body.density-compact .dp-chat { padding: 10px 14px; gap: 10px; }
+body.density-compact .dp-chat-msg { gap: 8px; }
+body.density-compact .dp-action-card { padding: 8px 6px; }
+body.density-compact .dp-channel, body.density-compact .dp-role-row { padding-top: 2px; padding-bottom: 2px; }
+body.density-compact .inner section, body.density-compact .dp-block { padding: 10px 12px; margin-bottom: 10px; }
+body.density-compact input[type=text], body.density-compact select, body.density-compact textarea { padding: 6px 10px; }
+body.density-compact .btn { padding: 6px 12px; }
 input[type=text].drag-over, textarea.drag-over { border-color: var(--accent); box-shadow: 0 0 0 3px var(--accent-soft); }
 
 .embed-field-row {
