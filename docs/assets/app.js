@@ -4072,10 +4072,15 @@ async function renderCreatorPage(id, container = app) {
 
       ${sectionHtml('Roles', `
         <p class="muted">Cree un role rapidement, puis attribue-le : choisis le role, les membres sont detectes automatiquement, un petit + suffit.</p>
-        <div class="row" style="gap:8px; flex-wrap:wrap; margin-bottom:14px;">
+        <div class="row" style="gap:8px; flex-wrap:wrap; margin-bottom:8px;">
           <input type="text" id="creator-role-name" placeholder="Nom du nouveau role" aria-label="Nom du nouveau role" maxlength="100" style="flex:2; min-width:160px; margin:0;" />
           <input type="color" id="creator-role-color" value="#5865f2" aria-label="Couleur du role" style="flex:none;" class="dp-role-color-input" />
           <button type="button" class="btn secondary" id="creator-role-create">➕ Creer le role</button>
+        </div>
+        <p class="muted" style="font-size:0.78rem; margin:0 0 6px;">Permissions du nouveau role (optionnel) :</p>
+        <div class="creator-perm-chips" role="group" aria-label="Permissions du nouveau role">
+          ${['KickMembers', 'BanMembers', 'ModerateMembers', 'ManageMessages', 'ManageChannels', 'ManageRoles', 'ManageNicknames', 'MentionEveryone', 'ViewAuditLog', 'ManageWebhooks', 'Administrator']
+    .map((k) => `<button type="button" class="creator-perm-chip" data-perm="${k}" aria-pressed="false">${PERMISSION_LABELS[k]}</button>`).join('')}
         </div>
         <label for="creator-assign-role">Role a attribuer</label>
         <select id="creator-assign-role">${assignableRoles.map((r) => `<option value="${r.id}">${escapeHtml(r.name)}</option>`).join('')}</select>
@@ -4101,12 +4106,31 @@ async function renderCreatorPage(id, container = app) {
     });
   });
 
+  // Chips de permissions (demande utilisateur) : multi-selection, bitmask
+  // calcule a la creation. Administrator implique tout : les autres chips
+  // se desactivent visuellement quand il est actif.
+  container.querySelectorAll('.creator-perm-chip').forEach((chip) => {
+    chip.addEventListener('click', () => {
+      const active = chip.getAttribute('aria-pressed') !== 'true';
+      chip.setAttribute('aria-pressed', String(active));
+      chip.classList.toggle('active', active);
+      if (chip.dataset.perm === 'Administrator') {
+        container.querySelectorAll('.creator-perm-chip:not([data-perm="Administrator"])')
+          .forEach((c) => c.classList.toggle('overridden', active));
+      }
+    });
+  });
+
   container.querySelector('#creator-role-create').addEventListener('click', async () => {
     const name = container.querySelector('#creator-role-name').value.trim();
     if (!name) { showToast('Nom du role requis.', 'error'); return; }
+    const activePerms = [...container.querySelectorAll('.creator-perm-chip.active')].map((c) => c.dataset.perm);
+    if (activePerms.includes('Administrator')
+      && !window.confirm('Ce role aura la permission Administrateur (acces total au serveur). Confirmer ?')) return;
+    const mask = activePerms.reduce((acc, k) => acc | (PERMISSION_BITS[k] ?? 0n), 0n);
     try {
-      await Api.createRole(id, name, container.querySelector('#creator-role-color').value);
-      showToast(`Role "${name}" cree.`);
+      await Api.createRole(id, name, hexToInt(container.querySelector('#creator-role-color').value), mask ? mask.toString() : undefined);
+      showToast(`Role "${name}" cree${activePerms.length ? ` avec ${activePerms.length} permission(s)` : ''}.`);
       await renderCreatorPage(id, container);
     } catch (err) {
       showToast(err.message, 'error');
@@ -4308,12 +4332,74 @@ function lineChartSvg(points, { width = 560, height = 140, color = 'var(--accent
 
 async function renderStatsPage(id, container = app) {
   container.innerHTML = skeletonHtml();
-  const stats = await Api.stats(id);
+  const [stats, xpData, statMembers] = await Promise.all([
+    Api.stats(id),
+    Api.xp(id).catch(() => ({})),
+    Api.members(id).catch(() => []),
+  ]);
 
   const memberPoints = stats.map((s) => s.memberCount);
   const messagePoints = stats.map((s) => s.messageCount);
   const lastDate = stats.length ? stats[stats.length - 1].date : null;
   const firstDate = stats.length ? stats[0].date : null;
+
+  // Comparaison de periode (roadmap n°035) : 7 derniers jours vs 7 precedents.
+  const sum = (arr) => arr.reduce((a, b) => a + (b || 0), 0);
+  const last7 = sum(messagePoints.slice(-7));
+  const prev7 = sum(messagePoints.slice(-14, -7));
+  const trendHtml = prev7 > 0
+    ? (() => {
+      const pct = Math.round(((last7 - prev7) / prev7) * 100);
+      const cls = pct >= 0 ? 'up' : 'down';
+      return `<span class="stats-trend ${cls}" title="${last7} messages ces 7 jours contre ${prev7} les 7 precedents">${pct >= 0 ? '▲' : '▼'} ${Math.abs(pct)} % vs semaine precedente</span>`;
+    })()
+    : '';
+
+  // Heatmap heure x jour (roadmap n°030) : repartition des messages sur les
+  // 28 derniers jours, heures converties du UTC vers l'heure locale.
+  const tzShift = -Math.round(new Date().getTimezoneOffset() / 60);
+  const grid = Array.from({ length: 7 }, () => Array(24).fill(0));
+  let hasHours = false;
+  stats.slice(-28).forEach((s) => {
+    if (!Array.isArray(s.hours)) return;
+    hasHours = true;
+    const day = new Date(`${s.date}T12:00:00Z`).getDay();
+    s.hours.forEach((count, utcHour) => {
+      if (!count) return;
+      grid[day][(utcHour + tzShift + 24) % 24] += count;
+    });
+  });
+  const maxCell = Math.max(1, ...grid.flat());
+  const dayNames = ['Dim', 'Lun', 'Mar', 'Mer', 'Jeu', 'Ven', 'Sam'];
+  const dayOrder = [1, 2, 3, 4, 5, 6, 0];
+  const heatmapHtml = hasHours
+    ? `<div class="stats-heatmap" role="img" aria-label="Repartition des messages par heure et jour de la semaine">
+        ${dayOrder.map((d) => `
+          <div class="stats-heatmap-row">
+            <span class="stats-heatmap-day">${dayNames[d]}</span>
+            ${grid[d].map((v, h) => `<span class="stats-heatmap-cell" style="--heat:${(v / maxCell).toFixed(2)}" title="${dayNames[d]} ${h}h : ${v} message(s)"></span>`).join('')}
+          </div>`).join('')}
+        <div class="stats-heatmap-row stats-heatmap-hours">
+          <span class="stats-heatmap-day"></span>
+          ${Array.from({ length: 24 }, (_, h) => `<span class="stats-heatmap-hour">${h % 6 === 0 ? h : ''}</span>`).join('')}
+        </div>
+      </div>`
+    : '<p class="muted">La repartition horaire se remplit a partir de maintenant (donnees collectees depuis la mise a jour du bot).</p>';
+
+  // Top membres (n°031) + stats vocales (n°032) depuis les donnees XP.
+  const nameById = new Map(statMembers.map((m) => [m.userId, m.displayName || m.userId]));
+  const xpEntries = Object.entries(xpData);
+  const topRow = (uid, value, unit) => `
+    <div class="stats-top-row">
+      <span class="stats-top-name">${escapeHtml(nameById.get(uid) || 'Membre parti')}</span>
+      <span class="stats-top-value">${value.toLocaleString('fr-FR')} ${unit}</span>
+    </div>`;
+  const topMessages = xpEntries.filter(([, d]) => d.messageCount > 0)
+    .sort((a, b) => b[1].messageCount - a[1].messageCount).slice(0, 10)
+    .map(([uid, d]) => topRow(uid, d.messageCount, 'msg')).join('') || '<p class="muted">Pas encore de donnees.</p>';
+  const topVoice = xpEntries.filter(([, d]) => d.voiceMinutes > 0)
+    .sort((a, b) => b[1].voiceMinutes - a[1].voiceMinutes).slice(0, 10)
+    .map(([uid, d]) => topRow(uid, Math.round(d.voiceMinutes / 60 * 10) / 10, 'h vocal')).join('') || '<p class="muted">Pas encore de donnees vocales.</p>';
 
   container.innerHTML = `
     <div class="inner">
@@ -4323,11 +4409,39 @@ async function renderStatsPage(id, container = app) {
         ${lastDate ? `<p class="muted" style="margin-top:8px;">Dernier releve : ${lastDate} — ${memberPoints[memberPoints.length - 1]} membre(s)</p>` : ''}
       `, { id: 'stats-members' })}
       ${sectionHtml('Activite (messages/jour)', `
-        <p class="muted">Nombre de messages envoyes par jour (hors bots).</p>
+        <p class="muted">Nombre de messages envoyes par jour (hors bots). ${trendHtml}</p>
         ${lineChartSvg(messagePoints, { color: 'var(--success)' })}
+        <h2 style="margin-top:18px; font-size:0.85rem;">🕐 Heures d'activite (28 derniers jours)</h2>
+        ${heatmapHtml}
+        <div class="stats-top-grid">
+          <div>
+            <h2 style="font-size:0.85rem;">💬 Top membres (messages)</h2>
+            ${topMessages}
+          </div>
+          <div>
+            <h2 style="font-size:0.85rem;">🔊 Top membres (vocal)</h2>
+            ${topVoice}
+          </div>
+        </div>
+        <button type="button" class="btn secondary" id="stats-export-csv" style="margin-top:14px;">⬇️ Exporter en CSV</button>
       `, { id: 'stats-activity' })}
     </div>
   `;
+
+  // Export CSV (roadmap n°036).
+  container.querySelector('#stats-export-csv').addEventListener('click', () => {
+    const rows = [['date', 'membres', 'messages'], ...stats.map((s) => [s.date, s.memberCount, s.messageCount])];
+    const csv = rows.map((r) => r.join(';')).join('\n');
+    const url = URL.createObjectURL(new Blob([`﻿${csv}`], { type: 'text/csv;charset=utf-8' }));
+    const a = document.createElement('a');
+    a.href = url;
+    a.download = `stats-${id}.csv`;
+    document.body.appendChild(a);
+    a.click();
+    a.remove();
+    URL.revokeObjectURL(url);
+    showToast('CSV telecharge.');
+  });
 }
 
 /* ---------- Pages: generateur d'embed ---------- */

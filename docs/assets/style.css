@@ -1411,6 +1411,40 @@ button.embed-json-jump { background: none; border: none; padding: 0; font-family
 }
 .embed-preview-btn.role { background: #5865f2; }
 .embed-preview-btn.link { background: #4e5058; }
+
+/* Chips de permissions du createur de roles */
+.creator-perm-chips { display: flex; flex-wrap: wrap; gap: 5px; margin-bottom: 14px; }
+.creator-perm-chip {
+  font-family: inherit; font-size: 0.74rem; padding: 4px 10px; border-radius: 999px;
+  border: 1px solid var(--border-strong); background: var(--bg-input); color: var(--text-muted);
+  cursor: pointer; transition: color 0.12s ease, border-color 0.12s ease, background 0.12s ease, opacity 0.12s ease;
+}
+.creator-perm-chip:hover { border-color: var(--accent); color: var(--text); }
+.creator-perm-chip.active { background: var(--accent-soft); border-color: var(--accent); color: var(--accent); font-weight: 600; }
+.creator-perm-chip.overridden:not(.active) { opacity: 0.4; }
+.creator-perm-chip[data-perm="Administrator"].active { background: var(--danger-soft); border-color: var(--danger); color: var(--danger); }
+
+/* Stats avancees : heatmap (n°030), tops (n°031/032), tendance (n°035) */
+.stats-trend { font-weight: 600; font-size: 0.8rem; }
+.stats-trend.up { color: var(--success); }
+.stats-trend.down { color: var(--danger); }
+.stats-heatmap { display: flex; flex-direction: column; gap: 3px; overflow-x: auto; padding-bottom: 4px; }
+.stats-heatmap-row { display: flex; gap: 3px; align-items: center; }
+.stats-heatmap-day { width: 34px; flex: none; font-size: 0.68rem; color: var(--text-faint); text-align: right; padding-right: 4px; }
+.stats-heatmap-cell {
+  width: 16px; height: 16px; flex: none; border-radius: 3px;
+  background: color-mix(in srgb, var(--success) calc(var(--heat) * 100%), var(--bg-input));
+}
+.stats-heatmap-hour { width: 16px; flex: none; font-size: 0.62rem; color: var(--text-faint); text-align: center; }
+.stats-top-grid { display: grid; grid-template-columns: 1fr 1fr; gap: 18px; margin-top: 14px; }
+@media (max-width: 560px) { .stats-top-grid { grid-template-columns: 1fr; } }
+.stats-top-row {
+  display: flex; justify-content: space-between; gap: 10px; padding: 5px 8px;
+  border-radius: 4px; font-size: 0.84rem;
+}
+.stats-top-row:nth-child(odd) { background: var(--bg-input); }
+.stats-top-name { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.stats-top-value { flex: none; color: var(--text-muted); font-variant-numeric: tabular-nums; }
 input[type=text].drag-over, textarea.drag-over { border-color: var(--accent); box-shadow: 0 0 0 3px var(--accent-soft); }
 
 .embed-field-row {

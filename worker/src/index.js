@@ -483,12 +483,15 @@ async function router(request, env) {
 
     if (sub === 'roles' && parts.length === 4 && method === 'POST') {
       await requireGuildAccess(env, request, guildId);
-      const { name, color, hoist } = await readJson(request);
+      const { name, color, hoist, permissions } = await readJson(request);
       if (!name) throw new HttpError(400, 'name requis.');
+      // permissions : bitmask decimal en chaine (createur de roles).
+      const perms = typeof permissions === 'string' && /^\d{1,20}$/.test(permissions) ? permissions : undefined;
       const role = await botFetchJson(env, `/guilds/${guildId}/roles`, {
         method: 'POST',
         body: JSON.stringify({
           name: name.slice(0, 100), color: color || 0, hoist: Boolean(hoist), mentionable: false,
+          ...(perms ? { permissions: perms } : {}),
         }),
       });
       return json(role, env);
@@ -1166,6 +1169,13 @@ async function router(request, env) {
     if (sub === 'auditlog' && parts.length === 4 && method === 'GET') {
       await requireGuildAccess(env, request, guildId);
       return json(await getAuditLog(env, guildId), env);
+    }
+
+    // XP/activite par membre (top membres n°031 et stats vocales n°032) :
+    // lit le document unique ecrit par le xpManager du bot.
+    if (sub === 'xp' && parts.length === 4 && method === 'GET') {
+      await requireGuildAccess(env, request, guildId);
+      return json((await env.GUILD_KV.get(`guild:${guildId}:xp`, 'json')) || {}, env);
     }
 
     if (sub === 'stats' && parts.length === 4 && method === 'GET') {
