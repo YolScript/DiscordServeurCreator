@@ -90,23 +90,36 @@ async function getDelegatedGuildIds(env, userId) {
   for (const gid of guildIds) {
     // eslint-disable-next-line no-await-in-loop
     const config = await getGuildConfig(env, gid);
-    if (config?.dashboardAllowedUserIds?.includes(userId)) delegated.push(gid);
+    if (config?.dashboardAllowedUserIds?.includes(userId) || config?.dashboardViewerUserIds?.includes(userId)) delegated.push(gid);
   }
   return delegated;
 }
 
+// Niveaux d'acces dashboard (roadmap n°058) :
+// - Admin Discord du serveur ou dashboardAllowedUserIds -> acces complet.
+// - dashboardViewerUserIds -> LECTURE SEULE : toute methode de mutation
+//   (POST/PATCH/PUT/DELETE) est refusee ici, en un seul point, quelle que
+//   soit la route.
 async function requireGuildAccess(env, request, guildId) {
   const session = await requireSession(env, request);
   const adminGuildIds = await getUserAdminGuildIds(env, session);
+  let viewerOnly = false;
   if (!adminGuildIds.includes(guildId)) {
     const config = await getGuildConfig(env, guildId);
-    if (!config?.dashboardAllowedUserIds?.includes(session.userId)) {
+    if (config?.dashboardAllowedUserIds?.includes(session.userId)) {
+      viewerOnly = false;
+    } else if (config?.dashboardViewerUserIds?.includes(session.userId)) {
+      viewerOnly = true;
+    } else {
       throw new HttpError(403, "Tu n'es pas administrateur de ce serveur.");
     }
   }
+  if (viewerOnly && request.method !== 'GET') {
+    throw new HttpError(403, 'Acces en lecture seule : cette action est reservee aux editeurs.');
+  }
   const botGuildRes = await botFetch(env, `/guilds/${guildId}`);
   if (!botGuildRes.ok) throw new HttpError(404, "Le bot n'est pas present sur ce serveur.");
-  return session;
+  return { ...session, viewerOnly };
 }
 
 async function readJson(request) {

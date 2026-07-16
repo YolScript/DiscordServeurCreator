@@ -2731,11 +2731,11 @@ function renderChannelPanel(guildId, channelId, name, type, config, channels, ro
 
 /* ---------- Pages: permissions ---------- */
 
-function dashboardAccessRows(userIds) {
+function dashboardAccessRows(userIds, deleteClass = 'delete-dashboard-access') {
   return userIds.map((uid) => `
     <div class="row" data-uid="${uid}" style="justify-content:space-between; margin-bottom:6px;">
       <span class="muted">${escapeHtml(uid)}</span>
-      <button class="btn danger delete-dashboard-access" data-uid="${uid}">Retirer</button>
+      <button class="btn danger ${deleteClass}" data-uid="${uid}">Retirer</button>
     </div>
   `).join('') || '<p class="muted">Aucun acces delegue.</p>';
 }
@@ -2751,6 +2751,7 @@ async function renderPermissionsPage(id, container = app) {
   const presetOptions = PERMISSION_PRESETS.map((p) => `<option value="${p.key}">${escapeHtml(p.label)}</option>`).join('');
   const channelOptionsSimple = editableChannels.map((c) => `<option value="${c.id}">#${escapeHtml(c.name)}</option>`).join('');
   let dashboardAllowedUserIds = config?.dashboardAllowedUserIds || [];
+  let dashboardViewerUserIds = config?.dashboardViewerUserIds || [];
 
   container.innerHTML = `
     <div class="inner">
@@ -2790,8 +2791,15 @@ async function renderPermissionsPage(id, container = app) {
         <p class="muted">Donne acces a ce dashboard a des membres specifiques (par ID Discord) meme s'ils n'ont pas la permission Administrator sur le serveur. Ils pourront tout configurer ici, comme un administrateur du dashboard.</p>
         <div id="dashboard-access-list">${dashboardAccessRows(dashboardAllowedUserIds)}</div>
         <div class="row" style="margin-top:10px;">
-          <input type="text" id="new-dashboard-access-id" placeholder="ID Discord du membre" style="flex:1;" />
+          <input type="text" id="new-dashboard-access-id" placeholder="ID Discord du membre" aria-label="ID Discord du membre (acces complet)" style="flex:1;" />
           <button class="btn secondary" id="add-dashboard-access">Ajouter</button>
+        </div>
+        <h2 style="margin-top:20px; font-size:0.85rem;">👁️ Acces en lecture seule</h2>
+        <p class="muted">Ces membres voient tout le dashboard (stats, logs, structure) mais aucune action de modification ne leur est permise.</p>
+        <div id="dashboard-viewer-list">${dashboardAccessRows(dashboardViewerUserIds, 'delete-dashboard-viewer')}</div>
+        <div class="row" style="margin-top:10px;">
+          <input type="text" id="new-dashboard-viewer-id" placeholder="ID Discord du membre" aria-label="ID Discord du membre (lecture seule)" style="flex:1;" />
+          <button class="btn secondary" id="add-dashboard-viewer">Ajouter</button>
         </div>
       `, { id: 'perm-dashboard' })}
     </div>
@@ -2887,6 +2895,43 @@ async function renderPermissionsPage(id, container = app) {
     }
   });
   wireDashboardAccessDeleteButtons();
+
+  // Acces en lecture seule (roadmap n°058) : liste separee, le worker
+  // bloque toute mutation pour ces utilisateurs en un point central.
+  const refreshViewerRows = () => {
+    document.getElementById('dashboard-viewer-list').innerHTML = dashboardAccessRows(dashboardViewerUserIds, 'delete-dashboard-viewer');
+    wireViewerDeleteButtons();
+  };
+  function wireViewerDeleteButtons() {
+    document.querySelectorAll('.delete-dashboard-viewer').forEach((btn) => {
+      btn.addEventListener('click', async () => {
+        if (!window.confirm('Retirer l\'acces en lecture seule pour cet utilisateur ?')) return;
+        try {
+          dashboardViewerUserIds = dashboardViewerUserIds.filter((uid) => uid !== btn.dataset.uid);
+          await Api.updateConfig(id, { dashboardViewerUserIds });
+          refreshViewerRows();
+          showToast('Acces retire.');
+        } catch (err) {
+          showToast(err.message, 'error');
+        }
+      });
+    });
+  }
+  document.getElementById('add-dashboard-viewer').addEventListener('click', async () => {
+    const uid = document.getElementById('new-dashboard-viewer-id').value.trim();
+    if (!/^\d{5,25}$/.test(uid)) { showToast('ID Discord invalide.', 'error'); return; }
+    if (dashboardViewerUserIds.includes(uid) || dashboardAllowedUserIds.includes(uid)) { showToast('Deja dans une liste d\'acces.', 'error'); return; }
+    try {
+      dashboardViewerUserIds = [...dashboardViewerUserIds, uid];
+      await Api.updateConfig(id, { dashboardViewerUserIds });
+      refreshViewerRows();
+      document.getElementById('new-dashboard-viewer-id').value = '';
+      showToast('Acces en lecture seule accorde.');
+    } catch (err) {
+      showToast(err.message, 'error');
+    }
+  });
+  wireViewerDeleteButtons();
 }
 
 const WEBHOOK_EVENT_LABELS = {
