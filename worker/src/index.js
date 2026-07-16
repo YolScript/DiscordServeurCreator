@@ -586,6 +586,10 @@ async function router(request, env) {
           name: 'bienvenue', topic: 'Arrivees et departs des membres', readonly: true, configKey: 'arrivalDepartureChannelId',
           welcome: { embeds: [{ title: '👋 Bienvenue', description: 'Les arrivees et departs des membres sont annonces ici automatiquement.', color: 0x57f287 }] },
         },
+        avis: {
+          name: 'avis', topic: 'Avis des membres apres leurs tickets', readonly: true, configKey: 'reviewChannelId',
+          welcome: { embeds: [{ title: '⭐ Avis', description: 'Les evaluations laissees apres chaque ticket s\'affichent ici automatiquement, avec le membre du staff qui l\'a pris en charge.', color: 0xd3a13a }] },
+        },
         support: {
           name: 'support', topic: 'Ouvre un ticket avec le bouton ci-dessous', readonly: true, configKey: 'ticketPanelChannelId', botPanel: 'ticket',
           // Reproduction exacte du panneau poste par le bot (ticketManager).

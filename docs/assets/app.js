@@ -4032,6 +4032,7 @@ const FEATURE_CHANNEL_CARDS = [
   { key: 'modlog', icon: '📋', label: 'Journal de moderation', desc: 'Visible du staff uniquement, le bot y ecrit chaque action automod.', configKey: 'modLogChannelId' },
   { key: 'bienvenue', icon: '👋', label: 'Bienvenue', desc: 'Arrivees et departs annonces par le bot, lecture seule.', configKey: 'arrivalDepartureChannelId' },
   { key: 'support', icon: '🎫', label: 'Support / tickets', desc: 'Salon du panneau de tickets, lecture seule.', configKey: 'ticketPanelChannelId' },
+  { key: 'avis', icon: '⭐', label: 'Avis', desc: 'Les notes laissees apres chaque ticket y sont publiees automatiquement, avec le staff en charge.', configKey: 'reviewChannelId' },
   { key: 'staff', icon: '🛡️', label: 'Categorie Staff complete', desc: 'Categorie privee avec mod-log, salon staff, vocal SERVICE STAFF et createur de vocal — construite par le bot.', configKey: 'staffCategoryId' },
 ];
 

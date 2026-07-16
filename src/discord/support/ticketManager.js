@@ -179,6 +179,29 @@ async function closeTicket(interaction) {
 async function rateTicket(interaction, guildId, ticketId, stars) {
   await ticketStore.rate(guildId, ticketId, stars).catch(() => {});
   await interaction.update({ content: `Merci pour ta note : ${'⭐'.repeat(stars)}`, components: [] }).catch(() => {});
+
+  // Publication automatique de l'avis dans le salon configure (carte "Avis"
+  // du createur), avec le staff qui avait pris le ticket en charge.
+  try {
+    const config = await guildConfigStore.find(guildId);
+    if (!config?.reviewChannelId) return;
+    const guild = await interaction.client.guilds.fetch(guildId).catch(() => null);
+    if (!guild) return;
+    const channel = await guild.channels.fetch(config.reviewChannelId).catch(() => null);
+    if (!channel) return;
+    const ticket = (await ticketStore.list(guildId)).find((t) => t.id === ticketId);
+    const staffLine = ticket?.assignedTo
+      ? `Pris en charge par <@${ticket.assignedTo}>`
+      : 'Ticket sans prise en charge attribuee';
+    const embed = new EmbedBuilder()
+      .setTitle(`${'⭐'.repeat(stars)}${'☆'.repeat(5 - stars)}`)
+      .setDescription(`Avis de <@${interaction.user.id}> apres son ticket.\n${staffLine}.`)
+      .setColor(stars >= 4 ? 0x30a46c : stars === 3 ? 0xd3a13a : 0xe5484d)
+      .setTimestamp();
+    await channel.send({ embeds: [embed] });
+  } catch (err) {
+    logger.error('ticketManager.publishReview', err);
+  }
 }
 
 module.exports = {
