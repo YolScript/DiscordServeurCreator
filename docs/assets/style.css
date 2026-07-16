@@ -320,7 +320,12 @@ html, body { height: 100%; }
   opacity: 0; transition: opacity 0.2s ease;
 }
 .btn:hover::before { opacity: 1; }
-.btn:hover { background: var(--accent-hover); transform: translateY(-1px); box-shadow: 0 6px 20px -6px var(--accent-glow); }
+/* filter: brightness() plutot que --accent-hover : ce token sert aussi aux
+   liens (a:hover) ou le besoin de contraste est invense (plus clair sur
+   fond sombre, plus fonce sur fond clair) - un seul assombrissement relatif
+   garantit un texte blanc lisible (contraste WCAG AA) quel que soit le
+   theme, sans dependre d'une teinte partagee avec un autre usage. */
+.btn:hover { filter: brightness(0.9); transform: translateY(-1px); box-shadow: 0 6px 20px -6px var(--accent-glow); }
 .btn:active { transform: translateY(0) scale(0.96); box-shadow: none; }
 .btn.secondary {
   background: var(--bg-input);
@@ -583,6 +588,14 @@ input::placeholder, textarea::placeholder { color: var(--text-faint); }
 
 .muted { color: var(--text-muted); font-size: 0.85rem; }
 .row { display: flex; gap: 10px; align-items: center; flex-wrap: wrap; font-variant-numeric: tabular-nums; }
+/* Feedback au survol uniquement sur les lignes de liste "reelles" (celles
+   avec une action de suppression), pas sur les .row purement layout
+   (groupes de champs de formulaire cote a cote). */
+.row:has(> .btn.danger) {
+  padding: 6px 8px; margin: 0 -8px; border-radius: var(--radius-sm);
+  transition: background 0.12s ease;
+}
+.row:has(> .btn.danger):hover { background: var(--bg-input); }
 .spacer { flex: 1; }
 
 /* ---------- Module (grille de cartes + un seul module affiche) ---------- */
@@ -976,7 +989,7 @@ mark {
     --text: #1c1417;
     --text-muted: #6b5459;
     --text-faint: #7a6469;
-    --accent-hover: #c97655;
+    --accent-hover: #a85436;
     --shadow: 0 1px 2px rgba(60,20,25,0.05), 0 24px 50px -24px rgba(60,20,25,0.22);
   }
 }
@@ -987,7 +1000,7 @@ mark {
   --bg-elevated: #f6f1f2; --bg-input: #ffffff;
   --border: rgba(90, 40, 45, 0.10); --border-strong: rgba(90, 40, 45, 0.18);
   --text: #1c1417; --text-muted: #6b5459; --text-faint: #7a6469;
-  --accent-hover: #c97655;
+  --accent-hover: #a85436;
   --shadow: 0 1px 2px rgba(60,20,25,0.05), 0 24px 50px -24px rgba(60,20,25,0.22);
 }
 :root[data-theme="dark"] {

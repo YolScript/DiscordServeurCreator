@@ -4182,7 +4182,21 @@ async function renderGuildDetail(id) {
     return;
   }
   searchBox.style.display = 'none';
-  await renderPreviewPage(id);
+  try {
+    await renderPreviewPage(id);
+  } catch (err) {
+    app.innerHTML = `
+      <div class="inner"><div class="card">
+        <div class="inline-banner error">
+          <span class="icon">⚠</span>
+          <span class="msg">Impossible de charger "${escapeHtml(guild.name || id)}" (${escapeHtml(err.message)}).</span>
+          <button class="retry-btn" id="guild-detail-retry">Reessayer</button>
+        </div>
+      </div></div>`;
+    document.getElementById('guild-detail-retry')?.addEventListener('click', () => {
+      withViewTransition(() => renderGuildDetail(id));
+    });
+  }
 }
 
 async function init() {
