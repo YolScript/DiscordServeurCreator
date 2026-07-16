@@ -5666,10 +5666,11 @@ function lineChartSvg(points, { width = 560, height = 140, color = 'var(--accent
 
 async function renderStatsPage(id, container = app) {
   container.innerHTML = skeletonHtml('chart');
-  const [stats, xpData, statMembers] = await Promise.all([
+  const [stats, xpData, statMembers, ecoAccounts] = await Promise.all([
     Api.stats(id),
     Api.xp(id).catch(() => ({})),
     Api.members(id).catch(() => []),
+    Api.economyAccounts(id).catch(() => ({})),
   ]);
 
   const memberPoints = stats.map((s) => s.memberCount);
@@ -5762,6 +5763,12 @@ async function renderStatsPage(id, container = app) {
     .sort((a, b) => b[1].voiceMinutes - a[1].voiceMinutes).slice(0, 10)
     .map(([uid, d]) => topRow(uid, Math.round(d.voiceMinutes / 60 * 10) / 10, 'h vocal')).join('') || '<p class="muted">Pas encore de donnees vocales.</p>';
 
+  // Classement richesse (roadmap n°157) depuis les comptes economie du bot.
+  const topWealth = Object.entries(ecoAccounts)
+    .filter(([, acc]) => (acc?.balance || 0) > 0)
+    .sort((a, b) => (b[1].balance || 0) - (a[1].balance || 0)).slice(0, 10)
+    .map(([uid, acc]) => topRow(uid, acc.balance, 'pieces')).join('') || '<p class="muted">Pas encore de comptes actifs.</p>';
+
   // Tendance sur la croissance des membres (roadmap n°165) : delta net des
   // 7 derniers jours vs les 7 precedents.
   const memberTrendHtml = (() => {
@@ -5779,10 +5786,12 @@ async function renderStatsPage(id, container = app) {
         <p class="muted">Evolution du nombre de membres (${stats.length} jour(s) enregistre(s)${firstDate ? `, depuis le ${firstDate}` : ''}). ${memberTrendHtml}</p>
         ${lineChartSvg(memberPoints, { color: 'var(--accent)' })}
         ${lastDate ? `<p class="muted" style="margin-top:8px;">Dernier releve : ${lastDate} — ${memberPoints[memberPoints.length - 1]} membre(s)</p>` : ''}
+        <button type="button" class="btn secondary chart-export-png" data-chart="membres" style="margin-top:6px;">🖼️ Exporter en PNG</button>
       `, { id: 'stats-members' })}
       ${sectionHtml('Activite (messages/jour)', `
         <p class="muted">Nombre de messages envoyes par jour (hors bots). ${trendHtml}</p>
         ${lineChartSvg(messagePoints, { color: 'var(--success)' })}
+        <button type="button" class="btn secondary chart-export-png" data-chart="messages" style="margin-top:6px;">🖼️ Exporter en PNG</button>
         <h2 style="margin-top:18px; font-size:0.85rem;">🕐 Heures d'activite (28 derniers jours)</h2>
         ${heatmapHtml}
         <div class="stats-top-grid">
@@ -5794,6 +5803,10 @@ async function renderStatsPage(id, container = app) {
             <h2 style="font-size:0.85rem;">🔊 Top membres (vocal)</h2>
             ${topVoice}
           </div>
+          <div>
+            <h2 style="font-size:0.85rem;">🪙 Top richesse</h2>
+            ${topWealth}
+          </div>
         </div>
         <h2 style="font-size:0.85rem; margin-top:16px;">🧲 Retention des nouveaux membres</h2>
         <p class="muted" style="font-size:0.78rem;">Parmi les membres arrives dans la fenetre, combien sont encore la aujourd'hui.</p>
@@ -5802,6 +5815,55 @@ async function renderStatsPage(id, container = app) {
       `, { id: 'stats-activity' })}
     </div>
   `;
+
+  // Export PNG d'un graphique SVG (roadmap n°164) : les couleurs en
+  // var(--...) ne se resolvent pas hors du document, on copie donc les
+  // stroke/fill CALCULES sur un clone avant serialisation.
+  container.querySelectorAll('.chart-export-png').forEach((btn) => {
+    btn.addEventListener('click', async () => {
+      const svgEl = btn.closest('.section-panel')?.querySelector('svg');
+      if (!svgEl) { showToast('Aucun graphique a exporter.', 'error'); return; }
+      try {
+        const clone = svgEl.cloneNode(true);
+        const origEls = [svgEl, ...svgEl.querySelectorAll('*')];
+        const cloneEls = [clone, ...clone.querySelectorAll('*')];
+        origEls.forEach((el, i) => {
+          const cs = getComputedStyle(el);
+          if (cs.stroke && cs.stroke !== 'none') cloneEls[i].setAttribute('stroke', cs.stroke);
+          if (cs.fill && cs.fill !== 'none') cloneEls[i].setAttribute('fill', cs.fill);
+        });
+        const rect = svgEl.getBoundingClientRect();
+        clone.setAttribute('width', rect.width);
+        clone.setAttribute('height', rect.height);
+        const img = new Image();
+        await new Promise((resolve, reject) => {
+          img.onload = resolve;
+          img.onerror = reject;
+          img.src = `data:image/svg+xml;charset=utf-8,${encodeURIComponent(new XMLSerializer().serializeToString(clone))}`;
+        });
+        const canvas = document.createElement('canvas');
+        canvas.width = rect.width * 2;
+        canvas.height = rect.height * 2;
+        const c = canvas.getContext('2d');
+        c.fillStyle = getComputedStyle(document.body).backgroundColor || '#14100e';
+        c.fillRect(0, 0, canvas.width, canvas.height);
+        c.drawImage(img, 0, 0, canvas.width, canvas.height);
+        canvas.toBlob((blob) => {
+          const url = URL.createObjectURL(blob);
+          const a = document.createElement('a');
+          a.href = url;
+          a.download = `graphique-${btn.dataset.chart || 'stats'}-${id}.png`;
+          document.body.appendChild(a);
+          a.click();
+          a.remove();
+          URL.revokeObjectURL(url);
+          showToast('Graphique exporte en PNG.');
+        }, 'image/png');
+      } catch (err) {
+        showToast(`Export impossible : ${err.message}`, 'error');
+      }
+    });
+  });
 
   // Export CSV (roadmap n°036).
   container.querySelector('#stats-export-csv').addEventListener('click', () => {
