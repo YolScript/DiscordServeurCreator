@@ -18,8 +18,64 @@ function describeProviderError(providerLabel, status, bodyText) {
   return `${providerLabel} (${status}) : ${(bodyText || '').slice(0, 200)}`;
 }
 
+// Parse le flux SSE de l'API Anthropic (stream: true) : texte relaye au fil
+// de l'eau via onDelta, blocs tool_use reconstruits depuis les
+// input_json_delta. Retourne la meme forme que le mode non-streaming.
+async function readAnthropicStream(res, onDelta) {
+  const reader = res.body.getReader();
+  const decoder = new TextDecoder();
+  let buffer = '';
+  let content = '';
+  const toolCalls = [];
+  const blocks = {}; // index -> { type, id, name, json }
+
+  const handleEvent = (evt) => {
+    if (evt.type === 'content_block_start') {
+      blocks[evt.index] = { ...evt.content_block };
+      if (evt.content_block.type === 'tool_use') blocks[evt.index].json = '';
+    } else if (evt.type === 'content_block_delta') {
+      if (evt.delta.type === 'text_delta') {
+        content += evt.delta.text;
+        onDelta(evt.delta.text);
+      } else if (evt.delta.type === 'input_json_delta' && blocks[evt.index]) {
+        blocks[evt.index].json += evt.delta.partial_json;
+      }
+    } else if (evt.type === 'content_block_stop') {
+      const block = blocks[evt.index];
+      if (block?.type === 'tool_use') {
+        let args = {};
+        try { args = block.json ? JSON.parse(block.json) : {}; } catch { args = {}; }
+        toolCalls.push({ id: block.id, name: block.name, args });
+      }
+    } else if (evt.type === 'error') {
+      throw new Error(`Claude : ${evt.error?.message || 'erreur de flux'}`);
+    }
+  };
+
+  for (;;) {
+    // eslint-disable-next-line no-await-in-loop
+    const { done, value } = await reader.read();
+    if (done) break;
+    buffer += decoder.decode(value, { stream: true });
+    let sep;
+    while ((sep = buffer.indexOf('\n\n')) !== -1) {
+      const raw = buffer.slice(0, sep);
+      buffer = buffer.slice(sep + 2);
+      for (const line of raw.split('\n')) {
+        if (!line.startsWith('data:')) continue;
+        const payload = line.slice(5).trim();
+        if (!payload) continue;
+        let evt;
+        try { evt = JSON.parse(payload); } catch { continue; }
+        handleEvent(evt);
+      }
+    }
+  }
+  return { content: content.trim(), toolCalls, streamed: true };
+}
+
 async function callAnthropic({
-  apiKey, systemPrompt, messages, tools,
+  apiKey, systemPrompt, messages, tools, onDelta,
 }) {
   const anthropicMessages = [];
   for (const m of messages) {
@@ -56,9 +112,11 @@ async function callAnthropic({
       system: systemPrompt,
       messages: anthropicMessages,
       tools: tools.map((t) => ({ name: t.name, description: t.description, input_schema: t.parameters })),
+      ...(onDelta ? { stream: true } : {}),
     }),
   });
   if (!res.ok) throw new Error(describeProviderError('Claude', res.status, await res.text()));
+  if (onDelta) return readAnthropicStream(res, onDelta);
   const data = await res.json();
   const content = (data.content || []).filter((b) => b.type === 'text').map((b) => b.text).join('\n').trim();
   const toolCalls = (data.content || [])
@@ -161,11 +219,15 @@ async function callGemini({
 const ADAPTERS = { anthropic: callAnthropic, openai: callOpenAi, gemini: callGemini };
 
 export async function callProvider({
-  provider, apiKey, systemPrompt, messages, tools,
+  provider, apiKey, systemPrompt, messages, tools, onDelta,
 }) {
   const adapter = ADAPTERS[provider];
   if (!adapter) throw new Error(`Fournisseur IA inconnu : ${provider}`);
-  return adapter({
-    apiKey, systemPrompt, messages, tools,
+  const result = await adapter({
+    apiKey, systemPrompt, messages, tools, onDelta,
   });
+  // GPT et Gemini n'ont pas d'adaptateur streaming : on emet leur reponse
+  // complete en un seul delta pour garder la meme interface cote appelant.
+  if (onDelta && !result.streamed && result.content) onDelta(result.content);
+  return result;
 }

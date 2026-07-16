@@ -495,6 +495,50 @@ async function router(request, env) {
       return json(result, env);
     }
 
+    // Variante streaming SSE du chat IA (roadmap n°066) : le texte du modele
+    // arrive au fil de l'eau (event delta), les executions d'outils sont
+    // annoncees (event tool), et l'etat final complet (messages +
+    // pendingConfirmation) part dans l'event done — le client remplace alors
+    // sa vue approximative par cet etat, comme avec la route non-streaming.
+    if (sub === 'aichat' && parts[4] === 'stream' && method === 'POST') {
+      const session = await requireGuildAccess(env, request, guildId);
+      const rate = await checkAiRateLimit(env, guildId, session.userId);
+      if (!rate.allowed) throw new HttpError(429, `Trop de messages envoyes a l'assistant IA. Reessaie dans ${rate.retryAfterSeconds}s.`);
+
+      const { messages, message } = await readJson(request);
+      if (!Array.isArray(messages)) throw new HttpError(400, 'messages requis.');
+      if (typeof message !== 'string' || !message.trim()) throw new HttpError(400, 'message requis.');
+      if (message.length > 1000) throw new HttpError(400, 'Message trop long (1000 caracteres max).');
+
+      const aiConfig = await getAiConfigWithKey(env, guildId);
+      if (!aiConfig) throw new HttpError(400, "Aucune cle API IA configuree pour ce serveur. Configure-la d'abord dans l'outil IA.");
+
+      const working = [...messages, { role: 'user', content: message.trim() }];
+      const { readable, writable } = new TransformStream();
+      const writer = writable.getWriter();
+      const encoder = new TextEncoder();
+      const send = (obj) => writer.write(encoder.encode(`data: ${JSON.stringify(obj)}\n\n`));
+
+      // Pas de waitUntil necessaire : tant que le corps de la reponse n'est
+      // pas clos, le contexte de la requete reste vivant.
+      (async () => {
+        try {
+          const result = await runAiTurn(env, guildId, session, aiConfig.provider, aiConfig.apiKey, working, {
+            onDelta: (text) => { send({ type: 'delta', text }); },
+            onTool: (name) => { send({ type: 'tool', name }); },
+          });
+          await send({ type: 'done', messages: result.messages, pendingConfirmation: result.pendingConfirmation });
+        } catch (err) {
+          try { await send({ type: 'error', error: `Assistant IA indisponible : ${err.message}` }); } catch { /* client parti */ }
+        }
+        try { await writer.close(); } catch { /* deja clos */ }
+      })();
+
+      return withCors(new Response(readable, {
+        headers: { 'Content-Type': 'text/event-stream', 'Cache-Control': 'no-store' },
+      }), env);
+    }
+
     if (sub === 'aichat' && parts[4] === 'confirm' && method === 'POST') {
       const session = await requireGuildAccess(env, request, guildId);
       const rate = await checkAiRateLimit(env, guildId, session.userId);

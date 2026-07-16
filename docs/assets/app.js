@@ -969,6 +969,22 @@ function userAvatarHtml() {
   return escapeHtml(currentUser?.username ? initials(currentUser.username) : '🙂');
 }
 
+// Libelles francais des outils IA (affiches pendant le streaming n°066 et
+// dans l'historique de conversation).
+const AI_TOOL_LABELS = {
+  list_channels: 'Lecture des salons',
+  list_roles: 'Lecture des roles',
+  create_channel: 'Creation du salon',
+  rename_channel: 'Renommage du salon',
+  delete_channel: 'Suppression du salon',
+  create_category: 'Creation de la categorie',
+  delete_category: 'Suppression de la categorie',
+  create_role: 'Creation du role',
+  rename_role: 'Renommage du role',
+  set_role_color: 'Changement de couleur du role',
+  delete_role: 'Suppression du role',
+};
+
 function aiConversationHtml() {
   let html = '';
   aiConversation.forEach((m, idx) => {
@@ -989,7 +1005,7 @@ function aiConversationHtml() {
           </div>
         </div>`;
     } else if (m.role === 'assistant' && m.toolCalls?.length) {
-      html += `<div class="dp-ai-tool-note">🔧 ${escapeHtml(m.toolCalls[0].name)}...</div>`;
+      html += `<div class="dp-ai-tool-note">🔧 ${escapeHtml(AI_TOOL_LABELS[m.toolCalls[0].name] || m.toolCalls[0].name)}...</div>`;
     } else if (m.role === 'tool' && m.result?.error) {
       html += `<div class="dp-ai-tool-note">⚠️ ${escapeHtml(m.result.error)}</div>`;
     }
@@ -1181,6 +1197,42 @@ function wireAiHome(guildId, channels, rolesSorted) {
     }
   }
 
+  // Affichage streaming (roadmap n°066) : la bulle "..." devient une bulle
+  // de texte vivante remplie delta par delta ; les outils en cours
+  // s'affichent en note. L'etat final (event done) re-rend tout proprement.
+  function liveStreamEl() {
+    const existing = document.getElementById('dp-ai-stream');
+    if (existing) return existing;
+    const typing = document.getElementById('dp-ai-tail')?.querySelector('.dp-chat-typing');
+    const bubble = typing?.closest('.dp-chat-bubble');
+    if (!bubble) return null;
+    bubble.innerHTML = '<div class="dp-chat-author">ServeurCreator Bot</div><div id="dp-ai-stream"></div>';
+    return document.getElementById('dp-ai-stream');
+  }
+
+  function appendAiDelta(text) {
+    const el = liveStreamEl();
+    if (!el) return;
+    let block = el.lastElementChild;
+    if (!block || !block.classList.contains('dp-chat-text')) {
+      block = document.createElement('div');
+      block.className = 'dp-chat-text';
+      el.appendChild(block);
+    }
+    block.textContent += text;
+    chatEl.scrollTop = chatEl.scrollHeight;
+  }
+
+  function appendAiTool(name) {
+    const el = liveStreamEl();
+    if (!el) return;
+    const note = document.createElement('div');
+    note.className = 'dp-ai-tool-note';
+    note.textContent = `🔧 ${AI_TOOL_LABELS[name] || name}...`;
+    el.appendChild(note);
+    chatEl.scrollTop = chatEl.scrollHeight;
+  }
+
   form.addEventListener('submit', async (e) => {
     e.preventDefault();
     const text = input.value.trim();
@@ -1190,7 +1242,10 @@ function wireAiHome(guildId, channels, rolesSorted) {
     aiBusy = true;
     refreshTail();
     try {
-      const result = await Api.aiChat(guildId, aiConversation.slice(0, -1), text);
+      const result = await Api.aiChatStream(guildId, aiConversation.slice(0, -1), text, {
+        onDelta: appendAiDelta,
+        onTool: appendAiTool,
+      });
       aiConversation = result.messages;
       aiPendingConfirmation = result.pendingConfirmation
         ? { ...result.pendingConfirmation, label: resolveAiActionLabel(result.pendingConfirmation, channels, rolesSorted) }

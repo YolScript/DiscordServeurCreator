@@ -13,9 +13,9 @@ Regles :
 
 const MAX_ROUNDS = 4;
 
-async function callAndRecordRound(env, guildId, session, provider, apiKey, working) {
+async function callAndRecordRound(env, guildId, session, provider, apiKey, working, events = {}) {
   const result = await callProvider({
-    provider, apiKey, systemPrompt: SYSTEM_PROMPT, messages: working, tools: AI_TOOLS,
+    provider, apiKey, systemPrompt: SYSTEM_PROMPT, messages: working, tools: AI_TOOLS, onDelta: events.onDelta,
   });
   const [firstCall, ...extraCalls] = result.toolCalls;
 
@@ -50,6 +50,7 @@ async function callAndRecordRound(env, guildId, session, provider, apiKey, worki
     };
   }
 
+  events.onTool?.(firstCall.name);
   let toolResult;
   try {
     toolResult = await executeAiTool(env, guildId, session, firstCall.name, firstCall.args);
@@ -62,11 +63,11 @@ async function callAndRecordRound(env, guildId, session, provider, apiKey, worki
   return { done: false, pendingConfirmation: null };
 }
 
-export async function runAiTurn(env, guildId, session, provider, apiKey, messages) {
+export async function runAiTurn(env, guildId, session, provider, apiKey, messages, events = {}) {
   const working = [...messages];
   for (let round = 0; round < MAX_ROUNDS; round += 1) {
     // eslint-disable-next-line no-await-in-loop
-    const { done, pendingConfirmation } = await callAndRecordRound(env, guildId, session, provider, apiKey, working);
+    const { done, pendingConfirmation } = await callAndRecordRound(env, guildId, session, provider, apiKey, working, events);
     if (done) return { messages: working, pendingConfirmation };
   }
   working.push({ role: 'assistant', content: "Je n'ai pas reussi a terminer cette demande en un nombre raisonnable d'etapes. Peux-tu la reformuler plus simplement ?" });

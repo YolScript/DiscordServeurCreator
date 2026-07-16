@@ -129,6 +129,47 @@ window.Api = (function api() {
     saveAiConfig: (guildId, provider, apiKey) => request(`/api/guilds/${guildId}/aiconfig`, { method: 'PUT', body: JSON.stringify({ provider, apiKey }) }),
     clearAiConfig: (guildId) => request(`/api/guilds/${guildId}/aiconfig`, { method: 'DELETE' }),
     aiChat: (guildId, messages, message) => request(`/api/guilds/${guildId}/aichat`, { method: 'POST', body: JSON.stringify({ messages, message }) }),
+    // Variante streaming (roadmap n°066) : fetch dedie car request() attend
+    // un corps JSON complet. Parse le flux SSE et relaie les events delta
+    // (texte au fil de l'eau) et tool (outil en cours) aux handlers ;
+    // retourne l'event done final { messages, pendingConfirmation }.
+    aiChatStream: async (guildId, messages, message, handlers = {}) => {
+      const res = await fetch(`${window.API_BASE_URL}/api/guilds/${guildId}/aichat/stream`, {
+        method: 'POST',
+        credentials: 'include',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ messages, message }),
+      });
+      if (!res.ok || !res.body) {
+        let msg = `Erreur ${res.status}`;
+        try { msg = (await res.json()).error || msg; } catch { /* corps non JSON */ }
+        throw new Error(msg);
+      }
+      const reader = res.body.getReader();
+      const decoder = new TextDecoder();
+      let buffer = '';
+      let finalResult = null;
+      for (;;) {
+        const { done, value } = await reader.read();
+        if (done) break;
+        buffer += decoder.decode(value, { stream: true });
+        let sep;
+        while ((sep = buffer.indexOf('\n\n')) !== -1) {
+          const raw = buffer.slice(0, sep);
+          buffer = buffer.slice(sep + 2);
+          const line = raw.split('\n').find((l) => l.startsWith('data:'));
+          if (!line) continue;
+          let evt;
+          try { evt = JSON.parse(line.slice(5).trim()); } catch { continue; }
+          if (evt.type === 'delta') handlers.onDelta?.(evt.text);
+          else if (evt.type === 'tool') handlers.onTool?.(evt.name);
+          else if (evt.type === 'error') throw new Error(evt.error);
+          else if (evt.type === 'done') finalResult = evt;
+        }
+      }
+      if (!finalResult) throw new Error('Flux IA interrompu. Reessaie.');
+      return finalResult;
+    },
     aiChatConfirm: (guildId, messages, pendingConfirmation, confirmed) => request(`/api/guilds/${guildId}/aichat/confirm`, { method: 'POST', body: JSON.stringify({ messages, pendingConfirmation, confirmed }) }),
     postPanel: (guildId, key, channelId) => request(`/api/guilds/${guildId}/panels/${key}`, { method: 'POST', body: JSON.stringify({ channelId }) }),
     embedTemplates: (guildId) => request(`/api/guilds/${guildId}/embedtemplates`),
