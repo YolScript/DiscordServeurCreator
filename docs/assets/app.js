@@ -4197,6 +4197,24 @@ async function renderAutomationsPage(id, container = app) {
           <button class="btn secondary" id="add-scheduled" style="margin-top:8px;">Programmer</button>
         </div>
 
+        <h2 style="margin-top:18px; font-size:0.85rem;">☀️ Question du jour</h2>
+        <p class="muted">Chaque jour a l'heure choisie, le bot poste une question de ta liste (rotation) sous forme de sondage Oui/Non/Sans avis.</p>
+        <div class="dp-form-grid">
+          <div>
+            <label for="dailypoll-channel">Salon</label>
+            <select id="dailypoll-channel"><option value="">— Desactive —</option>${textChannelOptions}</select>
+          </div>
+          <div>
+            <label for="dailypoll-hour">Heure de publication (locale)</label>
+            <select id="dailypoll-hour">${Array.from({ length: 24 }, (_, h) => `<option value="${h}">${h}h00</option>`).join('')}</select>
+          </div>
+          <div class="dp-form-full">
+            <label for="dailypoll-questions">Questions (une par ligne, 30 max)</label>
+            <textarea id="dailypoll-questions" maxlength="4000" placeholder="Pizza ananas : pour ou contre ?&#10;Plutot lever tot ou coucher tard ?"></textarea>
+          </div>
+        </div>
+        <button class="btn secondary" id="save-dailypoll" style="margin-top:8px;">Enregistrer la question du jour</button>
+
         <h2 style="margin-top:18px; font-size:0.85rem;">📅 Calendrier externe</h2>
         <p class="muted">Un flux iCal des evenements Discord planifies et des annonces programmees, a abonner dans Google Agenda, Outlook ou Apple Calendar (Ajouter un agenda &gt; Par URL).</p>
         ${config?.calendarToken
@@ -4683,6 +4701,31 @@ async function renderAutomationsPage(id, container = app) {
     btn.addEventListener('click', () => {
       undoableDelete(btn, 'Streamer retire.', () => Api.deleteStreamer(id, btn.dataset.user, btn.dataset.platform));
     });
+  });
+
+  // Question du jour (roadmap n°162) : heure saisie en LOCAL, stockee en UTC
+  // (le bot Render tourne en UTC).
+  const utcOffsetHours = -Math.round(new Date().getTimezoneOffset() / 60);
+  if (config?.dailyPoll) {
+    document.getElementById('dailypoll-channel').value = config.dailyPoll.channelId || '';
+    document.getElementById('dailypoll-hour').value = String((((config.dailyPoll.hourUtc ?? 17) + utcOffsetHours) + 24) % 24);
+    document.getElementById('dailypoll-questions').value = (config.dailyPoll.questions || []).join('\n');
+  }
+  document.getElementById('save-dailypoll').addEventListener('click', async () => {
+    const channelId = document.getElementById('dailypoll-channel').value;
+    const questions = document.getElementById('dailypoll-questions').value
+      .split('\n').map((q) => q.trim()).filter(Boolean).slice(0, 30);
+    const localHour = Number(document.getElementById('dailypoll-hour').value);
+    try {
+      await Api.updateConfig(id, {
+        dailyPoll: channelId && questions.length
+          ? { channelId, hourUtc: ((localHour - utcOffsetHours) + 24) % 24, questions }
+          : null,
+      });
+      showToast(channelId && questions.length ? 'Question du jour activee.' : 'Question du jour desactivee.');
+    } catch (err) {
+      showToast(err.message, 'error');
+    }
   });
 
   // Regles si → alors (roadmap n°151) : formulaire dynamique + CRUD via
