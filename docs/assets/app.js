@@ -1131,6 +1131,12 @@ function aiHomeHtml(guild) {
       </div>
       <div id="dp-ai-tail">${aiConversationHtml()}</div>
     </div>
+    ${aiConversation.length ? '' : `
+    <div class="dp-ai-suggestions" role="group" aria-label="Suggestions de demandes">
+      <button type="button" class="dp-ai-suggestion" data-prompt="Cree une categorie Gaming avec 3 salons textuels et 2 vocaux">🎮 Categorie gaming complete</button>
+      <button type="button" class="dp-ai-suggestion" data-prompt="Liste les roles du serveur et propose un nettoyage des roles inutiles">🧹 Nettoyer les roles</button>
+      <button type="button" class="dp-ai-suggestion" data-prompt="Cree un role VIP dore et mentionnable">⭐ Role VIP dore</button>
+    </div>`}
     <form class="dp-chat-input-bar" id="dp-ai-form">
       ${aiConversation.length ? '<button type="button" class="btn secondary" id="dp-ai-reset" title="Nouvelle conversation" aria-label="Nouvelle conversation">🔄</button>' : ''}
       <input type="text" id="dp-ai-input" placeholder="Ecris a l'assistant..." maxlength="1000" autocomplete="off" />
@@ -1150,6 +1156,14 @@ function wireAiHome(guildId, channels, rolesSorted) {
     aiConversation = [];
     aiPendingConfirmation = null;
     withViewTransition(() => renderPreviewPage(guildId));
+  });
+
+  // Suggestions de prompts (roadmap n°134) : pre-remplit l'input.
+  document.querySelectorAll('.dp-ai-suggestion').forEach((btn) => {
+    btn.addEventListener('click', () => {
+      input.value = btn.dataset.prompt;
+      input.focus();
+    });
   });
 
   function refreshTail() {
@@ -1257,6 +1271,19 @@ function wireAiHome(guildId, channels, rolesSorted) {
       aiBusy = false;
       showToast(err.message, 'error');
       refreshTail();
+      // Reessayer en un clic (roadmap n°136) : rejoue le message echoue.
+      const tail = document.getElementById('dp-ai-tail');
+      if (tail) {
+        const note = document.createElement('div');
+        note.className = 'dp-ai-tool-note';
+        note.innerHTML = '⚠️ Message non envoye. <button type="button" class="btn secondary" id="dp-ai-retry">Reessayer</button>';
+        tail.appendChild(note);
+        document.getElementById('dp-ai-retry').addEventListener('click', () => {
+          note.remove();
+          input.value = text;
+          form.requestSubmit();
+        });
+      }
     }
   });
 
@@ -1326,9 +1353,20 @@ function renderPreviewContent(id, { channels, config, roles, members }) {
   const uncategorized = channels.filter((c) => c.type !== 4 && !c.parent_id);
   const channelIcon = (c) => (c.type === 2 ? '🔊' : c.type === 4 ? '' : '#');
 
+  // Badges d'etat (roadmap n°141) : NSFW, slowmode et prive (deny
+  // VIEW_CHANNEL sur @everyone = guildId) visibles directement en sidebar.
+  const channelBadges = (c) => {
+    const badges = [];
+    if (c.nsfw) badges.push('<span class="dp-ch-badge nsfw" title="Salon NSFW">18+</span>');
+    if (c.rate_limit_per_user > 0) badges.push(`<span class="dp-ch-badge" title="Slowmode : ${c.rate_limit_per_user}s entre chaque message">🐌</span>`);
+    const everyone = (c.permission_overwrites || []).find((o) => o.id === id);
+    if (everyone && (BigInt(everyone.deny || 0) & 1024n) === 1024n) badges.push('<span class="dp-ch-badge" title="Salon prive (invisible pour @everyone)">🔒</span>');
+    return badges.join('');
+  };
+
   const channelRow = (c) => `
     <div class="dp-channel" draggable="true" tabindex="0" role="button" aria-label="Salon ${escapeHtml(c.name)} (Alt+fleches pour reordonner)" data-channel="${c.id}" data-name="${escapeHtml(c.name)}" data-type="${c.type}">
-      <span class="hash">${channelIcon(c)}</span> <span class="dp-channel-name">${escapeHtml(c.name)}</span>
+      <span class="hash">${channelIcon(c)}</span> <span class="dp-channel-name">${escapeHtml(c.name)}</span>${channelBadges(c)}
       <button type="button" class="dp-copy-id-btn" data-copy-id="${c.id}" title="Copier l'ID du salon" aria-label="Copier l'ID du salon ${escapeHtml(c.name)}">📋</button>
     </div>`;
 
@@ -1401,10 +1439,23 @@ function renderPreviewContent(id, { channels, config, roles, members }) {
     return (...args) => { clearTimeout(timer); timer = setTimeout(() => fn(...args), ms); };
   };
 
+  // Recherche tolerante (roadmap n°139) : correspondance exacte OU sous-
+  // sequence (les lettres tapees apparaissent dans l'ordre), ce qui tolere
+  // les omissions ("anonces" trouve "annonces").
+  const fuzzyMatch = (name, q) => {
+    if (name.includes(q)) return true;
+    let i = 0;
+    for (const ch of name) {
+      if (ch === q[i]) i += 1;
+      if (i === q.length) return true;
+    }
+    return false;
+  };
+
   document.getElementById('dp-channel-search').addEventListener('input', debounce((e) => {
     const q = e.target.value.trim().toLowerCase();
     app.querySelectorAll('.dp-channel[data-channel]').forEach((chEl) => {
-      chEl.classList.toggle('dp-filtered-out', Boolean(q) && !(chEl.dataset.name || '').toLowerCase().includes(q));
+      chEl.classList.toggle('dp-filtered-out', Boolean(q) && !fuzzyMatch((chEl.dataset.name || '').toLowerCase(), q));
       const nameEl = chEl.querySelector('.dp-channel-name');
       if (nameEl) nameEl.innerHTML = highlightMatch(chEl.dataset.name || '', q);
     });
@@ -1420,7 +1471,7 @@ function renderPreviewContent(id, { channels, config, roles, members }) {
   document.getElementById('dp-role-search').addEventListener('input', debounce((e) => {
     const q = e.target.value.trim().toLowerCase();
     app.querySelectorAll('.dp-role-row[data-role]').forEach((row) => {
-      row.classList.toggle('dp-filtered-out', Boolean(q) && !(row.dataset.roleName || '').toLowerCase().includes(q));
+      row.classList.toggle('dp-filtered-out', Boolean(q) && !fuzzyMatch((row.dataset.roleName || '').toLowerCase(), q));
       const nameEl = row.querySelector('.dp-role-name');
       if (nameEl) nameEl.innerHTML = highlightMatch(row.dataset.roleName || '', q);
     });
@@ -5085,6 +5136,7 @@ function embedFieldRowHtml(field = {}) {
       <input type="text" class="embed-field-name" placeholder="Nom du champ" aria-label="Nom du champ" maxlength="256" value="${escapeHtml(field.name || '')}" />
       <textarea class="embed-field-value" placeholder="Valeur du champ" aria-label="Valeur du champ" maxlength="1024" data-md-link>${escapeHtml(field.value || '')}</textarea>
       <label class="embed-field-inline"><input type="checkbox" class="embed-field-inline-input" ${field.inline ? 'checked' : ''} /> Cote a cote</label>
+      <button type="button" class="btn secondary embed-field-duplicate" title="Dupliquer ce champ" aria-label="Dupliquer ce champ">⧉</button>
       <button type="button" class="btn danger embed-field-remove" title="Supprimer ce champ" aria-label="Supprimer ce champ">✕</button>
     </div>`;
 }
@@ -5400,6 +5452,24 @@ function removeEmbedTab(root, index) {
 function wireEmbedFieldRows(root) {
   root.querySelectorAll('.embed-field-remove').forEach((btn) => {
     btn.onclick = () => { btn.closest('.embed-field-row').remove(); updateEmbedPreview(root); };
+  });
+  // Duplication d'un champ (roadmap n°132) : copie nom/valeur/inline juste
+  // en dessous de l'original.
+  root.querySelectorAll('.embed-field-duplicate').forEach((btn) => {
+    btn.onclick = () => {
+      if (root.querySelectorAll('.embed-field-row').length >= 25) {
+        showToast('25 champs maximum par embed.', 'error');
+        return;
+      }
+      const row = btn.closest('.embed-field-row');
+      row.insertAdjacentHTML('afterend', embedFieldRowHtml({
+        name: row.querySelector('.embed-field-name').value,
+        value: row.querySelector('.embed-field-value').value,
+        inline: row.querySelector('.embed-field-inline-input').checked,
+      }));
+      wireEmbedFieldRows(root);
+      updateEmbedPreview(root);
+    };
   });
   // Reordonnancement des champs (l'ordre du DOM fait foi, buildEmbedFromForm
   // lit .embed-field-row dans l'ordre d'affichage) : drag&drop souris + une
@@ -6582,10 +6652,19 @@ async function init() {
     });
   }
 
-  // Echap = retour, ou qu'on soit (panneau salon/categorie/role ou module
-  // de reglages) : un seul listener global plutot qu'un par re-rendu.
+  // Echap uniforme (roadmap n°116) : ferme d'abord tout tiroir/menu ouvert,
+  // sinon agit comme retour (panneau salon/categorie/role ou module de
+  // reglages). Un seul listener global plutot qu'un par re-rendu.
   document.addEventListener('keydown', (e) => {
     if (e.key !== 'Escape') return;
+    const openDrawer = document.querySelector('.dp-sidebar.touch-open, .dp-roles-panel.touch-open');
+    if (openDrawer) { openDrawer.classList.remove('touch-open'); return; }
+    const serverMenu = document.getElementById('dp-server-menu');
+    if (serverMenu && !serverMenu.hidden) {
+      serverMenu.hidden = true;
+      document.getElementById('dp-server-switch')?.setAttribute('aria-expanded', 'false');
+      return;
+    }
     const backBtn = document.getElementById('dp-settings-back') || document.getElementById('dp-actionchat-back');
     backBtn?.click();
   });

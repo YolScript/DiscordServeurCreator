@@ -1528,6 +1528,18 @@ button.embed-json-jump { background: none; border: none; padding: 0; font-family
   display: inline-block; font-size: 0.74rem; padding: 2px 8px; border-radius: 999px;
   background: var(--bg-input); border: 1px solid var(--border); color: var(--text);
 }
+.dp-ch-badge {
+  flex: none; font-size: 0.6rem; line-height: 1; padding: 2px 4px; margin-left: 3px;
+  border-radius: 4px; background: var(--bg-input); color: var(--text-faint);
+}
+.dp-ch-badge.nsfw { color: var(--danger); font-weight: 700; }
+.dp-ai-suggestions { display: flex; gap: 6px; flex-wrap: wrap; padding: 0 16px 8px; }
+.dp-ai-suggestion {
+  background: var(--bg-input); border: 1px solid var(--border); color: var(--text);
+  border-radius: 999px; padding: 5px 12px; font-size: 0.78rem; cursor: pointer;
+  transition: border-color 0.12s ease, background 0.12s ease;
+}
+.dp-ai-suggestion:hover { border-color: var(--accent); background: var(--accent-soft); }
 input[type=text].drag-over, textarea.drag-over { border-color: var(--accent); box-shadow: 0 0 0 3px var(--accent-soft); }
 
 .embed-field-row {
