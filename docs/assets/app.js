@@ -2276,6 +2276,7 @@ async function renderPermissionsPage(id, container = app) {
   });
 
   document.getElementById('reset-admin').addEventListener('click', async () => {
+    if (!window.confirm('Reinitialiser le role Administrateur aux permissions par defaut ? Les modifications actuelles seront perdues.')) return;
     try {
       await Api.resetRoleDefault(id, 'administrateur');
       showToast('Role Administrateur reinitialise.');
@@ -2284,6 +2285,7 @@ async function renderPermissionsPage(id, container = app) {
     }
   });
   document.getElementById('reset-mod').addEventListener('click', async () => {
+    if (!window.confirm('Reinitialiser le role Moderateur aux permissions par defaut ? Les modifications actuelles seront perdues.')) return;
     try {
       await Api.resetRoleDefault(id, 'moderateur');
       showToast('Role Moderateur reinitialise.');
