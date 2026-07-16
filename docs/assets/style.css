@@ -1369,6 +1369,32 @@ button.embed-json-jump { background: none; border: none; padding: 0; font-family
 .giveaway-info { min-width: 0; }
 .giveaway-prize { font-weight: 600; font-size: 0.9rem; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
 .giveaway-end-btn { flex: none; font-size: 0.78rem; padding: 5px 12px; }
+
+/* Createur de salons & roles */
+.creator-grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(230px, 1fr)); gap: 10px; }
+.creator-card {
+  background: var(--bg-input); border: 1px solid var(--border); border-radius: 8px;
+  padding: 12px 14px; display: flex; flex-direction: column; gap: 6px;
+}
+.creator-card-head { display: flex; align-items: center; gap: 8px; font-size: 0.9rem; }
+.creator-card-desc { margin: 0; font-size: 0.78rem; flex: 1; }
+.creator-card-state { margin: 0; font-size: 0.78rem; color: var(--success); }
+.creator-card .btn { align-self: flex-start; font-size: 0.78rem; padding: 6px 12px; }
+.creator-member-list {
+  margin-top: 10px; max-height: 340px; overflow-y: auto; border: 1px solid var(--border);
+  border-radius: 6px; padding: 6px; display: flex; flex-direction: column; gap: 2px;
+}
+.creator-member-row { display: flex; align-items: center; gap: 10px; padding: 5px 8px; border-radius: 4px; }
+.creator-member-row:hover { background: var(--bg-input); }
+.creator-member-row img { border-radius: 50%; flex: none; }
+.creator-member-name { flex: 1; font-size: 0.86rem; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.creator-assign-btn {
+  flex: none; width: 28px; height: 28px; border-radius: 50%; border: 1px solid var(--border-strong);
+  background: var(--bg-elevated); color: var(--text); font-size: 1rem; line-height: 1; cursor: pointer;
+  transition: background 0.12s ease, border-color 0.12s ease, color 0.12s ease;
+}
+.creator-assign-btn:hover { border-color: var(--accent); color: var(--accent); }
+.creator-assign-btn.has-role { background: var(--accent-soft); border-color: var(--accent); color: var(--accent); }
 input[type=text].drag-over, textarea.drag-over { border-color: var(--accent); box-shadow: 0 0 0 3px var(--accent-soft); }
 
 .embed-field-row {

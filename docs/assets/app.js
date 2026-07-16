@@ -675,6 +675,7 @@ const SETTINGS_PANELS = [
   { key: 'assistant-ia', label: 'Assistant IA', icon: '✨' },
   { key: 'memberlookup', label: 'Recherche de membres', icon: '🔎' },
   { key: 'giveaways', label: 'Giveaways', icon: '🎉' },
+  { key: 'creator', label: 'Createur salons & roles', icon: '🏗️' },
 ];
 
 // Accueil en 2 temps : une grille de categories thematiques, puis (au clic)
@@ -718,6 +719,7 @@ const HOME_MODULES = [
   { parent: 'automatisations', section: 'bots', icon: '🧩', label: 'Bots complementaires', category: 'integrations' },
   { parent: 'automatisations', section: 'webhooks', icon: '🔗', label: 'Webhooks sortants', category: 'integrations' },
   // Creation : construire du contenu (salons, textes, structure).
+  { parent: 'creator', icon: '🏗️', label: 'Createur salons & roles', category: 'creation' },
   { parent: 'jeux', section: 'game-catalog', icon: '📚', label: 'Catalogue de jeux', category: 'creation' },
   { parent: 'jeux', section: 'game-reaction', icon: '🎭', label: 'Roles-reaction', category: 'creation' },
   { parent: 'automatisations', section: 'annonces', icon: '📅', label: 'Annonces programmees', category: 'creation' },
@@ -1687,6 +1689,7 @@ const SETTINGS_PANEL_INTROS = {
   'assistant-ia': "Configure ta cle API pour discuter avec l'assistant et lui laisser creer/modifier des salons, categories et roles a ta place.",
   memberlookup: 'Recherche un membre par pseudo ou par ID et vois ses roles en un coup d\'oeil.',
   giveaways: 'Lance un giveaway avec bouton de participation, tirage et annonce automatiques.',
+  creator: 'Cree en un clic des salons relies aux fonctionnalites du bot (auto-configures) et des roles detectes ou prets a l\'emploi.',
 };
 
 async function renderSettingsPanel(guildId, key, preselectSectionId, { fromBack = false } = {}) {
@@ -1746,6 +1749,7 @@ async function renderSettingsPanel(guildId, key, preselectSectionId, { fromBack 
     'assistant-ia': () => renderAiConfigPage(guildId, body),
     memberlookup: () => renderMemberLookupPage(guildId, body),
     giveaways: () => renderGiveawaysPage(guildId, body),
+    creator: () => renderCreatorPage(guildId, body),
   };
   await renderers[key]?.();
   // Les pages a plusieurs modules (sectionHtml avec id) n'ont plus de grille
@@ -4015,16 +4019,155 @@ async function renderMemberLookupPage(id, container = app) {
   });
 }
 
+/* ---------- Page: createur de salons & roles (demande utilisateur) ---------- */
+// Salons relies aux fonctionnalites du bot : crees avec les bonnes
+// permissions ET auto-configures (le champ de config correspondant pointe
+// dessus). Roles : creation rapide + attribution aux membres auto-listes
+// via un petit bouton +.
+
+const FEATURE_CHANNEL_CARDS = [
+  { key: 'giveaways', icon: '🎉', label: 'Giveaways', desc: 'Salon en lecture seule, propose par defaut au lancement des giveaways.', configKey: 'giveawayChannelId' },
+  { key: 'annonces', icon: '📣', label: 'Annonces', desc: 'Salon en lecture seule pour les annonces officielles.', configKey: 'announceChannelId' },
+  { key: 'suggestions', icon: '💡', label: 'Suggestions', desc: 'Les membres proposent leurs idees, votes du bot dessus.', configKey: 'suggestionChannelId' },
+  { key: 'modlog', icon: '📋', label: 'Journal de moderation', desc: 'Visible du staff uniquement, le bot y ecrit chaque action automod.', configKey: 'modLogChannelId' },
+  { key: 'bienvenue', icon: '👋', label: 'Bienvenue', desc: 'Arrivees et departs annonces par le bot, lecture seule.', configKey: 'arrivalDepartureChannelId' },
+  { key: 'support', icon: '🎫', label: 'Support / tickets', desc: 'Salon du panneau de tickets, lecture seule.', configKey: 'ticketPanelChannelId' },
+];
+
+async function renderCreatorPage(id, container = app) {
+  container.innerHTML = skeletonHtml();
+  const [config, channels, roles, members] = await Promise.all([
+    Api.config(id).catch(() => ({})),
+    Api.channels(id).catch(() => []),
+    Api.roles(id).catch(() => []),
+    Api.members(id).catch(() => []),
+  ]);
+  const channelById = new Map(channels.map((c) => [c.id, c]));
+  const assignableRoles = roles
+    .filter((r) => r.name !== '@everyone')
+    .sort((a, b) => b.position - a.position);
+
+  const featureCardHtml = (f) => {
+    const configured = config?.[f.configKey] && channelById.has(config[f.configKey]);
+    return `
+      <div class="creator-card">
+        <div class="creator-card-head"><span class="icon">${f.icon}</span><strong>${f.label}</strong></div>
+        <p class="muted creator-card-desc">${f.desc}</p>
+        ${configured
+    ? `<p class="creator-card-state">✓ Configure sur <strong>#${escapeHtml(channelById.get(config[f.configKey]).name)}</strong></p>
+           <button type="button" class="btn secondary creator-channel-btn" data-feature="${f.key}">Recreer quand meme</button>`
+    : `<button type="button" class="btn creator-channel-btn" data-feature="${f.key}">➕ Creer et configurer</button>`}
+      </div>`;
+  };
+
+  container.innerHTML = `
+    <div class="inner">
+      ${sectionHtml('Salons fonctionnels', `
+        <p class="muted">Chaque salon est cree avec les bonnes permissions et branche automatiquement sur la fonctionnalite du bot.</p>
+        <div class="creator-grid">${FEATURE_CHANNEL_CARDS.map(featureCardHtml).join('')}</div>
+      `, { alwaysOpen: true })}
+
+      ${sectionHtml('Roles', `
+        <p class="muted">Cree un role rapidement, puis attribue-le : choisis le role, les membres sont detectes automatiquement, un petit + suffit.</p>
+        <div class="row" style="gap:8px; flex-wrap:wrap; margin-bottom:14px;">
+          <input type="text" id="creator-role-name" placeholder="Nom du nouveau role" aria-label="Nom du nouveau role" maxlength="100" style="flex:2; min-width:160px; margin:0;" />
+          <input type="color" id="creator-role-color" value="#5865f2" aria-label="Couleur du role" style="flex:none;" class="dp-role-color-input" />
+          <button type="button" class="btn secondary" id="creator-role-create">➕ Creer le role</button>
+        </div>
+        <label for="creator-assign-role">Role a attribuer</label>
+        <select id="creator-assign-role">${assignableRoles.map((r) => `<option value="${r.id}">${escapeHtml(r.name)}</option>`).join('')}</select>
+        <input type="text" id="creator-member-search" placeholder="Filtrer les membres..." aria-label="Filtrer les membres" style="margin-top:10px;" />
+        <div class="creator-member-list" id="creator-member-list"></div>
+      `, { alwaysOpen: true })}
+    </div>
+  `;
+
+  container.querySelectorAll('.creator-channel-btn').forEach((btn) => {
+    btn.addEventListener('click', async () => {
+      btn.disabled = true;
+      try {
+        const { name } = await Api.createFeatureChannel(id, btn.dataset.feature);
+        showToast(`Salon ${name} cree et configure.`);
+        await renderCreatorPage(id, container);
+      } catch (err) {
+        showToast(err.message, 'error');
+        btn.disabled = false;
+      }
+    });
+  });
+
+  container.querySelector('#creator-role-create').addEventListener('click', async () => {
+    const name = container.querySelector('#creator-role-name').value.trim();
+    if (!name) { showToast('Nom du role requis.', 'error'); return; }
+    try {
+      await Api.createRole(id, name, container.querySelector('#creator-role-color').value);
+      showToast(`Role "${name}" cree.`);
+      await renderCreatorPage(id, container);
+    } catch (err) {
+      showToast(err.message, 'error');
+    }
+  });
+
+  // Attribution : membres auto-detectes, + / − selon qu'ils ont deja le role.
+  const humans = members
+    .filter((m) => !m.bot)
+    .sort((a, b) => (a.displayName || '').localeCompare(b.displayName || ''));
+  const memberRoleSets = new Map(humans.map((m) => [m.userId, new Set(m.roles || [])]));
+
+  const repaintAssignList = () => {
+    const roleId = container.querySelector('#creator-assign-role').value;
+    const q = container.querySelector('#creator-member-search').value.trim().toLowerCase();
+    const filtered = q ? humans.filter((m) => (m.displayName || '').toLowerCase().includes(q)) : humans;
+    container.querySelector('#creator-member-list').innerHTML = filtered.slice(0, 100).map((m) => {
+      const has = memberRoleSets.get(m.userId)?.has(roleId);
+      return `
+        <div class="creator-member-row">
+          <img class="member-lookup-avatar" src="${memberAvatarUrl(m)}" alt="" width="28" height="28" />
+          <span class="creator-member-name">${escapeHtml(m.displayName || m.userId)}</span>
+          <button type="button" class="creator-assign-btn${has ? ' has-role' : ''}" data-user="${m.userId}"
+            title="${has ? 'Retirer le role' : 'Attribuer le role'}"
+            aria-label="${has ? 'Retirer le role a' : 'Attribuer le role a'} ${escapeHtml(m.displayName || m.userId)}">${has ? '✓' : '+'}</button>
+        </div>`;
+    }).join('') || '<p class="muted">Aucun membre trouve.</p>';
+
+    container.querySelectorAll('.creator-assign-btn').forEach((btn) => {
+      btn.addEventListener('click', async () => {
+        const userId = btn.dataset.user;
+        const set = memberRoleSets.get(userId);
+        const hasRole = set.has(roleId);
+        btn.disabled = true;
+        try {
+          if (hasRole) {
+            await Api.removeMemberRole(id, userId, roleId);
+            set.delete(roleId);
+          } else {
+            await Api.addMemberRole(id, userId, roleId);
+            set.add(roleId);
+          }
+          repaintAssignList();
+        } catch (err) {
+          showToast(err.message, 'error');
+          btn.disabled = false;
+        }
+      });
+    });
+  };
+  repaintAssignList();
+  container.querySelector('#creator-assign-role').addEventListener('change', repaintAssignList);
+  container.querySelector('#creator-member-search').addEventListener('input', repaintAssignList);
+}
+
 /* ---------- Page: giveaways (roadmap n°089) ---------- */
 // Le worker cree l'entree KV + poste le message avec le bouton Participer ;
 // le bot gere ensuite participations, cloture, tirage et annonce.
 
 async function renderGiveawaysPage(id, container = app) {
   container.innerHTML = skeletonHtml();
-  const [giveaways, channels, roles] = await Promise.all([
+  const [giveaways, channels, roles, gwConfig] = await Promise.all([
     Api.giveaways(id).catch(() => []),
     Api.channels(id).catch(() => []),
     Api.roles(id).catch(() => []),
+    Api.config(id).catch(() => ({})),
   ]);
   const textChannels = channels.filter((c) => c.type === 0);
   const roleName = (rid) => roles.find((r) => r.id === rid)?.name || rid;
@@ -4057,7 +4200,7 @@ async function renderGiveawaysPage(id, container = app) {
           </div>
           <div>
             <label for="gw-channel">Salon</label>
-            <select id="gw-channel">${textChannels.map((c) => `<option value="${c.id}">#${escapeHtml(c.name)}</option>`).join('')}</select>
+            <select id="gw-channel">${textChannels.map((c) => `<option value="${c.id}"${c.id === gwConfig?.giveawayChannelId ? ' selected' : ''}>#${escapeHtml(c.name)}</option>`).join('')}</select>
           </div>
           <div>
             <label for="gw-winners">Nombre de gagnants</label>

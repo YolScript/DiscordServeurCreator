@@ -549,6 +549,48 @@ async function router(request, env) {
       })), env);
     }
 
+    // --- Createur de salons fonctionnels : cree un salon pre-nomme avec les
+    // bonnes permissions ET branche la fonctionnalite dessus (champ de
+    // config lu par le bot : mod-log, bienvenue, tickets...). ---
+    if (sub === 'feature-channel' && parts.length === 4 && method === 'POST') {
+      const session = await requireGuildAccess(env, request, guildId);
+      const { feature } = await readJson(request);
+      const FEATURE_CHANNELS = {
+        giveaways: { name: '🎉・giveaways', topic: 'Giveaways du serveur — participe avec le bouton !', readonly: true, configKey: 'giveawayChannelId' },
+        annonces: { name: '📣・annonces', topic: 'Annonces officielles du serveur', readonly: true, configKey: 'announceChannelId' },
+        suggestions: { name: '💡・suggestions', topic: 'Propose tes idees pour ameliorer le serveur', readonly: false, configKey: 'suggestionChannelId' },
+        modlog: { name: '📋・mod-log', topic: 'Journal de moderation automatique du bot', staffOnly: true, configKey: 'modLogChannelId' },
+        bienvenue: { name: '👋・bienvenue', topic: 'Arrivees et departs des membres', readonly: true, configKey: 'arrivalDepartureChannelId' },
+        support: { name: '🎫・support', topic: 'Ouvre un ticket avec le bouton ci-dessous', readonly: true, configKey: 'ticketPanelChannelId' },
+      };
+      const def = FEATURE_CHANNELS[feature];
+      if (!def) throw new HttpError(400, 'Fonctionnalite inconnue.');
+
+      // VIEW_CHANNEL = 1024, SEND_MESSAGES = 2048 (bitfield Discord).
+      const overwrites = [];
+      if (def.staffOnly) overwrites.push({ id: guildId, type: 0, deny: '1024' });
+      else if (def.readonly) overwrites.push({ id: guildId, type: 0, deny: '2048' });
+
+      const channel = await botFetchJson(env, `/guilds/${guildId}/channels`, {
+        method: 'POST',
+        body: JSON.stringify({
+          name: def.name, type: 0, topic: def.topic,
+          ...(overwrites.length ? { permission_overwrites: overwrites } : {}),
+        }),
+        headers: { 'X-Audit-Log-Reason': `Dashboard : ${session.username}` },
+      });
+
+      if (def.configKey) {
+        const existing = (await getGuildConfig(env, guildId)) || {};
+        await putGuildConfig(env, guildId, { ...existing, [def.configKey]: channel.id });
+      }
+      await logAudit(env, guildId, {
+        title: 'Salon fonctionnel cree',
+        description: `${session.username} a cree <#${channel.id}> (${feature}) et l'a configure automatiquement.`,
+      });
+      return json({ channelId: channel.id, name: def.name }, env);
+    }
+
     // --- Giveaways (roadmap n°089) : le worker cree l'entree KV et poste le
     // message Discord avec le MEME custom_id que le bot (giveaway_enter:<id>).
     // Le bot prend ensuite le relais : participations, cloture (tick 30 s),
@@ -629,6 +671,27 @@ async function router(request, env) {
       await requireGuildAccess(env, request, guildId);
       const warns = (await env.GUILD_KV.get(`guild:${guildId}:warns:${parts[4]}`, 'json')) || [];
       return json(warns, env);
+    }
+
+    // Attribution/retrait d'un role a un membre depuis le dashboard
+    // (createur de salons & roles) : PUT/DELETE natifs de l'API Discord.
+    if (sub === 'members' && parts[5] === 'roles' && parts.length === 7 && (method === 'PUT' || method === 'DELETE')) {
+      const session = await requireGuildAccess(env, request, guildId);
+      const targetId = parts[4];
+      const roleId = parts[6];
+      const res = await botFetch(env, `/guilds/${guildId}/members/${targetId}/roles/${roleId}`, {
+        method,
+        headers: { 'X-Audit-Log-Reason': `Dashboard : ${session.username}` },
+      });
+      if (!res.ok) {
+        throw new HttpError(res.status === 403 ? 403 : 500,
+          res.status === 403 ? 'Le bot ne peut pas gerer ce role (hierarchie ?).' : 'Echec de la modification du role.');
+      }
+      await logAudit(env, guildId, {
+        title: method === 'PUT' ? 'Role attribue' : 'Role retire',
+        description: `${session.username} ${method === 'PUT' ? 'a donne' : 'a retire'} <@&${roleId}> ${method === 'PUT' ? 'a' : 'de'} <@${targetId}>.`,
+      });
+      return json({ ok: true }, env);
     }
 
     // Timeout d'un membre depuis le dashboard (roadmap n°075).
