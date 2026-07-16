@@ -1140,20 +1140,33 @@ body.bg-video-off .bg-video, body.bg-video-off .bg-video-wrap video { display: n
 .embed-builder-preview-wrap { width: 380px; flex: none; position: sticky; top: 0; }
 
 .embed-field-row {
-  display: grid; grid-template-columns: auto 1fr auto; gap: 6px 10px; align-items: start;
+  display: grid; grid-template-columns: auto 1fr auto; gap: 6px 8px; align-items: start;
   background: var(--bg-input); border: 1px solid var(--border-strong); border-radius: var(--radius-sm);
-  padding: 10px; margin-bottom: 8px; transition: opacity 0.15s ease;
+  padding: 8px; margin-bottom: 6px; transition: opacity 0.15s ease;
 }
 .embed-field-row.dragging { opacity: 0.4; }
+/* Poignee et suppression masquees par defaut : ne s'affichent qu'au survol
+   de la ligne ou au focus clavier, pour des lignes plus compactes quand on
+   a beaucoup de champs (comme le reste du site : copier-ID, roue de config
+   des roles/salons suivent deja ce pattern). */
 .embed-field-handle {
-  grid-column: 1; grid-row: 1 / span 2; align-self: start; margin-top: 6px;
-  background: none; border: none; color: var(--text-faint); cursor: grab; font-size: 0.9rem;
-  padding: 2px; border-radius: 4px;
+  grid-column: 1; grid-row: 1 / span 2; align-self: start; margin-top: 4px;
+  background: none; border: none; color: var(--text-faint); cursor: grab; font-size: 0.85rem;
+  padding: 2px; border-radius: 4px; opacity: 0; transition: opacity 0.12s ease, color 0.12s ease, background 0.12s ease;
 }
+.embed-field-row:hover .embed-field-handle,
+.embed-field-row:focus-within .embed-field-handle,
+.embed-field-handle:focus-visible { opacity: 1; }
 .embed-field-handle:hover, .embed-field-handle:focus-visible { color: var(--text); background: var(--bg-sidebar); }
 .embed-field-name { grid-column: 2; }
-.embed-field-value { grid-column: 2; min-height: 50px; }
-.embed-field-remove { grid-column: 3; grid-row: 1 / span 2; align-self: start; padding: 6px 10px; }
+.embed-field-value { grid-column: 2; min-height: 44px; }
+.embed-field-remove {
+  grid-column: 3; grid-row: 1 / span 2; align-self: start; padding: 5px 8px;
+  opacity: 0; transition: opacity 0.12s ease;
+}
+.embed-field-row:hover .embed-field-remove,
+.embed-field-row:focus-within .embed-field-remove,
+.embed-field-remove:focus-visible { opacity: 1; }
 .embed-field-inline { grid-column: 2; display: flex; align-items: center; gap: 6px; font-size: 0.8rem; color: var(--text-muted); cursor: pointer; }
 
 .reaction-role-row {
