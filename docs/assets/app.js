@@ -674,6 +674,7 @@ const SETTINGS_PANELS = [
   { key: 'customcommands', label: 'Commandes personnalisees', icon: '💻' },
   { key: 'assistant-ia', label: 'Assistant IA', icon: '✨' },
   { key: 'memberlookup', label: 'Recherche de membres', icon: '🔎' },
+  { key: 'giveaways', label: 'Giveaways', icon: '🎉' },
 ];
 
 // Accueil en 2 temps : une grille de categories thematiques, puis (au clic)
@@ -725,6 +726,7 @@ const HOME_MODULES = [
   { parent: 'customcommands', icon: '💻', label: 'Commandes personnalisees', category: 'creation' },
   { parent: 'assistant-ia', icon: '✨', label: 'Assistant IA', category: 'creation' },
   // Fun : engagement communautaire.
+  { parent: 'giveaways', icon: '🎉', label: 'Giveaways', category: 'fun' },
   { parent: 'jeux', section: 'game-active', icon: '🎮', label: 'Roles de jeu actifs', category: 'fun' },
   { parent: 'automatisations', section: 'economie', icon: '🪙', label: 'Economie / boutique', category: 'fun' },
   { parent: 'automatisations', section: 'niveaux', icon: '⭐', label: 'Roles de niveau (XP)', category: 'fun' },
@@ -1684,6 +1686,7 @@ const SETTINGS_PANEL_INTROS = {
   customcommands: 'Cree tes propres commandes personnalisees.',
   'assistant-ia': "Configure ta cle API pour discuter avec l'assistant et lui laisser creer/modifier des salons, categories et roles a ta place.",
   memberlookup: 'Recherche un membre par pseudo ou par ID et vois ses roles en un coup d\'oeil.',
+  giveaways: 'Lance un giveaway avec bouton de participation, tirage et annonce automatiques.',
 };
 
 async function renderSettingsPanel(guildId, key, preselectSectionId, { fromBack = false } = {}) {
@@ -1742,6 +1745,7 @@ async function renderSettingsPanel(guildId, key, preselectSectionId, { fromBack 
     customcommands: () => renderCustomCommandsPage(guildId, body),
     'assistant-ia': () => renderAiConfigPage(guildId, body),
     memberlookup: () => renderMemberLookupPage(guildId, body),
+    giveaways: () => renderGiveawaysPage(guildId, body),
   };
   await renderers[key]?.();
   // Les pages a plusieurs modules (sectionHtml avec id) n'ont plus de grille
@@ -3963,6 +3967,117 @@ async function renderMemberLookupPage(id, container = app) {
         <span class="muted">${w.source === 'automod' ? '🤖 automod' : '👮 manuel'} — ${new Date(w.createdAt).toLocaleString('fr-FR')}</span>
       </div>`).join('');
     row.insertAdjacentHTML('afterend', `<div class="member-warns-detail">${rows || '<p class="muted" style="margin:0;">Aucune sanction enregistree.</p>'}</div>`);
+  });
+}
+
+/* ---------- Page: giveaways (roadmap n°089) ---------- */
+// Le worker cree l'entree KV + poste le message avec le bouton Participer ;
+// le bot gere ensuite participations, cloture, tirage et annonce.
+
+async function renderGiveawaysPage(id, container = app) {
+  container.innerHTML = skeletonHtml();
+  const [giveaways, channels, roles] = await Promise.all([
+    Api.giveaways(id).catch(() => []),
+    Api.channels(id).catch(() => []),
+    Api.roles(id).catch(() => []),
+  ]);
+  const textChannels = channels.filter((c) => c.type === 0);
+  const roleName = (rid) => roles.find((r) => r.id === rid)?.name || rid;
+
+  const rowHtml = (g) => {
+    const status = g.closed
+      ? (g.winners?.length ? `🏆 ${g.winners.length} gagnant(s)` : '⚪ Termine sans participant')
+      : `🟢 En cours — fin ${new Date(g.endsAt).toLocaleString('fr-FR', { day: '2-digit', month: '2-digit', hour: '2-digit', minute: '2-digit' })}`;
+    return `
+      <div class="giveaway-row${g.closed ? ' closed' : ''}">
+        <div class="giveaway-info">
+          <div class="giveaway-prize">🎉 ${escapeHtml(g.prize)}</div>
+          <div class="muted" style="font-size:0.78rem;">
+            ${status} · ${g.entrants?.length || 0} participant(s) · ${g.winnersCount} gagnant(s) prevus
+            ${g.requiredRoleId ? ` · role requis : ${escapeHtml(roleName(g.requiredRoleId))}` : ''}
+          </div>
+        </div>
+        ${!g.closed ? `<button type="button" class="btn danger giveaway-end-btn" data-giveaway-id="${g.id}" data-giveaway-prize="${escapeHtml(g.prize)}">Terminer</button>` : ''}
+      </div>`;
+  };
+
+  const sorted = [...giveaways].sort((a, b) => Number(a.closed) - Number(b.closed) || b.endsAt - a.endsAt);
+  container.innerHTML = `
+    <div class="inner">
+      ${sectionHtml('Nouveau giveaway', `
+        <div class="dp-form-grid">
+          <div>
+            <label for="gw-prize">Lot a gagner</label>
+            <input type="text" id="gw-prize" maxlength="200" placeholder="Ex : 1 mois de Nitro" data-charcount />
+          </div>
+          <div>
+            <label for="gw-channel">Salon</label>
+            <select id="gw-channel">${textChannels.map((c) => `<option value="${c.id}">#${escapeHtml(c.name)}</option>`).join('')}</select>
+          </div>
+          <div>
+            <label for="gw-winners">Nombre de gagnants</label>
+            <input type="number" id="gw-winners" value="1" min="1" max="20" />
+          </div>
+          <div>
+            <label for="gw-duration">Duree</label>
+            <select id="gw-duration">
+              <option value="60">1 heure</option>
+              <option value="360">6 heures</option>
+              <option value="720">12 heures</option>
+              <option value="1440" selected>24 heures</option>
+              <option value="4320">3 jours</option>
+              <option value="10080">7 jours</option>
+            </select>
+          </div>
+          <div class="dp-form-full">
+            <label for="gw-role">Role requis pour participer (optionnel)</label>
+            <select id="gw-role">
+              <option value="">Aucun — ouvert a tous</option>
+              ${roles.filter((r) => r.name !== '@everyone').sort((a, b) => b.position - a.position).map((r) => `<option value="${r.id}">${escapeHtml(r.name)}</option>`).join('')}
+            </select>
+          </div>
+          <button class="btn dp-form-full" id="gw-create-btn" style="margin-top:10px;">🎉 Lancer le giveaway</button>
+        </div>
+      `, { alwaysOpen: true })}
+
+      ${sectionHtml('Giveaways', `
+        <div id="giveaways-list">${sorted.map(rowHtml).join('') || '<p class="muted">Aucun giveaway pour le moment.</p>'}</div>
+      `, { alwaysOpen: true })}
+    </div>
+  `;
+
+  container.querySelector('#gw-create-btn').addEventListener('click', async () => {
+    const prize = container.querySelector('#gw-prize').value.trim();
+    if (!prize) { showToast('Indique le lot a gagner.', 'error'); return; }
+    const btn = container.querySelector('#gw-create-btn');
+    btn.disabled = true;
+    try {
+      await Api.createGiveaway(id, {
+        prize,
+        channelId: container.querySelector('#gw-channel').value,
+        winnersCount: Number(container.querySelector('#gw-winners').value) || 1,
+        durationMinutes: Number(container.querySelector('#gw-duration').value) || 1440,
+        requiredRoleId: container.querySelector('#gw-role').value || undefined,
+      });
+      showToast('Giveaway lance dans Discord !');
+      await renderGiveawaysPage(id, container);
+    } catch (err) {
+      showToast(err.message, 'error');
+      btn.disabled = false;
+    }
+  });
+
+  container.querySelectorAll('.giveaway-end-btn').forEach((btn) => {
+    btn.addEventListener('click', async () => {
+      if (!window.confirm(`Terminer "${btn.dataset.giveawayPrize}" maintenant ? Le tirage aura lieu sous 30 secondes.`)) return;
+      try {
+        await Api.endGiveaway(id, btn.dataset.giveawayId);
+        showToast('Giveaway termine : tirage imminent.');
+        await renderGiveawaysPage(id, container);
+      } catch (err) {
+        showToast(err.message, 'error');
+      }
+    });
   });
 }
 

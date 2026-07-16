@@ -536,6 +536,80 @@ async function router(request, env) {
       })), env);
     }
 
+    // --- Giveaways (roadmap n°089) : le worker cree l'entree KV et poste le
+    // message Discord avec le MEME custom_id que le bot (giveaway_enter:<id>).
+    // Le bot prend ensuite le relais : participations, cloture (tick 30 s),
+    // tirage et annonce des gagnants. "Terminer maintenant" = endsAt passe a
+    // maintenant, le prochain tick du bot cloture proprement. ---
+    if (sub === 'giveaways' && parts.length === 4) {
+      const session = await requireGuildAccess(env, request, guildId);
+      const kvKey = `guild:${guildId}:giveaways`;
+      if (method === 'GET') {
+        return json((await env.GUILD_KV.get(kvKey, 'json')) || [], env);
+      }
+      if (method === 'POST') {
+        const { channelId, prize, winnersCount, durationMinutes, requiredRoleId } = await readJson(request);
+        if (!channelId || !prize?.trim()) throw new HttpError(400, 'Salon et lot requis.');
+        const winners = Math.min(20, Math.max(1, Number(winnersCount) || 1));
+        const minutes = Math.min(60 * 24 * 30, Math.max(1, Number(durationMinutes) || 60));
+        const giveaway = {
+          id: `${Date.now().toString(36)}${Math.random().toString(36).slice(2, 6)}`,
+          prize: prize.trim().slice(0, 200),
+          winnersCount: winners,
+          requiredRoleId: requiredRoleId || undefined,
+          channelId,
+          endsAt: Date.now() + minutes * 60000,
+          entrants: [],
+          winners: [],
+          closed: false,
+        };
+        const embed = {
+          title: `🎉 ${giveaway.prize}`,
+          color: 0x30a46c,
+          description: 'Clique sur le bouton pour participer !',
+          fields: [
+            { name: 'Participants', value: '0', inline: true },
+            { name: 'Gagnants', value: String(winners), inline: true },
+            ...(giveaway.requiredRoleId ? [{ name: 'Role requis', value: `<@&${giveaway.requiredRoleId}>`, inline: true }] : []),
+          ],
+          footer: { text: 'Participe avant la fin !' },
+          timestamp: new Date(giveaway.endsAt).toISOString(),
+        };
+        const components = [{
+          type: 1,
+          components: [{ type: 2, style: 3, label: 'Participer', emoji: { name: '🎉' }, custom_id: `giveaway_enter:${giveaway.id}` }],
+        }];
+        const message = await botFetchJson(env, `/channels/${channelId}/messages`, {
+          method: 'POST',
+          body: JSON.stringify({ embeds: [embed], components }),
+        });
+        giveaway.messageId = message.id;
+        const items = (await env.GUILD_KV.get(kvKey, 'json')) || [];
+        items.push(giveaway);
+        await env.GUILD_KV.put(kvKey, JSON.stringify(items));
+        await logAudit(env, guildId, {
+          title: 'Giveaway cree',
+          description: `${session.username} a lance "${giveaway.prize}" (${winners} gagnant(s)) dans <#${channelId}>.`,
+        });
+        return json(giveaway, env);
+      }
+    }
+    if (sub === 'giveaways' && parts[5] === 'end' && parts.length === 6 && method === 'POST') {
+      const session = await requireGuildAccess(env, request, guildId);
+      const kvKey = `guild:${guildId}:giveaways`;
+      const items = (await env.GUILD_KV.get(kvKey, 'json')) || [];
+      const giveaway = items.find((g) => g.id === parts[4]);
+      if (!giveaway) throw new HttpError(404, 'Giveaway introuvable.');
+      if (giveaway.closed) throw new HttpError(400, 'Ce giveaway est deja termine.');
+      giveaway.endsAt = Date.now();
+      await env.GUILD_KV.put(kvKey, JSON.stringify(items));
+      await logAudit(env, guildId, {
+        title: 'Giveaway termine manuellement',
+        description: `${session.username} a termine "${giveaway.prize}" (tirage sous 30 s).`,
+      });
+      return json({ ok: true }, env);
+    }
+
     // Casier de sanctions (roadmap n°072) : lit les warns ecrits par le bot
     // (automod et manuels) dans le meme namespace KV.
     if (sub === 'members' && parts[5] === 'warns' && parts.length === 6 && method === 'GET') {
