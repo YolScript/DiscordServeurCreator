@@ -4323,6 +4323,21 @@ async function renderAutomationsPage(id, container = app) {
     });
   });
 
+  // Brouillon automatique (roadmap n°117) : le texte d'annonce en cours de
+  // redaction survit a un refresh ou une navigation.
+  const scheduledDraftKey = `dsc-draft-scheduled:${id}`;
+  const scheduledMsgEl = document.getElementById('new-scheduled-message');
+  const savedDraft = localStorage.getItem(scheduledDraftKey);
+  if (savedDraft && !scheduledMsgEl.value) {
+    scheduledMsgEl.value = savedDraft;
+    scheduledMsgEl.insertAdjacentHTML('afterend', '<p class="muted" id="scheduled-draft-note" style="font-size:0.74rem; margin:4px 0 0;">📝 Brouillon restaure.</p>');
+  }
+  scheduledMsgEl.addEventListener('input', () => {
+    if (scheduledMsgEl.value.trim()) localStorage.setItem(scheduledDraftKey, scheduledMsgEl.value);
+    else localStorage.removeItem(scheduledDraftKey);
+    document.getElementById('scheduled-draft-note')?.remove();
+  });
+
   document.getElementById('add-scheduled').addEventListener('click', async () => {
     const channelId = document.getElementById('new-scheduled-channel').value;
     const message = document.getElementById('new-scheduled-message').value.trim();
@@ -4333,6 +4348,7 @@ async function renderAutomationsPage(id, container = app) {
       await Api.addScheduled(id, {
         channelId, message, runAt: new Date(dateVal).getTime(), repeatIntervalMs: daily ? 86400000 : undefined,
       });
+      localStorage.removeItem(scheduledDraftKey);
       showToast('Annonce programmee.');
       await renderAutomationsPage(id, container);
     } catch (err) {
