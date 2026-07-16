@@ -33,7 +33,12 @@ client.on(Events.GuildMemberAdd, async (member) => {
     const channel = await member.guild.channels.fetch(config.arrivalDepartureChannelId).catch(() => null);
     if (!channel) return;
 
-    const text = applyPlaceholders(config.welcomeMessageTemplate || 'Bienvenue {user} sur {server} !', { user: member.user, guild: member.guild });
+    // Messages varies (roadmap n°152) : une phrase tiree au sort parmi la
+    // liste configuree, repli sur le template unique historique.
+    const welcomeTemplates = Array.isArray(config.welcomeMessageTemplates) && config.welcomeMessageTemplates.length
+      ? config.welcomeMessageTemplates
+      : [config.welcomeMessageTemplate || 'Bienvenue {user} sur {server} !'];
+    const text = applyPlaceholders(welcomeTemplates[Math.floor(Math.random() * welcomeTemplates.length)], { user: member.user, guild: member.guild });
     const embed = new EmbedBuilder()
       .setAuthor({ name: member.user.username, iconURL: member.user.displayAvatarURL() })
       .setTitle('👋 Nouveau membre')

@@ -1,5 +1,6 @@
 require('./ready');
 require('./guildMemberAdd');
+require('./guildMemberUpdate');
 require('./guildMemberRemove');
 require('./presenceUpdate');
 require('./voiceStateUpdate');

@@ -2365,8 +2365,8 @@ function contextualChannelSettingsHtml(channelId, config) {
     return `
       <div class="dp-block">
         <p class="dp-block-title">👋 Messages bienvenue / depart</p>
-        <label for="dp-ctx-welcome">Message de bienvenue</label>
-        <textarea id="dp-ctx-welcome">${escapeHtml(config?.welcomeMessageTemplate)}</textarea>
+        <label for="dp-ctx-welcome">Message(s) de bienvenue — une phrase par ligne, tiree au sort (n°152)</label>
+        <textarea id="dp-ctx-welcome">${escapeHtml((config?.welcomeMessageTemplates || [config?.welcomeMessageTemplate].filter(Boolean)).join('\n'))}</textarea>
         <label for="dp-ctx-leave">Message de depart</label>
         <textarea id="dp-ctx-leave">${escapeHtml(config?.leaveMessageTemplate)}</textarea>
         <p class="muted">Variables disponibles : {user} {username} {server} {membercount}</p>
@@ -3159,8 +3159,13 @@ function renderChannelPanel(guildId, channelId, name, type, config, channels, ro
     if (saveWelcomeBtn) {
       saveWelcomeBtn.addEventListener('click', async () => {
         try {
+          // Messages varies (n°152) : chaque ligne devient un template ; la
+          // premiere reste dans welcomeMessageTemplate (compatibilite).
+          const welcomeLines = scope.querySelector('#dp-ctx-welcome').value
+            .split('\n').map((l) => l.trim()).filter(Boolean).slice(0, 15);
           await Api.updateConfig(guildId, {
-            welcomeMessageTemplate: scope.querySelector('#dp-ctx-welcome').value,
+            welcomeMessageTemplate: welcomeLines[0] || '',
+            welcomeMessageTemplates: welcomeLines.length > 1 ? welcomeLines : null,
             leaveMessageTemplate: scope.querySelector('#dp-ctx-leave').value,
           });
           showToast('Messages enregistres.');
