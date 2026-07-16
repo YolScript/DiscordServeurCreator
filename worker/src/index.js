@@ -1343,6 +1343,14 @@ async function router(request, env) {
       await requireGuildAccess(env, request, guildId);
       return json(await getTickets(env, guildId), env);
     }
+    // Transcription d'un ticket ferme (roadmap n°158), ecrite par le bot a
+    // la fermeture, conservee 30 jours.
+    if (sub === 'tickets' && parts[5] === 'transcript' && parts.length === 6 && method === 'GET') {
+      await requireGuildAccess(env, request, guildId);
+      const transcript = await env.GUILD_KV.get(`guild:${guildId}:transcript:${parts[4]}`, 'json');
+      if (!transcript) throw new HttpError(404, 'Transcription introuvable (disponible pour les tickets fermes apres cette mise a jour, conservee 30 jours).');
+      return json(transcript, env);
+    }
     if (sub === 'tickets' && parts[5] === 'close' && method === 'POST') {
       await requireGuildAccess(env, request, guildId);
       const ticketId = parts[4];

@@ -7,6 +7,7 @@ const { toSmallCaps } = require('../../shared/smallCaps');
 const { TICKET_OPEN, buildTicketRateId } = require('../interactions/customIds');
 const { ensureStaffCategory, toggleOnlyOverwrites } = require('../roles/staffCategory');
 const { ensureModLogChannel } = require('../moderation/modLog');
+const { kvPut } = require('../../kv/cloudflareKv');
 const logger = require('../../shared/logger');
 
 const TICKET_CLOSE_ID = 'ticket_close';
@@ -147,6 +148,11 @@ async function closeTicket(interaction) {
 
   const transcript = await buildTranscript(channel).catch(() => '');
   if (transcript) {
+    // Transcription telechargeable depuis le dashboard (roadmap n°158),
+    // conservee 30 jours en KV.
+    await kvPut(`guild:${guild.id}:transcript:${ticket.id}`, {
+      text: transcript, channelName: channel.name, closedAt: Date.now(),
+    }, { ttlSeconds: 30 * 24 * 3600 }).catch((err) => logger.error('ticketManager.transcriptKv', err));
     const modLogChannel = await ensureModLogChannel(guild).catch(() => null);
     if (modLogChannel) {
       await modLogChannel.send({

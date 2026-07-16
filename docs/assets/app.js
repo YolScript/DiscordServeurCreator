@@ -3623,7 +3623,9 @@ async function renderAutomationsPage(id, container = app) {
   const ticketRows = tickets.map((t) => `
     <div class="row" data-id="${t.id}" style="justify-content:space-between; margin-bottom:6px;">
       <span>${channelName(t.channelId)} <span class="muted">(${escapeHtml(t.userId)})</span> — <span class="badge ${t.status === 'open' ? 'configured' : 'not-configured'}">${t.status === 'open' ? 'Ouvert' : 'Ferme'}</span>${t.assignedToTag ? ` <span class="muted">— pris en charge par ${escapeHtml(t.assignedToTag)}</span>` : ''}${t.rating ? ` <span class="muted">— ${'⭐'.repeat(t.rating)}</span>` : ''}</span>
-      ${t.status === 'open' ? `<button class="btn danger close-ticket" data-id="${t.id}">Fermer</button>` : ''}
+      ${t.status === 'open'
+    ? `<button class="btn danger close-ticket" data-id="${t.id}">Fermer</button>`
+    : `<button class="btn secondary ticket-transcript" data-id="${t.id}" title="Telecharger la transcription (HTML)" aria-label="Telecharger la transcription du ticket">📄</button>`}
     </div>
   `).join('') || '<p class="muted">Aucun ticket pour le moment.</p>';
 
@@ -4375,6 +4377,30 @@ async function renderAutomationsPage(id, container = app) {
         await Api.closeTicket(id, btn.dataset.id);
         showToast('Ticket ferme.');
         await renderAutomationsPage(id, container);
+      } catch (err) {
+        showToast(err.message, 'error');
+      }
+    });
+  });
+
+  // Transcription HTML (roadmap n°158) : generee cote client depuis le
+  // texte stocke par le bot a la fermeture.
+  container.querySelectorAll('.ticket-transcript').forEach((btn) => {
+    btn.addEventListener('click', async () => {
+      try {
+        const tr = await Api.ticketTranscript(id, btn.dataset.id);
+        const lines = tr.text.split('\n').map((l) => `<div class="line">${escapeHtml(l)}</div>`).join('');
+        const html = `<!doctype html><html lang="fr"><head><meta charset="utf-8"><title>Transcription ${escapeHtml(tr.channelName || 'ticket')}</title><style>body{font:14px/1.7 ui-monospace,monospace;background:#1a1013;color:#ece1d8;padding:24px;max-width:900px;margin:auto}h1{font-size:1.05rem;color:#c97a5c}.line{padding:2px 0;border-bottom:1px solid #2a2023;white-space:pre-wrap}</style></head><body><h1>Transcription — ${escapeHtml(tr.channelName || 'ticket')} (fermee le ${new Date(tr.closedAt).toLocaleString('fr-FR')})</h1>${lines}</body></html>`;
+        const blob = new Blob([html], { type: 'text/html' });
+        const url = URL.createObjectURL(blob);
+        const a = document.createElement('a');
+        a.href = url;
+        a.download = `transcription-${btn.dataset.id}.html`;
+        document.body.appendChild(a);
+        a.click();
+        a.remove();
+        URL.revokeObjectURL(url);
+        showToast('Transcription telechargee.');
       } catch (err) {
         showToast(err.message, 'error');
       }

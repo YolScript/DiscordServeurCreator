@@ -59,6 +59,7 @@ window.Api = (function api() {
     dashboardLogins: (guildId) => request(`/api/guilds/${guildId}/logins`),
     duplicateCategory: (guildId, categoryId) => request(`/api/guilds/${guildId}/categories/${categoryId}/duplicate`, { method: 'POST' }),
     trash: (guildId) => request(`/api/guilds/${guildId}/trash`),
+    ticketTranscript: (guildId, ticketId) => request(`/api/guilds/${guildId}/tickets/${ticketId}/transcript`),
     restoreTrash: (guildId, entryId) => request(`/api/guilds/${guildId}/trash/${entryId}/restore`, { method: 'POST' }),
     voiceOccupancy: (guildId) => request(`/api/guilds/${guildId}/voice-occupancy`),
     setPublicLeaderboard: (guildId, enabled) => request(`/api/guilds/${guildId}/public-leaderboard`, { method: 'POST', body: JSON.stringify({ enabled }) }),
