@@ -193,7 +193,7 @@ async function renderGuildList() {
         : '<span class="badge not-configured">A configurer (/setup)</span>';
       action = g.configured
         ? `<a class="btn" href="app.html?guild=${g.guildId}">Gerer</a>`
-        : `<button class="btn generate-server-btn" data-guild="${g.guildId}" data-name="${escapeHtml(g.name || g.guildId)}">🪄 Generer le serveur</button>`;
+        : `<button class="btn generate-server-btn" data-guild="${g.guildId}" data-name="${escapeHtml(g.name || g.guildId)}">Generer le serveur</button>`;
     }
     const icon = guildIconUrl(g);
     return `
