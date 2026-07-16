@@ -16,11 +16,16 @@
     // declenche pas forcement 'pause', et laisserait la video figee sans
     // jamais se relancer. On ecoute tous les evenements d'arret connus...
     ['pause', 'ended', 'stalled', 'suspend', 'error'].forEach((evt) => v.addEventListener(evt, tryPlay));
-    // ...et on garde un filet de secours : si currentTime n'a pas avance
-    // depuis le dernier controle, on force une relance.
+    // Bug Chrome connu (issue 375973479) : une video muette sans piste
+    // audio (notre cas) peut etre suspendue par l'economie d'energie quand
+    // l'onglet reste en arriere-plan, et la reprise auto promise par Chrome
+    // ne se declenche pas toujours a la reprise du focus.
+    document.addEventListener('visibilitychange', () => { if (!document.hidden) tryPlay(); });
+    // ...et on garde un filet de secours : si la video est en pause ou que
+    // currentTime n'a pas avance depuis le dernier controle, on relance.
     let lastTime = -1;
     setInterval(() => {
-      if (!v.paused && v.currentTime === lastTime) tryPlay();
+      if (v.paused || v.currentTime === lastTime) tryPlay();
       lastTime = v.currentTime;
     }, 3000);
   });
