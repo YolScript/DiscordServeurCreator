@@ -570,6 +570,24 @@ input::placeholder, textarea::placeholder { color: var(--text-faint); }
 
 .embed-tab-group { display: inline-flex; gap: 2px; }
 
+/* ---------- Zone de depot drag&drop (fichiers .json) ---------- */
+
+.dp-dropzone {
+  position: relative; display: flex; align-items: center; gap: 10px;
+  border: 1.5px dashed var(--border-strong); border-radius: var(--radius-sm);
+  padding: 16px; min-height: 60px; cursor: pointer; background: var(--bg-input);
+  transition: border-color 0.15s ease, background 0.15s ease;
+}
+.dp-dropzone:hover, .dp-dropzone:focus-visible { border-color: var(--accent); }
+.dp-dropzone.drag-over { border-color: var(--accent); background: var(--accent-soft); }
+.dp-dropzone.has-file { border-style: solid; border-color: var(--success); }
+.dp-dropzone-icon { font-size: 1.4rem; flex: none; }
+.dp-dropzone-text { color: var(--text-muted); font-size: 0.86rem; }
+.dp-dropzone.has-file .dp-dropzone-text { color: var(--text); }
+.dp-dropzone-input {
+  position: absolute; width: 1px; height: 1px; opacity: 0; pointer-events: none;
+}
+
 /* ---------- Toast ---------- */
 
 .toast {
@@ -675,6 +693,23 @@ input::placeholder, textarea::placeholder { color: var(--text-faint); }
   transition: background 0.12s ease, color 0.12s ease;
 }
 .dp-channel:hover { background: var(--border); color: var(--text); }
+.dp-channel-name { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; flex: 1; min-width: 0; }
+.dp-copy-id-btn {
+  flex: none; margin-left: auto; background: none; border: none; color: var(--text-faint);
+  cursor: pointer; font-size: 0.76rem; padding: 2px 5px; border-radius: 4px;
+  opacity: 0; transition: opacity 0.12s ease, color 0.12s ease, background 0.12s ease;
+}
+.dp-channel:hover .dp-copy-id-btn, .dp-copy-id-btn:focus-visible { opacity: 1; }
+.dp-copy-id-btn:hover { color: var(--text); background: var(--bg-input); }
+.dp-copy-id-btn.copied { color: var(--success); opacity: 1; }
+.dp-copy-id-inline {
+  display: inline-flex; align-items: center; gap: 5px; margin-bottom: 10px;
+  background: none; border: 1px solid var(--border-strong); color: var(--text-muted);
+  cursor: pointer; font-size: 0.78rem; padding: 4px 9px; border-radius: var(--radius-sm);
+  transition: color 0.12s ease, border-color 0.12s ease;
+}
+.dp-copy-id-inline:hover { color: var(--text); border-color: var(--text-faint); }
+.dp-copy-id-inline.copied { color: var(--success); border-color: var(--success); }
 .dp-channel.selected {
   background: var(--accent-soft); color: var(--text); font-weight: 500;
   box-shadow: inset 2px 0 0 var(--accent);
@@ -807,16 +842,36 @@ input::placeholder, textarea::placeholder { color: var(--text-faint); }
 .tplprev-embed-note { padding: 8px 0; }
 .dp-chat-avatar {
   width: 36px; height: 36px; border-radius: 50%; flex: none; display: flex; align-items: center; justify-content: center;
-  background: var(--accent); font-size: 1.05rem;
+  background: var(--accent); font-size: 1.05rem; overflow: hidden;
 }
-.dp-chat-bubble { display: flex; flex-direction: column; gap: 8px; min-width: 0; }
+.dp-chat-avatar img { width: 100%; height: 100%; object-fit: cover; }
+.dp-chat-bubble { display: flex; flex-direction: column; gap: 8px; min-width: 0; position: relative; }
 .dp-chat-author { font-size: 0.76rem; font-weight: 700; color: var(--text); }
 .dp-chat-text {
   background: var(--bg-sidebar); border-radius: 6px; padding: 10px 14px; color: var(--text); font-size: 0.87rem; line-height: 1.4;
   align-self: flex-start;
 }
+.dp-chat-text code {
+  background: rgba(0,0,0,0.25); border-radius: 3px; padding: 1px 5px; font-family: var(--font-mono); font-size: 0.85em;
+}
+.dp-chat-text .dp-md-code-block {
+  background: rgba(0,0,0,0.25); border-radius: 5px; padding: 10px 12px; margin: 4px 0; overflow-x: auto;
+  font-family: var(--font-mono); font-size: 0.82rem; line-height: 1.5;
+}
+.dp-chat-text .dp-md-code-block code { background: none; padding: 0; }
+.dp-chat-text ul, .dp-chat-text ol { margin: 4px 0; padding-left: 20px; }
+.dp-chat-text li { margin: 2px 0; }
+.dp-chat-text a { color: inherit; text-decoration: underline; text-underline-offset: 2px; }
 .dp-chat-bubble .dp-block { margin-bottom: 0; }
 .dp-chat-bubble .dp-action-grid { min-width: 420px; }
+.dp-chat-copy {
+  align-self: flex-start; background: none; border: none; color: var(--text-faint); cursor: pointer;
+  font-size: 0.78rem; padding: 2px 4px; border-radius: 4px; opacity: 0; transition: opacity 0.12s ease, color 0.12s ease;
+}
+.dp-chat-msg.bot:hover .dp-chat-copy { opacity: 1; }
+.dp-chat-copy:hover { color: var(--text); background: var(--bg-input); }
+.dp-chat-copy:focus-visible { opacity: 1; }
+.dp-chat-copy.copied { color: var(--success); opacity: 1; }
 
 /* Fil de discussion libre avec l'assistant IA : contrairement au fil
    d'actions scripte (choix predefinis, pas d'echo), ici l'utilisateur tape

@@ -40,6 +40,28 @@ const searchInput = document.getElementById('search-input');
   });
 }());
 
+// Copie d'ID (salon/role) en un clic, delegue sur #app comme les compteurs
+// de caracteres ci-dessus : marche sur tout le site sans re-cablage par
+// re-rendu. Phase de capture (3e argument true) : le bouton est imbrique
+// dans .dp-channel qui a son propre click (ouvre le salon) attache
+// directement dessus - seule la capture (avant la bulle) permet de
+// stopPropagation() a temps pour empecher ce click parent de se declencher.
+app.addEventListener('click', async (e) => {
+  const btn = e.target.closest('.dp-copy-id-btn');
+  if (!btn) return;
+  e.stopPropagation();
+  e.preventDefault();
+  try {
+    await navigator.clipboard.writeText(btn.dataset.copyId);
+    const original = btn.textContent;
+    btn.textContent = btn.classList.contains('dp-copy-id-inline') ? '✓ Copie !' : '✓';
+    btn.classList.add('copied');
+    setTimeout(() => { btn.textContent = original; btn.classList.remove('copied'); }, 1200);
+  } catch {
+    showToast('Copie impossible (permission navigateur).', 'error');
+  }
+}, true);
+
 const params = new URLSearchParams(location.search);
 const guildId = params.get('guild');
 
@@ -145,6 +167,46 @@ function highlightMatch(text, query) {
   const match = escapeHtml(text.slice(idx, idx + query.length));
   const after = escapeHtml(text.slice(idx + query.length));
   return `${before}<mark>${match}</mark>${after}`;
+}
+
+// Markdown "lite" pour les reponses de l'assistant IA : l'echappement HTML
+// passe TOUJOURS en premier (securite), les transformations markdown
+// n'ajoutent que des balises autour du texte deja echappe - aucune
+// injection possible meme si l'IA renvoie du HTML litteral dans son texte.
+function renderMarkdownLite(text) {
+  const blocks = String(text ?? '').split(/```([\s\S]*?)```/g);
+  return blocks.map((block, i) => {
+    if (i % 2 === 1) {
+      // Bloc de code : contenu litteral, aucune autre transformation dedans.
+      const firstLine = block.split('\n')[0].trim();
+      const rest = /^[a-zA-Z0-9_+-]{1,20}$/.test(firstLine) ? block.slice(firstLine.length + 1) : block;
+      return `<pre class="dp-md-code-block"><code>${escapeHtml(rest.replace(/\n$/, ''))}</code></pre>`;
+    }
+    let html = escapeHtml(block);
+    html = html.replace(/`([^`\n]+)`/g, '<code>$1</code>');
+    html = html.replace(/\*\*([^*\n]+)\*\*/g, '<strong>$1</strong>');
+    html = html.replace(/(?<![*\w])\*([^*\n]+)\*(?!\w)/g, '<em>$1</em>');
+    html = html.replace(/\[([^\]\n]+)\]\((https?:\/\/[^\s)]+)\)/g, '<a href="$2" target="_blank" rel="noopener noreferrer">$1</a>');
+    // Listes : regroupe les lignes consecutives commencant par -/* ou 1.
+    const lines = html.split('\n');
+    const out = [];
+    let listBuf = [];
+    let listTag = null;
+    const flushList = () => {
+      if (listBuf.length) out.push(`<${listTag}>${listBuf.map((li) => `<li>${li}</li>`).join('')}</${listTag}>`);
+      listBuf = []; listTag = null;
+    };
+    for (const line of lines) {
+      const bullet = line.match(/^[-*]\s+(.*)/);
+      const numbered = line.match(/^\d+\.\s+(.*)/);
+      if (bullet) { listTag = 'ul'; listBuf.push(bullet[1]); continue; }
+      if (numbered) { listTag = listTag || 'ol'; listBuf.push(numbered[1]); continue; }
+      flushList();
+      out.push(line);
+    }
+    flushList();
+    return out.join('<br>').replace(/(<\/(?:ul|ol)>)<br>/g, '$1').replace(/<br>(<(?:ul|ol)>)/g, '$1');
+  }).join('');
 }
 
 function skeletonHtml(lines = 3) {
@@ -464,6 +526,7 @@ function roleRowHtml(role, members) {
         ${!isEveryone ? `<button type="button" class="dp-role-settings" data-role-settings="${role.id}" title="Configurer" aria-label="Configurer le role ${escapeHtml(role.name)}">⚙</button>` : ''}
       </div>
       <div class="dp-role-detail">
+        <button type="button" class="dp-copy-id-btn dp-copy-id-inline" data-copy-id="${role.id}" title="Copier l'ID du role" aria-label="Copier l'ID du role ${escapeHtml(role.name)}">📋 Copier l'ID</button>
         ${!isEveryone ? `
           <p class="dp-role-detail-title">Couleur</p>
           <div class="dp-role-color-row">
@@ -507,22 +570,32 @@ function resolveAiActionLabel(pc, channels, roles) {
   return `Executer ${pc.name}`;
 }
 
+function botAvatarHtml() {
+  return '<img src="assets/logo-512.webp" alt="" width="36" height="36" />';
+}
+
+function userAvatarHtml() {
+  if (currentUserAvatarUrl) return `<img src="${currentUserAvatarUrl}" alt="" width="36" height="36" />`;
+  return escapeHtml(currentUser?.username ? initials(currentUser.username) : '🙂');
+}
+
 function aiConversationHtml() {
   let html = '';
-  for (const m of aiConversation) {
+  aiConversation.forEach((m, idx) => {
     if (m.role === 'user') {
       html += `
         <div class="dp-chat-msg ai-user">
-          <div class="dp-chat-avatar">${currentUser?.username ? escapeHtml(initials(currentUser.username)) : '🙂'}</div>
+          <div class="dp-chat-avatar">${userAvatarHtml()}</div>
           <div class="dp-chat-bubble"><div class="dp-chat-text">${escapeHtml(m.content)}</div></div>
         </div>`;
     } else if (m.role === 'assistant' && m.content) {
       html += `
         <div class="dp-chat-msg bot">
-          <div class="dp-chat-avatar">🤖</div>
+          <div class="dp-chat-avatar">${botAvatarHtml()}</div>
           <div class="dp-chat-bubble">
             <div class="dp-chat-author">ServeurCreator Bot</div>
-            <div class="dp-chat-text">${escapeHtml(m.content)}</div>
+            <div class="dp-chat-text">${renderMarkdownLite(m.content)}</div>
+            <button type="button" class="dp-chat-copy" data-msg-index="${idx}" title="Copier" aria-label="Copier ce message">📋</button>
           </div>
         </div>`;
     } else if (m.role === 'assistant' && m.toolCalls?.length) {
@@ -530,18 +603,18 @@ function aiConversationHtml() {
     } else if (m.role === 'tool' && m.result?.error) {
       html += `<div class="dp-ai-tool-note">⚠️ ${escapeHtml(m.result.error)}</div>`;
     }
-  }
+  });
   if (aiBusy) {
     html += `
       <div class="dp-chat-msg bot">
-        <div class="dp-chat-avatar">🤖</div>
+        <div class="dp-chat-avatar">${botAvatarHtml()}</div>
         <div class="dp-chat-bubble"><div class="dp-chat-typing"><span></span><span></span><span></span></div></div>
       </div>`;
   }
   if (aiPendingConfirmation) {
     html += `
       <div class="dp-chat-msg bot">
-        <div class="dp-chat-avatar">🤖</div>
+        <div class="dp-chat-avatar">${botAvatarHtml()}</div>
         <div class="dp-chat-bubble" style="max-width:420px;">
           <div class="dp-ai-confirm">
             <span>⚠️ ${escapeHtml(aiPendingConfirmation.label)} — action irreversible. Confirmer ?</span>
@@ -568,7 +641,7 @@ function aiHomeHtml(guild) {
   return `
     <div class="dp-chat" id="dp-ai-chat">
       <div class="dp-chat-msg bot">
-        <div class="dp-chat-avatar">🤖</div>
+        <div class="dp-chat-avatar">${botAvatarHtml()}</div>
         <div class="dp-chat-bubble">
           <div class="dp-chat-author">ServeurCreator Bot</div>
           <div class="dp-chat-text">Salut, je suis le bot de configuration de ${escapeHtml(guild?.name || 'ton serveur')} ! Glisse un salon, une categorie ou un role ici pour le configurer, ou choisis une categorie d'outils ci-dessous.</div>
@@ -615,6 +688,20 @@ function wireAiHome(guildId, channels, rolesSorted) {
     const noBtn = document.getElementById('dp-ai-confirm-no');
     if (yesBtn) yesBtn.addEventListener('click', () => handleConfirm(true));
     if (noBtn) noBtn.addEventListener('click', () => handleConfirm(false));
+    document.querySelectorAll('.dp-chat-copy').forEach((btn) => {
+      btn.addEventListener('click', async () => {
+        const msg = aiConversation[Number(btn.dataset.msgIndex)];
+        if (!msg) return;
+        try {
+          await navigator.clipboard.writeText(msg.content);
+          btn.textContent = '✓';
+          btn.classList.add('copied');
+          setTimeout(() => { btn.textContent = '📋'; btn.classList.remove('copied'); }, 1500);
+        } catch {
+          showToast('Copie impossible (permission navigateur).', 'error');
+        }
+      });
+    });
     chatEl.scrollTop = chatEl.scrollHeight;
   }
 
@@ -690,6 +777,7 @@ async function renderPreviewPage(id) {
   const channelRow = (c) => `
     <div class="dp-channel" draggable="true" tabindex="0" role="button" aria-label="Salon ${escapeHtml(c.name)} (Alt+fleches pour reordonner)" data-channel="${c.id}" data-name="${escapeHtml(c.name)}" data-type="${c.type}">
       <span class="hash">${channelIcon(c)}</span> <span class="dp-channel-name">${escapeHtml(c.name)}</span>
+      <button type="button" class="dp-copy-id-btn" data-copy-id="${c.id}" title="Copier l'ID du salon" aria-label="Copier l'ID du salon ${escapeHtml(c.name)}">📋</button>
     </div>`;
 
   const categoryBlock = (cat) => {
@@ -1487,7 +1575,7 @@ function renderActionChat(main, {
     const msg = document.createElement('div');
     msg.className = 'dp-chat-msg bot';
     msg.innerHTML = `
-      <div class="dp-chat-avatar">🤖</div>
+      <div class="dp-chat-avatar">${botAvatarHtml()}</div>
       <div class="dp-chat-bubble">
         <div class="dp-chat-author">ServeurCreator Bot</div>
         ${bodyHtml}
@@ -3093,9 +3181,13 @@ async function renderSecurityPage(id, container = app) {
       ${sectionHtml('Export / Restauration manuelle', `
         <p class="muted">Exporte la structure (noms/couleurs des roles, categories, salons) en fichier JSON. La restauration est additive : elle recree uniquement ce qui manque, sans jamais toucher a l'existant.</p>
         <button class="btn secondary" id="export-structure">⬇️ Telecharger la structure (.json)</button>
-        <label for="structure-file-input">Restaurer depuis un fichier</label>
-        <input type="file" id="structure-file-input" accept="application/json" />
-        <button class="btn secondary" id="restore-structure" style="margin-top:8px;">Restaurer depuis ce fichier</button>
+        <label for="structure-file-input" style="margin-top:14px;">Restaurer depuis un fichier</label>
+        <div class="dp-dropzone" id="structure-dropzone" tabindex="0">
+          <span class="dp-dropzone-icon">📄</span>
+          <span class="dp-dropzone-text" id="structure-dropzone-text">Glisse un fichier .json ici, ou clique pour parcourir</span>
+          <input type="file" id="structure-file-input" accept="application/json" class="dp-dropzone-input" />
+        </div>
+        <button class="btn secondary" id="restore-structure" style="margin-top:10px;" disabled>Restaurer depuis ce fichier</button>
       `, { id: 'sec-export' })}
 
       ${sectionHtml('Snapshots automatiques', `
@@ -3132,8 +3224,37 @@ async function renderSecurityPage(id, container = app) {
     }
   });
 
-  document.getElementById('restore-structure').addEventListener('click', async () => {
-    const file = document.getElementById('structure-file-input').files[0];
+  const structureDropzone = document.getElementById('structure-dropzone');
+  const structureFileInput = document.getElementById('structure-file-input');
+  const structureDropzoneText = document.getElementById('structure-dropzone-text');
+  const restoreBtn = document.getElementById('restore-structure');
+
+  function setStructureFile(file) {
+    if (!file) return;
+    if (!file.name.endsWith('.json')) { showToast('Choisis un fichier .json.', 'error'); return; }
+    const dt = new DataTransfer();
+    dt.items.add(file);
+    structureFileInput.files = dt.files;
+    structureDropzoneText.textContent = `📄 ${file.name}`;
+    structureDropzone.classList.add('has-file');
+    restoreBtn.disabled = false;
+  }
+
+  structureDropzone.addEventListener('click', () => structureFileInput.click());
+  structureDropzone.addEventListener('keydown', (e) => {
+    if (e.key === 'Enter' || e.key === ' ') { e.preventDefault(); structureFileInput.click(); }
+  });
+  structureFileInput.addEventListener('change', () => setStructureFile(structureFileInput.files[0]));
+  structureDropzone.addEventListener('dragover', (e) => { e.preventDefault(); structureDropzone.classList.add('drag-over'); });
+  structureDropzone.addEventListener('dragleave', () => structureDropzone.classList.remove('drag-over'));
+  structureDropzone.addEventListener('drop', (e) => {
+    e.preventDefault();
+    structureDropzone.classList.remove('drag-over');
+    setStructureFile(e.dataTransfer.files[0]);
+  });
+
+  restoreBtn.addEventListener('click', async () => {
+    const file = structureFileInput.files[0];
     if (!file) { showToast('Choisis un fichier.', 'error'); return; }
     try {
       const snapshot = JSON.parse(await file.text());
