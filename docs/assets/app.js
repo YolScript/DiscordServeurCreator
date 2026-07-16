@@ -457,7 +457,7 @@ function roleRowHtml(role, members) {
   return `
     <div class="dp-role-row" data-role="${role.id}" data-role-name="${escapeHtml(role.name)}" data-position="${role.position}" ${isEveryone ? '' : 'draggable="true"'}>
       <div class="dp-role-summary">
-        ${!isEveryone ? '<span class="dp-role-handle">⠿</span>' : ''}
+        ${!isEveryone ? `<button type="button" class="dp-role-handle" data-role-handle="${role.id}" aria-label="Reordonner ${escapeHtml(role.name)} (fleches haut/bas)">⠿</button>` : ''}
         ${roleColorDot(role)}
         <span class="dp-role-name">${escapeHtml(role.name)}</span>
         <span class="dp-role-count">${roleMembers.length}</span>
@@ -834,6 +834,19 @@ async function renderPreviewPage(id) {
     });
   });
 
+  async function persistRoleOrder(list) {
+    const orderedIds = [...list.querySelectorAll('.dp-role-row[draggable="true"]')].map((r) => r.dataset.role);
+    const maxPos = Math.max(...rolesSorted.filter((r) => r.name !== '@everyone').map((r) => r.position));
+    const positions = orderedIds.map((rid, idx) => ({ id: rid, position: maxPos - idx }));
+    try {
+      await Api.setRolePositions(id, positions);
+      showToast('Ordre des roles mis a jour.');
+    } catch (err) {
+      showToast(err.message, 'error');
+      await renderPreviewPage(id);
+    }
+  }
+
   app.querySelectorAll('.dp-role-row[draggable="true"]').forEach((row) => {
     row.addEventListener('dragstart', (e) => {
       row.classList.add('dragging');
@@ -853,17 +866,29 @@ async function renderPreviewPage(id) {
     });
     row.addEventListener('dragend', async () => {
       row.classList.remove('dragging');
+      await persistRoleOrder(row.parentElement);
+    });
+  });
+
+  // Alternative clavier au drag&drop souris (accessibilite) : la poignee
+  // devient un vrai bouton focusable, fleches haut/bas pour reordonner.
+  app.querySelectorAll('.dp-role-handle[data-role-handle]').forEach((handle) => {
+    handle.addEventListener('click', (e) => e.stopPropagation());
+    handle.addEventListener('keydown', async (e) => {
+      if (e.key !== 'ArrowUp' && e.key !== 'ArrowDown') return;
+      e.preventDefault();
+      e.stopPropagation();
+      const row = handle.closest('.dp-role-row');
       const list = row.parentElement;
-      const orderedIds = [...list.querySelectorAll('.dp-role-row[draggable="true"]')].map((r) => r.dataset.role);
-      const maxPos = Math.max(...rolesSorted.filter((r) => r.name !== '@everyone').map((r) => r.position));
-      const positions = orderedIds.map((rid, idx) => ({ id: rid, position: maxPos - idx }));
-      try {
-        await Api.setRolePositions(id, positions);
-        showToast('Ordre des roles mis a jour.');
-      } catch (err) {
-        showToast(err.message, 'error');
-        await renderPreviewPage(id);
-      }
+      const sibling = e.key === 'ArrowUp' ? row.previousElementSibling : row.nextElementSibling;
+      if (!sibling || !sibling.matches('.dp-role-row[draggable="true"]')) return;
+      animateReorder(list, '.dp-role-row', () => {
+        if (e.key === 'ArrowUp') list.insertBefore(row, sibling);
+        else list.insertBefore(sibling, row);
+      });
+      handle.focus();
+      window.UISound?.select();
+      await persistRoleOrder(list);
     });
   });
 
