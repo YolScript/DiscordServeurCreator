@@ -69,6 +69,26 @@ app.addEventListener('click', async (e) => {
 // marche partout (generateur d'embed, webhooks...) sans re-cablage par
 // re-rendu. Capture + stopPropagation : les zones parentes (#dp-main) ont
 // leurs propres handlers de depose (salons/categories) a ne pas reveiller.
+// Fichiers image locaux du generateur d'embed (roadmap n°001) : gardes en
+// memoire jusqu'au post, puis envoyes en pieces jointes AVEC le message
+// (attachment://nom) — Discord les reheberge durablement, contrairement a
+// un simple lien CDN signe qui expire.
+window.__embedLocalFiles = new Map(); // inputId -> { file, objectUrl, filename }
+
+function attachLocalImage(input, file) {
+  if (!file.type?.startsWith('image/')) { showToast('Choisis un fichier image.', 'error'); return; }
+  if (file.size > 8 * 1024 * 1024) { showToast('Image trop lourde (8 Mo maximum).', 'error'); return; }
+  const previous = window.__embedLocalFiles.get(input.id);
+  if (previous) URL.revokeObjectURL(previous.objectUrl);
+  const ext = (file.name.match(/\.(png|jpe?g|gif|webp)$/i)?.[1] || 'png').toLowerCase();
+  const filename = `${input.id}.${ext}`;
+  window.__embedLocalFiles.set(input.id, { file, objectUrl: URL.createObjectURL(file), filename });
+  input.value = `attachment://${filename}`;
+  input.classList.remove('url-bad');
+  input.dispatchEvent(new Event('input', { bubbles: true }));
+  showToast(`${file.name} sera envoye avec le message.`);
+}
+
 (function initUrlFieldDropPaste() {
   const isUrlInput = (el) => el?.matches?.('input[type=text]') && /https?:\/\//.test(el.placeholder || '');
   // Zones de texte markdown (description d'embed, valeur de champ...) : un
@@ -125,9 +145,7 @@ app.addEventListener('click', async (e) => {
     e.target.classList.remove('drag-over');
     const url = extractUrl(e.dataTransfer);
     if (!url) {
-      if (e.dataTransfer.files?.length) {
-        showToast("Fichier local : Discord a besoin d'un lien public. Poste l'image dans un salon Discord, puis clic droit > Copier le lien.", 'error');
-      }
+      if (e.dataTransfer.files?.length) handleLocalFile(e, e.dataTransfer.files[0]);
       return;
     }
     if (isInput) { setValue(e.target, url); return; }
@@ -136,6 +154,17 @@ app.addEventListener('click', async (e) => {
     insertAtCursor(e.target, label.trim() ? `[${label.trim()}](${url})` : url);
     showToast(label.trim() ? 'Lien cliquable insere.' : 'Lien insere.');
   }, true);
+
+  // Depose d'un FICHIER image : dans le generateur d'embed, il devient une
+  // piece jointe du message (n°001) ; ailleurs, message explicatif.
+  const handleLocalFile = (e, file) => {
+    if (e.target.closest('.embed-builder-form') && file.type?.startsWith('image/')) {
+      attachLocalImage(e.target, file);
+      return true;
+    }
+    showToast("Fichier local : Discord a besoin d'un lien public ici. Poste l'image dans un salon Discord, puis clic droit > Copier le lien.", 'error');
+    return true;
+  };
 
   app.addEventListener('paste', (e) => {
     // Zone markdown : coller une URL seule propose aussi le lien cliquable.
@@ -155,7 +184,7 @@ app.addEventListener('click', async (e) => {
     if (fromHtml) { e.preventDefault(); setValue(e.target, fromHtml); return; }
     if (dt.files?.length) {
       e.preventDefault();
-      showToast("Image sans lien source : poste-la dans un salon Discord, puis clic droit > Copier le lien.", 'error');
+      handleLocalFile(e, dt.files[0]);
     }
   }, true);
 }());
@@ -4972,12 +5001,31 @@ function buildButtonsFromForm(root) {
   }).filter((b) => b.label);
 }
 
+// Pour l'apercu uniquement : les references attachment:// (fichiers locaux
+// pas encore envoyes) sont remplacees par leur objectURL en memoire.
+function resolveAttachmentUrls(embed) {
+  const resolve = (url) => {
+    if (typeof url !== 'string' || !url.startsWith('attachment://')) return url;
+    const name = url.slice('attachment://'.length);
+    for (const entry of window.__embedLocalFiles.values()) {
+      if (entry.filename === name) return entry.objectUrl;
+    }
+    return '';
+  };
+  const out = { ...embed };
+  if (out.image?.url) out.image = { url: resolve(out.image.url) };
+  if (out.thumbnail?.url) out.thumbnail = { url: resolve(out.thumbnail.url) };
+  if (out.author?.icon_url) out.author = { ...out.author, icon_url: resolve(out.author.icon_url) };
+  if (out.footer?.icon_url) out.footer = { ...out.footer, icon_url: resolve(out.footer.icon_url) };
+  return out;
+}
+
 function updateEmbedPreview(root) {
   const { embed, content } = buildEmbedFromForm(root);
   const state = root.__mb;
   if (state) state.embeds[state.active] = embed;
   const embeds = state ? state.embeds : [embed];
-  root.querySelector('#embed-preview-slot').innerHTML = messagePreviewHtml(resolveEmbedVars(content), embeds.map(substituteEmbedVars), buildButtonsFromForm(root));
+  root.querySelector('#embed-preview-slot').innerHTML = messagePreviewHtml(resolveEmbedVars(content), embeds.map((e) => resolveAttachmentUrls(substituteEmbedVars(e))), buildButtonsFromForm(root));
 
   // Brouillon auto (n°007) : sauvegarde debouncee du travail en cours.
   if (root.__draftKey) {
@@ -5214,11 +5262,11 @@ async function renderEmbedBuilderPage(id, container = app) {
             <div class="embed-form-row">
               <div>
                 <label for="embed-thumbnail">Miniature (petite image, en haut a droite)</label>
-                <input type="text" id="embed-thumbnail" placeholder="Miniature (haut droite) : https://..." />
+                <input type="text" id="embed-thumbnail" placeholder="Miniature : https://... ou glisse une image" />
               </div>
               <div>
                 <label for="embed-image">Image (grande image, en bas)</label>
-                <input type="text" id="embed-image" placeholder="Grande image (bas) : https://..." />
+                <input type="text" id="embed-image" placeholder="Grande image : https://... ou glisse une image" />
               </div>
             </div>
 
@@ -5303,6 +5351,10 @@ async function renderEmbedBuilderPage(id, container = app) {
   `;
 
   container.__mb = { embeds: [{}], active: 0 };
+  // Repart proprement : les fichiers locaux d'une session precedente sont
+  // liberes (objectURL) et oublies.
+  window.__embedLocalFiles.forEach((entry) => URL.revokeObjectURL(entry.objectUrl));
+  window.__embedLocalFiles.clear();
   renderEmbedTabs(container);
 
   if (prefillChannelId) {
@@ -5403,6 +5455,7 @@ async function renderEmbedBuilderPage(id, container = app) {
       input.classList.remove('url-ok', 'url-bad');
       const v = input.value.trim();
       if (!v) return;
+      if (v.startsWith('attachment://')) return; // fichier local joint : pas d'URL a tester
       timer = setTimeout(() => {
         if (!/^https?:\/\/\S+$/i.test(v)) { input.classList.add('url-bad'); return; }
         const probe = new Image();
@@ -5523,7 +5576,12 @@ async function renderEmbedBuilderPage(id, container = app) {
         showToast('Message mis a jour.');
       } else {
         const buttons = buildButtonsFromForm(container);
-        await Api.postEmbed(id, channelId, embeds, content, buttons.length ? buttons : undefined);
+        const localFiles = [...window.__embedLocalFiles.values()];
+        if (localFiles.length) {
+          await Api.postEmbedWithFiles(id, channelId, embeds, content, buttons.length ? buttons : undefined, localFiles);
+        } else {
+          await Api.postEmbed(id, channelId, embeds, content, buttons.length ? buttons : undefined);
+        }
         showToast(`Embed${embeds.length > 1 ? 's' : ''} poste dans Discord.`);
       }
       localStorage.removeItem(container.__draftKey);
@@ -5547,6 +5605,10 @@ async function renderEmbedBuilderPage(id, container = app) {
     const content = resolveEmbedVars(container.querySelector('#embed-content').value.trim());
     if (!embeds.some((e) => e.title || e.description || (e.fields || []).length)) {
       showToast('Ajoute au moins un titre, une description ou un champ.', 'error');
+      return;
+    }
+    if (window.__embedLocalFiles.size) {
+      showToast('Les images jointes (fichiers locaux) ne sont pas supportees pour les envois programmes : utilise un lien https.', 'error');
       return;
     }
     const runAt = new Date(dateVal).getTime();

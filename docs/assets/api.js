@@ -135,6 +135,22 @@ window.Api = (function api() {
     createReactionRoleGroup: (guildId, payload) => request(`/api/guilds/${guildId}/reactionroles`, { method: 'POST', body: JSON.stringify(payload) }),
     deleteReactionRoleGroup: (guildId, groupId) => request(`/api/guilds/${guildId}/reactionroles/${groupId}`, { method: 'DELETE' }),
     postEmbed: (guildId, channelId, embeds, content, buttons) => request(`/api/guilds/${guildId}/panels/embed`, { method: 'POST', body: JSON.stringify({ channelId, embeds, content, buttons }) }),
+    // Variante multipart (roadmap n°001) : images locales jointes au message.
+    // fetch dedie : request() force Content-Type JSON, le multipart doit
+    // laisser le navigateur poser le boundary.
+    postEmbedWithFiles: async (guildId, channelId, embeds, content, buttons, files) => {
+      const fd = new FormData();
+      fd.append('payload', JSON.stringify({ channelId, embeds, content, buttons }));
+      files.slice(0, 4).forEach((f, i) => fd.append(`file${i}`, f.file, f.filename));
+      const res = await fetch(`${window.API_BASE_URL}/api/guilds/${guildId}/panels/embed`, {
+        method: 'POST', credentials: 'include', body: fd,
+      });
+      let body = null;
+      const text = await res.text();
+      if (text) { try { body = JSON.parse(text); } catch { body = text; } }
+      if (!res.ok) throw new Error((body && body.error) || `Erreur ${res.status}`);
+      return body;
+    },
     getMessage: (guildId, channelId, messageId) => request(`/api/guilds/${guildId}/messages/${channelId}/${messageId}`),
     editEmbedMessage: (guildId, channelId, messageId, embeds, content) => request(`/api/guilds/${guildId}/messages/${channelId}/${messageId}`, { method: 'PATCH', body: JSON.stringify({ embeds, content }) }),
     createMemberCountChannel: (guildId, nameTemplate) => request(`/api/guilds/${guildId}/membercount`, { method: 'POST', body: JSON.stringify({ nameTemplate }) }),

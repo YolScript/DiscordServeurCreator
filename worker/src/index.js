@@ -1278,7 +1278,24 @@ async function router(request, env) {
       const session = await requireGuildAccess(env, request, guildId);
       const key = parts[4];
       if (!['reglement', 'roles', 'poll', 'ticket', 'embed'].includes(key)) throw new HttpError(400, 'Panneau inconnu.');
-      const body = await readJson(request).catch(() => ({}));
+      // Multipart (roadmap n°001) : images locales jointes au message,
+      // uniquement pour les embeds. payload = JSON, file0..file3 = images.
+      const contentType = request.headers.get('Content-Type') || '';
+      let body;
+      let incomingFiles = [];
+      if (key === 'embed' && contentType.includes('multipart/form-data')) {
+        const fd = await request.formData();
+        try { body = JSON.parse(fd.get('payload') || '{}'); } catch { throw new HttpError(400, 'payload multipart invalide.'); }
+        incomingFiles = [...fd.entries()]
+          .filter(([name, value]) => name.startsWith('file') && typeof value !== 'string')
+          .map(([, value]) => value)
+          .slice(0, 4);
+        for (const f of incomingFiles) {
+          if (f.size > 8 * 1024 * 1024) throw new HttpError(400, 'Image trop lourde (8 Mo maximum).');
+        }
+      } else {
+        body = await readJson(request).catch(() => ({}));
+      }
       if (key === 'embed') {
         const embeds = body.embeds || (body.embed ? [body.embed] : null);
         if (!body.channelId || !embeds?.length) throw new HttpError(400, 'channelId et embeds requis.');
@@ -1314,10 +1331,27 @@ async function router(request, env) {
           });
           components = [{ type: 1, components: built }];
         }
-        await botFetchJson(env, `/channels/${body.channelId}/messages`, {
-          method: 'POST',
-          body: JSON.stringify({ content: body.content || undefined, embeds: prepared, ...(components ? { components } : {}) }),
-        });
+        const messagePayload = { content: body.content || undefined, embeds: prepared, ...(components ? { components } : {}) };
+        if (incomingFiles.length) {
+          // Envoi multipart direct : les fichiers partent AVEC le message,
+          // les embeds les referencent en attachment://nom (reheberges
+          // durablement par Discord, contrairement aux liens CDN signes).
+          messagePayload.attachments = incomingFiles.map((f, i) => ({ id: i, filename: f.name }));
+          const discordForm = new FormData();
+          discordForm.append('payload_json', JSON.stringify(messagePayload));
+          incomingFiles.forEach((f, i) => discordForm.append(`files[${i}]`, f, f.name));
+          const res = await fetch(`https://discord.com/api/v10/channels/${body.channelId}/messages`, {
+            method: 'POST',
+            headers: { Authorization: `Bot ${env.DISCORD_BOT_TOKEN}` },
+            body: discordForm,
+          });
+          if (!res.ok) throw new HttpError(502, `Discord a refuse le message : ${(await res.text()).slice(0, 300)}`);
+        } else {
+          await botFetchJson(env, `/channels/${body.channelId}/messages`, {
+            method: 'POST',
+            body: JSON.stringify(messagePayload),
+          });
+        }
         await logAudit(env, guildId, { title: 'Embed poste', description: `${session.username} a poste un embed dans <#${body.channelId}>.` });
         return json({ ok: true }, env);
       }
