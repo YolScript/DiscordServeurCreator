@@ -3724,6 +3724,16 @@ async function renderAutomationsPage(id, container = app) {
           </label>
           <button class="btn secondary" id="add-scheduled" style="margin-top:8px;">Programmer</button>
         </div>
+
+        <h2 style="margin-top:18px; font-size:0.85rem;">📅 Calendrier externe</h2>
+        <p class="muted">Un flux iCal des evenements Discord planifies et des annonces programmees, a abonner dans Google Agenda, Outlook ou Apple Calendar (Ajouter un agenda &gt; Par URL).</p>
+        ${config?.calendarToken
+    ? `<div class="row" style="gap:8px; flex-wrap:wrap;">
+             <input type="text" readonly id="calendar-feed-link" aria-label="Lien du calendrier externe" value="${escapeHtml(window.API_BASE_URL)}/public/calendar?guild=${id}&token=${escapeHtml(config.calendarToken)}" style="flex:1; min-width:220px; margin:0;" />
+             <button class="btn secondary" id="copy-calendar-feed">📋 Copier</button>
+             <button class="btn danger" id="toggle-calendar-feed" data-enable="false">Desactiver</button>
+           </div>`
+    : '<button class="btn secondary" id="toggle-calendar-feed" data-enable="true">Activer le flux calendrier</button>'}
       `, { id: 'annonces' })}
 
       ${sectionHtml('Service (Staff en service)', `
@@ -3995,6 +4005,27 @@ async function renderAutomationsPage(id, container = app) {
     try {
       await navigator.clipboard.writeText(document.getElementById('inbound-webhook-url').value);
       showToast('URL copiee.');
+    } catch {
+      showToast('Copie impossible (permission navigateur).', 'error');
+    }
+  });
+
+  // Calendrier externe (roadmap n°102) : active/revoque le flux iCal.
+  document.getElementById('toggle-calendar-feed')?.addEventListener('click', async (e) => {
+    const enable = e.currentTarget.dataset.enable === 'true';
+    if (!enable && !window.confirm('Desactiver le flux calendrier ? Les agendas abonnes cesseront de se mettre a jour.')) return;
+    try {
+      await Api.setCalendarFeed(id, enable);
+      showToast(enable ? 'Flux calendrier active.' : 'Flux calendrier desactive.');
+      await renderAutomationsPage(id, container);
+    } catch (err) {
+      showToast(err.message, 'error');
+    }
+  });
+  document.getElementById('copy-calendar-feed')?.addEventListener('click', async () => {
+    try {
+      await navigator.clipboard.writeText(document.getElementById('calendar-feed-link').value);
+      showToast('Lien copie.');
     } catch {
       showToast('Copie impossible (permission navigateur).', 'error');
     }

@@ -42,6 +42,7 @@ import {
 } from './aiConfigStore.js';
 import { checkAiRateLimit } from './aiRateLimit.js';
 import { runAiTurn, resumeAfterConfirmation } from './aiOrchestrator.js';
+import { buildCalendarIcs } from './calendar.js';
 
 // Serveur de reference dont la structure est lue en direct pour le template
 // "live" (miroir de SOURCE_GUILD_ID dans src/discord/guildSetup/templates/liveTemplate.js).
@@ -189,6 +190,33 @@ async function router(request, env) {
       .slice(0, 20)
       .map(([uid, d], i) => ({ rank: i + 1, name: nameById.get(uid) || 'Membre parti', level: d.level || 0, xp: d.xp || 0 }));
     return json({ serverName: guild.name, entries }, env);
+  }
+
+  // --- Calendrier externe (roadmap n°102) : flux iCal des evenements
+  // Discord planifies + annonces programmees, abonnable dans Google Agenda /
+  // Outlook / Apple Calendar. Aucune session : protege par un token de
+  // partage revocable stocke dans la config du serveur. ---
+  if (method === 'GET' && url.pathname === '/public/calendar') {
+    const gid = url.searchParams.get('guild');
+    const token = url.searchParams.get('token');
+    if (!gid || !token) throw new HttpError(400, 'Parametres manquants.');
+    const config = await getGuildConfig(env, gid);
+    if (!config?.calendarToken || config.calendarToken !== token) {
+      throw new HttpError(403, 'Lien invalide ou desactive.');
+    }
+    const [guild, events, scheduled] = await Promise.all([
+      botFetchJson(env, `/guilds/${gid}`).catch(() => null),
+      botFetchJson(env, `/guilds/${gid}/scheduled-events`).catch(() => []),
+      getScheduledTasks(env, gid),
+    ]);
+    const ics = buildCalendarIcs(guild?.name || 'Serveur Discord', events, scheduled);
+    return withCors(new Response(ics, {
+      headers: {
+        'Content-Type': 'text/calendar; charset=utf-8',
+        'Content-Disposition': 'attachment; filename="evenements-discord.ics"',
+        'Cache-Control': 'no-store',
+      },
+    }), env);
   }
 
   // --- Auth ---
@@ -1279,6 +1307,21 @@ async function router(request, env) {
         description: `${session.username} a ${enabled ? 'active' : 'desactive'} le webhook entrant.`,
       });
       return json({ inboundWebhook }, env);
+    }
+
+    // Calendrier externe (roadmap n°102) : genere ou revoque le token du
+    // flux iCal public des evenements.
+    if (sub === 'calendar-feed' && parts.length === 4 && method === 'POST') {
+      const session = await requireGuildAccess(env, request, guildId);
+      const { enabled } = await readJson(request);
+      const existing = (await getGuildConfig(env, guildId)) || {};
+      const token = enabled ? (existing.calendarToken || crypto.randomUUID().replace(/-/g, '')) : null;
+      await putGuildConfig(env, guildId, { ...existing, calendarToken: token });
+      await logAudit(env, guildId, {
+        title: 'Calendrier externe',
+        description: `${session.username} a ${enabled ? 'active' : 'desactive'} le flux iCal des evenements.`,
+      });
+      return json({ token }, env);
     }
 
     // Classement public (roadmap n°087) : genere ou revoque le token de

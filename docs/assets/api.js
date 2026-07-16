@@ -60,6 +60,7 @@ window.Api = (function api() {
     duplicateCategory: (guildId, categoryId) => request(`/api/guilds/${guildId}/categories/${categoryId}/duplicate`, { method: 'POST' }),
     voiceOccupancy: (guildId) => request(`/api/guilds/${guildId}/voice-occupancy`),
     setPublicLeaderboard: (guildId, enabled) => request(`/api/guilds/${guildId}/public-leaderboard`, { method: 'POST', body: JSON.stringify({ enabled }) }),
+    setCalendarFeed: (guildId, enabled) => request(`/api/guilds/${guildId}/calendar-feed`, { method: 'POST', body: JSON.stringify({ enabled }) }),
     setInboundWebhook: (guildId, enabled, channelId) => request(`/api/guilds/${guildId}/inbound-webhook`, { method: 'POST', body: JSON.stringify({ enabled, channelId }) }),
     giveaways: (guildId) => request(`/api/guilds/${guildId}/giveaways`),
     createGiveaway: (guildId, payload) => request(`/api/guilds/${guildId}/giveaways`, { method: 'POST', body: JSON.stringify(payload) }),
