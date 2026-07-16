@@ -811,6 +811,7 @@ const HOME_MODULES = [
   { parent: 'automatisations', section: 'automod', icon: '🚫', label: 'Auto-moderation', category: 'moderation' },
   { parent: 'automatisations', section: 'tickets', icon: '🎫', label: 'Tickets', category: 'moderation' },
   { parent: 'auditlog', icon: '📋', label: "Logs d'audit", category: 'moderation' },
+  { parent: 'automatisations', section: 'suggestions', icon: '💡', label: 'Suggestions', category: 'moderation' },
   // Integrations : connecter des services/bots externes.
   { parent: 'automatisations', section: 'bots', icon: '🧩', label: 'Bots complementaires', category: 'integrations' },
   { parent: 'automatisations', section: 'webhooks', icon: '🔗', label: 'Webhooks sortants', category: 'integrations' },
@@ -3488,7 +3489,29 @@ async function renderAutomationsPage(id, container = app) {
         </div>
         <button class="btn" id="save-xp-config" style="margin-top:10px;">Enregistrer la vitesse d'XP</button>
         <p class="muted" style="font-size:0.76rem; margin-top:6px;">Le bot applique les changements sous 5 minutes.</p>
+        <h2 style="margin-top:18px; font-size:0.85rem;">🌍 Classement public</h2>
+        <p class="muted">Un lien en lecture seule du top 20 (pseudo, niveau, XP — aucun identifiant), a partager hors Discord.</p>
+        ${config?.publicLeaderboardToken
+    ? `<div class="row" style="gap:8px; flex-wrap:wrap;">
+             <input type="text" readonly id="public-lb-link" aria-label="Lien du classement public" value="https://yolscript.github.io/DiscordServeurCreator/leaderboard.html?g=${id}&t=${escapeHtml(config.publicLeaderboardToken)}" style="flex:1; min-width:220px; margin:0;" />
+             <button class="btn secondary" id="copy-public-lb">📋 Copier</button>
+             <button class="btn danger" id="toggle-public-lb" data-enable="false">Desactiver</button>
+           </div>`
+    : '<button class="btn secondary" id="toggle-public-lb" data-enable="true">Activer le lien public</button>'}
       `, { id: 'niveaux' })}
+
+      ${sectionHtml('Suggestions des membres', `
+        <p class="muted">Les suggestions postees via /suggest, avec leurs votes et le statut pose par le staff (boutons sous chaque suggestion dans Discord).</p>
+        <div id="suggestions-list">${(await Api.suggestions(id).catch(() => [])).slice().reverse().slice(0, 30).map((s) => {
+    const statusInfo = { pending: ['🟡 A l\'etude', 'var(--warning)'], approved: ['🟢 Acceptee', 'var(--success)'], denied: ['🔴 Refusee', 'var(--danger)'] }[s.status] || ['🟡 A l\'etude', 'var(--warning)'];
+    return `
+          <div class="suggestion-row">
+            <div class="suggestion-text">${escapeHtml((s.text || '').slice(0, 200))}</div>
+            <div class="muted" style="font-size:0.76rem;">${escapeHtml(s.authorTag || '')} · 👍 ${(s.upvotes || []).length} · 👎 ${(s.downvotes || []).length}</div>
+            <span class="suggestion-status" style="color:${statusInfo[1]}">${statusInfo[0]}</span>
+          </div>`;
+  }).join('') || '<p class="muted">Aucune suggestion pour le moment.</p>'}</div>
+      `, { id: 'suggestions' })}
 
       ${sectionHtml('Parrainage', `
         <div id="referral-roles-list">${referralRoleRows}</div>
@@ -3772,6 +3795,27 @@ async function renderAutomationsPage(id, container = app) {
         showToast(err.message, 'error');
       }
     });
+  });
+
+  // Classement public (roadmap n°087) : active/revoque le token de partage.
+  document.getElementById('toggle-public-lb')?.addEventListener('click', async (e) => {
+    const enable = e.currentTarget.dataset.enable === 'true';
+    if (!enable && !window.confirm('Desactiver le lien public ? Le lien actuel cessera de fonctionner.')) return;
+    try {
+      await Api.setPublicLeaderboard(id, enable);
+      showToast(enable ? 'Lien public active.' : 'Lien public desactive.');
+      await renderAutomationsPage(id, container);
+    } catch (err) {
+      showToast(err.message, 'error');
+    }
+  });
+  document.getElementById('copy-public-lb')?.addEventListener('click', async () => {
+    try {
+      await navigator.clipboard.writeText(document.getElementById('public-lb-link').value);
+      showToast('Lien copie.');
+    } catch {
+      showToast('Copie impossible (permission navigateur).', 'error');
+    }
   });
 
   // Courbe d'XP (roadmap n°082) : taux global + boost par salon. Le select

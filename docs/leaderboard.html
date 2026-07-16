@@ -1,0 +1,72 @@
+<!doctype html>
+<html lang="fr">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <title>Classement — Discord Serveur Creator</title>
+  <meta name="robots" content="noindex, nofollow" />
+  <link rel="icon" type="image/png" href="assets/favicon-64.png?v=3" />
+  <style>
+    :root { color-scheme: dark; }
+    * { box-sizing: border-box; }
+    body {
+      margin: 0; min-height: 100vh; display: flex; align-items: flex-start; justify-content: center;
+      background: #171013; color: #f0e7e3;
+      font-family: -apple-system, "Segoe UI", system-ui, Roboto, sans-serif; padding: 40px 20px;
+    }
+    .card {
+      width: min(520px, 94vw); background: #201619; border: 1px solid #3b2b2f;
+      border-radius: 12px; padding: 26px 28px;
+    }
+    h1 { font-size: 1.15rem; margin: 0 0 2px; }
+    .sub { color: #a5958f; font-size: 0.82rem; margin: 0 0 18px; }
+    .row {
+      display: flex; align-items: center; gap: 12px; padding: 9px 12px; border-radius: 6px;
+      font-size: 0.9rem;
+    }
+    .row:nth-child(odd) { background: #281b1f; }
+    .rank { width: 34px; flex: none; font-weight: 700; color: #a5958f; font-variant-numeric: tabular-nums; }
+    .row:nth-child(1) .rank { color: #ffd700; }
+    .row:nth-child(2) .rank { color: #c0c0c0; }
+    .row:nth-child(3) .rank { color: #cd7f32; }
+    .name { flex: 1; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; font-weight: 600; }
+    .level {
+      flex: none; font-size: 0.72rem; font-weight: 700; color: #c97a5c;
+      background: rgba(201, 122, 92, 0.14); border-radius: 999px; padding: 2px 10px;
+    }
+    .xp { flex: none; color: #a5958f; font-size: 0.8rem; font-variant-numeric: tabular-nums; }
+    .msg { color: #a5958f; text-align: center; padding: 30px 0; }
+  </style>
+</head>
+<body>
+  <div class="card">
+    <h1 id="title">Classement</h1>
+    <p class="sub">Top 20 des membres par experience (XP).</p>
+    <div id="list"><p class="msg">Chargement...</p></div>
+  </div>
+
+  <script>
+    var params = new URLSearchParams(location.search);
+    var API = 'https://discord-serveur-creator-worker.energiecraft-online.workers.dev';
+    fetch(API + '/public/leaderboard?guild=' + encodeURIComponent(params.get('g') || '')
+      + '&token=' + encodeURIComponent(params.get('t') || ''))
+      .then(function (r) { return r.json().then(function (d) { return { ok: r.ok, d: d }; }); })
+      .then(function (res) {
+        if (!res.ok) throw new Error(res.d.error || 'Lien invalide.');
+        document.getElementById('title').textContent = 'Classement — ' + res.d.serverName;
+        var esc = function (s) { var el = document.createElement('span'); el.textContent = s; return el.innerHTML; };
+        document.getElementById('list').innerHTML = res.d.entries.length
+          ? res.d.entries.map(function (e) {
+            return '<div class="row"><span class="rank">#' + e.rank + '</span>'
+              + '<span class="name">' + esc(e.name) + '</span>'
+              + '<span class="level">niv. ' + e.level + '</span>'
+              + '<span class="xp">' + e.xp.toLocaleString('fr-FR') + ' XP</span></div>';
+          }).join('')
+          : '<p class="msg">Personne au classement pour le moment.</p>';
+      })
+      .catch(function (e) {
+        document.getElementById('list').innerHTML = '<p class="msg">' + (e.message || 'Erreur de chargement.') + '</p>';
+      });
+  </script>
+</body>
+</html>

@@ -143,6 +143,30 @@ async function router(request, env) {
     return json({ ok: true, time: new Date().toISOString() }, env);
   }
 
+  // --- Classement public en lecture seule (roadmap n°087) : aucune session,
+  // protege par un token de partage stocke dans la config du serveur. Ne
+  // renvoie que pseudo/niveau/XP, jamais d'identifiants Discord. ---
+  if (method === 'GET' && url.pathname === '/public/leaderboard') {
+    const gid = url.searchParams.get('guild');
+    const token = url.searchParams.get('token');
+    if (!gid || !token) throw new HttpError(400, 'Parametres manquants.');
+    const config = await getGuildConfig(env, gid);
+    if (!config?.publicLeaderboardToken || config.publicLeaderboardToken !== token) {
+      throw new HttpError(403, 'Lien invalide ou desactive.');
+    }
+    const [xpData, guild, members] = await Promise.all([
+      env.GUILD_KV.get(`guild:${gid}:xp`, 'json'),
+      botFetchJson(env, `/guilds/${gid}`),
+      botFetchJson(env, `/guilds/${gid}/members?limit=1000`).catch(() => []),
+    ]);
+    const nameById = new Map(members.map((m) => [m.user.id, m.nick || m.user.global_name || m.user.username]));
+    const entries = Object.entries(xpData || {})
+      .sort((a, b) => (b[1].xp || 0) - (a[1].xp || 0))
+      .slice(0, 20)
+      .map(([uid, d], i) => ({ rank: i + 1, name: nameById.get(uid) || 'Membre parti', level: d.level || 0, xp: d.xp || 0 }));
+    return json({ serverName: guild.name, entries }, env);
+  }
+
   // --- Auth ---
   if (method === 'GET' && url.pathname === '/auth/login') return handleLogin(request, env);
   if (method === 'GET' && url.pathname === '/auth/callback') return handleCallback(request, env);
@@ -1169,6 +1193,28 @@ async function router(request, env) {
     if (sub === 'auditlog' && parts.length === 4 && method === 'GET') {
       await requireGuildAccess(env, request, guildId);
       return json(await getAuditLog(env, guildId), env);
+    }
+
+    // Classement public (roadmap n°087) : genere ou revoque le token de
+    // partage en lecture seule.
+    if (sub === 'public-leaderboard' && parts.length === 4 && method === 'POST') {
+      const session = await requireGuildAccess(env, request, guildId);
+      const { enabled } = await readJson(request);
+      const existing = (await getGuildConfig(env, guildId)) || {};
+      const token = enabled ? (existing.publicLeaderboardToken || crypto.randomUUID().replace(/-/g, '')) : null;
+      await putGuildConfig(env, guildId, { ...existing, publicLeaderboardToken: token });
+      await logAudit(env, guildId, {
+        title: 'Classement public',
+        description: `${session.username} a ${enabled ? 'active' : 'desactive'} le lien public du classement.`,
+      });
+      return json({ token }, env);
+    }
+
+    // Suggestions (roadmap n°091) : lecture du store ecrit par le bot,
+    // pour le suivi des statuts au dashboard.
+    if (sub === 'suggestions' && parts.length === 4 && method === 'GET') {
+      await requireGuildAccess(env, request, guildId);
+      return json((await env.GUILD_KV.get(`guild:${guildId}:suggestions`, 'json')) || [], env);
     }
 
     // XP/activite par membre (top membres n°031 et stats vocales n°032) :
