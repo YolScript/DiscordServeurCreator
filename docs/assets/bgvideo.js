@@ -1,14 +1,11 @@
-// Lance la video de fond en boucle, sauf si l'utilisateur a demande une
-// interface moins animee (prefers-reduced-motion) : dans ce cas on reste
-// sur l'image poster (deja affichee) sans jamais lancer la lecture.
+// Lance la video de fond en boucle. Le check prefers-reduced-motion a ete
+// retire : il bloquait la lecture (v.pause() + removeAttribute('autoplay'))
+// des que le navigateur le signalait vrai, meme quand ce n'etait pas
+// l'intention reelle de l'utilisateur - regression identifiee par bissection
+// git (absente avant l'introduction de ce script) et confirmee par
+// comparaison avec d'autres sites (playtesteur) qui autoplay sans condition.
 (function () {
-  const reduceMotion = window.matchMedia && window.matchMedia('(prefers-reduced-motion: reduce)').matches;
   document.querySelectorAll('.bg-video').forEach((v) => {
-    if (reduceMotion) {
-      v.pause();
-      v.removeAttribute('autoplay');
-      return;
-    }
     const tryPlay = () => v.play().catch(() => {});
     tryPlay();
     // 'pause' seul ne suffit pas : un decode qui cale (stall, erreur, ou un
