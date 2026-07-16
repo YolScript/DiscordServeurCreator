@@ -413,6 +413,8 @@ let allGuilds = [];
 let currentUser = null;
 let currentUserAvatarUrl = '';
 let prefillChannelId = null;
+// Pre-remplissage de l'edition en masse apres un drop role->salon (n°016).
+let permPrefill = null;
 
 // Etat de la conversation avec l'assistant IA : persiste tant qu'on reste sur
 // le meme serveur (reinitialise au changement de serveur), independant du
@@ -1281,6 +1283,7 @@ function renderPreviewContent(id, { channels, config, roles, members }) {
       <div class="dp-category" data-cat="${cat.id}" draggable="true" tabindex="0" role="button" aria-expanded="true" aria-label="Categorie ${escapeHtml(cat.name)}" data-drag-type="category" data-drag-name="${escapeHtml(cat.name)}">
         <span class="chevron">▾</span>
         <span class="dp-category-name">${escapeHtml(cat.name)}</span>
+        <button type="button" class="dp-category-sort dp-category-duplicate" data-cat-duplicate="${cat.id}" data-cat-name="${escapeHtml(cat.name)}" title="Dupliquer la categorie et ses salons" aria-label="Dupliquer la categorie ${escapeHtml(cat.name)}">⧉</button>
         <button type="button" class="dp-category-sort" data-cat-sort="${cat.id}" title="Trier les salons de A a Z" aria-label="Trier les salons de ${escapeHtml(cat.name)} de A a Z">A→Z</button>
         <button type="button" class="dp-category-settings" data-cat-settings="${cat.id}" data-cat-name="${escapeHtml(cat.name)}" title="Configurer" aria-label="Configurer la categorie ${escapeHtml(cat.name)}">⚙</button>
       </div>
@@ -1531,6 +1534,12 @@ function renderPreviewContent(id, { channels, config, roles, members }) {
     });
     chEl.addEventListener('dragover', (e) => {
       e.preventDefault();
+      // Un ROLE en cours de glissement (roadmap n°016) : le salon devient
+      // une cible de depose pour editer les permissions du couple.
+      if (app.querySelector('.dp-role-row.dragging')) {
+        chEl.classList.add('role-drop-target');
+        return;
+      }
       const list = chEl.parentElement;
       const dragging = list.querySelector('.dp-channel.dragging');
       if (!dragging || dragging === chEl || dragging.parentElement !== list) return;
@@ -1539,6 +1548,16 @@ function renderPreviewContent(id, { channels, config, roles, members }) {
       const target = before ? chEl : chEl.nextSibling;
       if (dragging.nextSibling === target) return;
       animateReorder(list, '.dp-channel[data-channel]', () => list.insertBefore(dragging, target));
+    });
+    chEl.addEventListener('dragleave', () => chEl.classList.remove('role-drop-target'));
+    chEl.addEventListener('drop', (e) => {
+      chEl.classList.remove('role-drop-target');
+      const roleRow = app.querySelector('.dp-role-row.dragging');
+      if (!roleRow) return;
+      e.preventDefault();
+      e.stopPropagation();
+      permPrefill = { channelId: chEl.dataset.channel, roleId: roleRow.dataset.role };
+      withViewTransition(() => renderSettingsPanel(id, 'permissions', 'perm-bulk'));
     });
     chEl.addEventListener('dragend', async () => {
       chEl.classList.remove('dragging');
@@ -1573,6 +1592,23 @@ function renderPreviewContent(id, { channels, config, roles, members }) {
         sorted.forEach((row) => list.insertBefore(row, anchor));
       });
       await persistChannelOrder(list);
+    });
+  });
+
+  // Duplication d'une categorie avec ses salons et permissions (n°014).
+  app.querySelectorAll('.dp-category-duplicate').forEach((btn) => {
+    btn.addEventListener('click', async (e) => {
+      e.stopPropagation();
+      if (!window.confirm(`Dupliquer la categorie "${btn.dataset.catName}" avec ses salons et leurs permissions ?`)) return;
+      btn.disabled = true;
+      try {
+        const res = await Api.duplicateCategory(id, btn.dataset.catDuplicate);
+        showToast(`Categorie dupliquee (${res.channels} salon(s)).`);
+        await renderPreviewPage(id);
+      } catch (err) {
+        showToast(err.message, 'error');
+        btn.disabled = false;
+      }
     });
   });
 
@@ -1657,6 +1693,17 @@ function renderPreviewContent(id, { channels, config, roles, members }) {
 
   // Visite guidee au tout premier lancement (roadmap n°027).
   if (!localStorage.getItem('dsc-onboarded')) showOnboarding();
+
+  // Occupation des vocaux (roadmap n°019) : badges "N" ajoutes apres coup
+  // (donnees ecrites par le bot, absentes du cache local sans gravite).
+  Api.voiceOccupancy(id).then((occupancy) => {
+    Object.entries(occupancy).forEach(([cid, count]) => {
+      const nameEl = app.querySelector(`.dp-channel[data-channel="${cid}"] .dp-channel-name`);
+      if (nameEl && !nameEl.parentElement.querySelector('.dp-voice-count')) {
+        nameEl.insertAdjacentHTML('afterend', `<span class="dp-voice-count" title="${count} membre(s) en vocal">${count}</span>`);
+      }
+    });
+  }).catch(() => {});
 
   async function applyRoleColor(roleId, colorHex, scope) {
     try {
@@ -2995,6 +3042,16 @@ async function renderPermissionsPage(id, container = app) {
     </div>
   `;
 
+  // Pre-remplissage apres un drop role -> salon (roadmap n°016).
+  if (permPrefill) {
+    const chBox = container.querySelector(`.perm-channel[value="${permPrefill.channelId}"]`);
+    if (chBox) chBox.checked = true;
+    const roleSel = document.getElementById('perm-role');
+    if (roleSel && [...roleSel.options].some((o) => o.value === permPrefill.roleId)) roleSel.value = permPrefill.roleId;
+    permPrefill = null;
+    showToast('Salon et role pre-selectionnes : choisis l\'action a appliquer.');
+  }
+
   document.getElementById('apply-bulk').addEventListener('click', async () => {
     const channelIds = [...container.querySelectorAll('.perm-channel:checked')].map((el) => el.value);
     const roleId = document.getElementById('perm-role').value;
@@ -4076,6 +4133,7 @@ async function renderSecurityPage(id, container = app) {
       ${sectionHtml('Export / Restauration manuelle', `
         <p class="muted">Exporte la structure (noms/couleurs des roles, categories, salons) en fichier JSON. La restauration est additive : elle recree uniquement ce qui manque, sans jamais toucher a l'existant.</p>
         <button class="btn secondary" id="export-structure">⬇️ Telecharger la structure (.json)</button>
+        <button class="btn secondary" id="export-structure-image" style="margin-left:8px;">🖼️ Exporter en image (.png)</button>
         <label for="structure-file-input" style="margin-top:14px;">Restaurer depuis un fichier</label>
         <div class="dp-dropzone" id="structure-dropzone" tabindex="0">
           <span class="dp-dropzone-icon">📄</span>
@@ -4117,6 +4175,72 @@ async function renderSecurityPage(id, container = app) {
     } catch (err) {
       showToast(err.message, 'error');
     }
+  });
+
+  // Export image de la structure (roadmap n°020) : canvas cote client,
+  // salons a gauche, roles colores a droite, telecharge en PNG.
+  document.getElementById('export-structure-image').addEventListener('click', async () => {
+    let channels = paletteCtx.channels;
+    let structRoles = paletteCtx.roles;
+    if (!channels.length) {
+      [channels, structRoles] = await Promise.all([Api.channels(id).catch(() => []), Api.roles(id).catch(() => [])]);
+    }
+    const guildName = allGuilds.find((g) => g.guildId === id)?.name || 'Serveur';
+    const categories = channels.filter((c) => c.type === 4).sort((a, b) => a.position - b.position);
+    const lines = [];
+    channels.filter((c) => c.type !== 4 && !c.parent_id).forEach((c) => lines.push({ text: `${c.type === 2 ? '🔊' : '#'} ${c.name}`, indent: 0, kind: 'channel' }));
+    categories.forEach((cat) => {
+      lines.push({ text: cat.name.toUpperCase(), indent: 0, kind: 'cat' });
+      channels.filter((c) => c.parent_id === cat.id).sort((a, b) => a.position - b.position)
+        .forEach((c) => lines.push({ text: `${c.type === 2 ? '🔊' : '#'} ${c.name}`, indent: 1, kind: 'channel' }));
+    });
+    const rolesSorted = structRoles.filter((r) => r.name !== '@everyone').sort((a, b) => b.position - a.position);
+    const rowH = 24;
+    const height = Math.max(lines.length, rolesSorted.length) * rowH + 100;
+    const canvas = document.createElement('canvas');
+    canvas.width = 900;
+    canvas.height = height;
+    const ctx = canvas.getContext('2d');
+    ctx.fillStyle = '#171013';
+    ctx.fillRect(0, 0, 900, height);
+    ctx.fillStyle = '#c97a5c';
+    ctx.fillRect(0, 0, 900, 4);
+    ctx.fillStyle = '#f0e7e3';
+    ctx.font = 'bold 20px sans-serif';
+    ctx.fillText(guildName.slice(0, 50), 24, 42);
+    ctx.font = 'bold 12px sans-serif';
+    ctx.fillStyle = '#a5958f';
+    ctx.fillText('SALONS', 24, 72);
+    ctx.fillText(`ROLES (${rolesSorted.length})`, 560, 72);
+    let y = 98;
+    lines.forEach((l) => {
+      ctx.font = l.kind === 'cat' ? 'bold 13px sans-serif' : '14px sans-serif';
+      ctx.fillStyle = l.kind === 'cat' ? '#a5958f' : '#e6dbd6';
+      ctx.fillText(l.text.slice(0, 42), 24 + l.indent * 18, y);
+      y += rowH;
+    });
+    y = 98;
+    rolesSorted.forEach((r) => {
+      ctx.fillStyle = r.color ? `#${r.color.toString(16).padStart(6, '0')}` : '#99aab5';
+      ctx.beginPath();
+      ctx.arc(566, y - 5, 5, 0, Math.PI * 2);
+      ctx.fill();
+      ctx.fillStyle = '#e6dbd6';
+      ctx.font = '14px sans-serif';
+      ctx.fillText(r.name.slice(0, 34), 582, y);
+      y += rowH;
+    });
+    canvas.toBlob((blob) => {
+      const url = URL.createObjectURL(blob);
+      const a = document.createElement('a');
+      a.href = url;
+      a.download = `structure-${guildName.replace(/[^a-z0-9]/gi, '-').toLowerCase()}.png`;
+      document.body.appendChild(a);
+      a.click();
+      a.remove();
+      URL.revokeObjectURL(url);
+      showToast('Image de la structure telechargee.');
+    });
   });
 
   const structureDropzone = document.getElementById('structure-dropzone');

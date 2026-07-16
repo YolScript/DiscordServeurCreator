@@ -1252,6 +1252,46 @@ async function router(request, env) {
       return json({ token }, env);
     }
 
+    // Duplication d'une categorie (roadmap n°014) : recree la categorie,
+    // ses salons et leurs permission_overwrites a l'identique.
+    if (sub === 'categories' && parts[5] === 'duplicate' && parts.length === 6 && method === 'POST') {
+      const session = await requireGuildAccess(env, request, guildId);
+      const channels = await botFetchJson(env, `/guilds/${guildId}/channels`);
+      const source = channels.find((c) => c.id === parts[4] && c.type === 4);
+      if (!source) throw new HttpError(404, 'Categorie introuvable.');
+      const newCat = await botFetchJson(env, `/guilds/${guildId}/channels`, {
+        method: 'POST',
+        body: JSON.stringify({
+          name: `${source.name} (copie)`.slice(0, 100), type: 4,
+          permission_overwrites: source.permission_overwrites || [],
+        }),
+        headers: { 'X-Audit-Log-Reason': `Dashboard : ${session.username}` },
+      });
+      const children = channels.filter((c) => c.parent_id === source.id).sort((a, b) => a.position - b.position);
+      for (const child of children) {
+        // eslint-disable-next-line no-await-in-loop
+        await botFetchJson(env, `/guilds/${guildId}/channels`, {
+          method: 'POST',
+          body: JSON.stringify({
+            name: child.name, type: child.type, parent_id: newCat.id,
+            topic: child.topic || undefined,
+            permission_overwrites: child.permission_overwrites || [],
+          }),
+        });
+      }
+      await logAudit(env, guildId, {
+        title: 'Categorie dupliquee',
+        description: `${session.username} a duplique "${source.name}" (${children.length} salon(s)).`,
+      });
+      return json({ ok: true, categoryId: newCat.id, channels: children.length }, env);
+    }
+
+    // Occupation des salons vocaux (roadmap n°019), ecrite par le bot.
+    if (sub === 'voice-occupancy' && parts.length === 4 && method === 'GET') {
+      await requireGuildAccess(env, request, guildId);
+      return json((await env.GUILD_KV.get(`guild:${guildId}:voiceoccupancy`, 'json')) || {}, env);
+    }
+
     // Journal des connexions au dashboard (roadmap n°059).
     if (sub === 'logins' && parts.length === 4 && method === 'GET') {
       await requireGuildAccess(env, request, guildId);
