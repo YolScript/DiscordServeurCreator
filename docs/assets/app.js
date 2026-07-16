@@ -254,12 +254,21 @@ function animateReorder(list, itemSelector, mutate) {
 // appel direct si l'API est absente ou si l'utilisateur demande moins de
 // mouvement : la navigation reste fonctionnelle dans tous les cas.
 function withViewTransition(renderFn) {
+  // renderFn peut etre async (pages qui fetchent l'API) : ne surtout pas
+  // retourner sa promesse a startViewTransition, sinon le navigateur gele
+  // l'affichage jusqu'a la fin des appels reseau (clic "Retour" qui semble
+  // ne rien faire pendant un cold start du backend) et avale tout rejet.
+  // On capture seulement le passage synchrone au skeleton, et on remonte
+  // les erreurs en toast au lieu de laisser la page muette.
+  const run = () => Promise.resolve(renderFn()).catch((err) => {
+    showToast(err?.message || 'Erreur de chargement.', 'error');
+  });
   const reduceMotion = window.matchMedia?.('(prefers-reduced-motion: reduce)').matches;
   if (reduceMotion || !document.startViewTransition) {
-    renderFn();
+    run();
     return;
   }
-  document.startViewTransition(() => renderFn());
+  document.startViewTransition(() => { run(); });
 }
 
 /* ---------- Modules (un seul actif a la fois, choisi depuis la grille d'accueil) ---------- */
@@ -772,12 +781,28 @@ async function renderPreviewPage(id) {
   app.classList.add('preview-fullbleed');
   app.innerHTML = skeletonHtml();
   const guild = allGuilds.find((g) => g.guildId === id);
-  const [channels, config, roles, members] = await Promise.all([
-    Api.channels(id),
-    Api.config(id),
-    Api.roles(id).catch(() => []),
-    Api.members(id).catch(() => []),
-  ]);
+  // Sans ce catch, un echec reseau (backend qui se reveille, coupure) laissait
+  // la page bloquee sur le skeleton sans message ni moyen de reessayer.
+  let channels, config, roles, members;
+  try {
+    [channels, config, roles, members] = await Promise.all([
+      Api.channels(id),
+      Api.config(id),
+      Api.roles(id).catch(() => []),
+      Api.members(id).catch(() => []),
+    ]);
+  } catch (err) {
+    app.innerHTML = `
+      <div class="inner">
+        <div class="inline-banner error" style="margin-bottom:12px;">
+          Impossible de charger le serveur (${escapeHtml(err?.message || 'erreur reseau')}).
+          Le bot met parfois quelques secondes a se reveiller.
+        </div>
+        <button class="btn" id="preview-retry-btn">🔄 Reessayer</button>
+      </div>`;
+    document.getElementById('preview-retry-btn').addEventListener('click', () => renderPreviewPage(id));
+    return;
+  }
   const rolesSorted = [...roles].sort((a, b) => b.position - a.position);
 
   if (aiConversationGuildId !== id) {
@@ -3869,8 +3894,8 @@ async function renderEmbedBuilderPage(id, container = app) {
 
             <div class="dp-subsection-divider"></div>
             <p class="dp-block-title">🧾 JSON avance (import/export)</p>
-            <p class="muted">Colle un JSON d'embed pour le charger, ou copie celui genere par le formulaire.</p>
-            <textarea id="embed-json" style="min-height:120px;" placeholder='{"title": "...", "description": "...", "color": 5793266}'></textarea>
+            <p class="muted">Colle un JSON d'embed, glisse un fichier .json ici, ou copie celui genere par le formulaire.</p>
+            <textarea id="embed-json" style="min-height:120px;" placeholder='{"title": "...", "description": "...", "color": 5793266} — ou glisse un fichier .json ici'></textarea>
             <div class="row" style="margin-top:8px;">
               <button type="button" class="btn secondary" id="embed-json-apply">Appliquer ce JSON</button>
               <button type="button" class="btn secondary" id="embed-json-copy">Copier le JSON actuel</button>
@@ -4068,6 +4093,37 @@ async function renderEmbedBuilderPage(id, container = app) {
     const { embed } = buildEmbedFromForm(container);
     container.querySelector('#embed-json').value = JSON.stringify(embed, null, 2);
     showToast('JSON mis a jour ci-dessous.');
+  });
+
+  // Glisser-deposer un fichier .json directement sur la zone JSON : le
+  // contenu est colle ET applique au formulaire. stopPropagation pour ne pas
+  // reveiller le handler de depose salon/categorie attache a #dp-main.
+  const jsonArea = container.querySelector('#embed-json');
+  jsonArea.addEventListener('dragover', (e) => {
+    if (![...e.dataTransfer.types].includes('Files')) return;
+    e.preventDefault();
+    e.stopPropagation();
+    jsonArea.classList.add('drag-over');
+  });
+  jsonArea.addEventListener('dragleave', () => jsonArea.classList.remove('drag-over'));
+  jsonArea.addEventListener('drop', async (e) => {
+    const file = e.dataTransfer.files?.[0];
+    if (!file) return;
+    e.preventDefault();
+    e.stopPropagation();
+    jsonArea.classList.remove('drag-over');
+    if (!file.name.endsWith('.json') && file.type !== 'application/json') {
+      showToast('Choisis un fichier .json.', 'error');
+      return;
+    }
+    try {
+      const text = await file.text();
+      jsonArea.value = text;
+      populateEmbedForm(container, JSON.parse(text), '');
+      showToast(`${file.name} charge et applique.`);
+    } catch {
+      showToast('Fichier JSON invalide.', 'error');
+    }
   });
 
   wireEmbedFieldRows(container);
