@@ -1206,10 +1206,20 @@ async function router(request, env) {
       const channelId = parts[4];
 
       if (method === 'PATCH') {
-        const { name } = await readJson(request);
-        if (!name) throw new HttpError(400, 'name requis.');
-        const channel = await botFetchJson(env, `/channels/${channelId}`, { method: 'PATCH', body: JSON.stringify({ name }) });
-        await logAudit(env, guildId, { title: 'Salon renomme', description: `${session.username} a renomme un salon en #${name}.` });
+        // name = renommage ; parentId = deplacement de categorie (n°119),
+        // chaine vide/null = detacher de toute categorie.
+        const { name, parentId } = await readJson(request);
+        if (!name && parentId === undefined) throw new HttpError(400, 'name ou parentId requis.');
+        const body = {};
+        if (name) body.name = name;
+        if (parentId !== undefined) body.parent_id = parentId || null;
+        const channel = await botFetchJson(env, `/channels/${channelId}`, { method: 'PATCH', body: JSON.stringify(body) });
+        await logAudit(env, guildId, {
+          title: name ? 'Salon renomme' : 'Salon deplace',
+          description: name
+            ? `${session.username} a renomme un salon en #${name}.`
+            : `${session.username} a deplace #${channel.name} ${parentId ? 'dans une autre categorie' : 'hors de sa categorie'}.`,
+        });
         return json(channel, env);
       }
       if (method === 'DELETE') {

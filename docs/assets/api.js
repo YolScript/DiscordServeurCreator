@@ -97,6 +97,7 @@ window.Api = (function api() {
     resetRoleDefault: (guildId, roleKey) => request(`/api/guilds/${guildId}/roles/${roleKey}/reset-default`, { method: 'POST' }),
     renameChannel: (guildId, channelId, name) => request(`/api/guilds/${guildId}/channels/${channelId}`, { method: 'PATCH', body: JSON.stringify({ name }) }),
     deleteChannel: (guildId, channelId) => request(`/api/guilds/${guildId}/channels/${channelId}`, { method: 'DELETE' }),
+    moveChannel: (guildId, channelId, parentId) => request(`/api/guilds/${guildId}/channels/${channelId}`, { method: 'PATCH', body: JSON.stringify({ parentId }) }),
 
     modConfig: (guildId) => request(`/api/guilds/${guildId}/modconfig`),
     updateModConfig: (guildId, patch) => request(`/api/guilds/${guildId}/modconfig`, { method: 'PATCH', body: JSON.stringify(patch) }),

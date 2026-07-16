@@ -1949,12 +1949,75 @@ function renderPreviewContent(id, { channels, config, roles, members }) {
     input.addEventListener('blur', () => finish(false));
   }
 
+  // Multi-selection Ctrl+clic (roadmap n°119) : barre d'actions groupees
+  // (deplacer vers une categorie, supprimer) sur les salons selectionnes.
+  const multiSel = new Set();
+  function refreshMultiBar() {
+    let bar = document.getElementById('dp-multibar');
+    if (!multiSel.size) { bar?.remove(); return; }
+    if (!bar) {
+      bar = document.createElement('div');
+      bar.id = 'dp-multibar';
+      app.querySelector('.discord-preview').appendChild(bar);
+    }
+    const catOptions = channels.filter((c) => c.type === 4).sort((a, b) => a.position - b.position)
+      .map((c) => `<option value="${c.id}">📁 ${escapeHtml(c.name)}</option>`).join('');
+    bar.innerHTML = `
+      <span>${multiSel.size} salon(s) selectionne(s)</span>
+      <select id="dp-multibar-cat" aria-label="Categorie cible"><option value="">— Deplacer vers —</option>${catOptions}<option value="__none__">Hors categorie</option></select>
+      <button type="button" class="btn secondary" id="dp-multibar-move">Deplacer</button>
+      <button type="button" class="btn danger" id="dp-multibar-delete">Supprimer</button>
+      <button type="button" class="btn secondary" id="dp-multibar-cancel" aria-label="Annuler la selection">✕</button>`;
+    document.getElementById('dp-multibar-cancel').addEventListener('click', () => {
+      multiSel.clear();
+      app.querySelectorAll('.dp-channel.multi-selected').forEach((el) => el.classList.remove('multi-selected'));
+      refreshMultiBar();
+    });
+    document.getElementById('dp-multibar-move').addEventListener('click', async () => {
+      const target = document.getElementById('dp-multibar-cat').value;
+      if (!target) { showToast('Choisis une categorie cible.', 'error'); return; }
+      try {
+        for (const chId of multiSel) {
+          // eslint-disable-next-line no-await-in-loop
+          await Api.moveChannel(id, chId, target === '__none__' ? '' : target);
+        }
+        showToast(`${multiSel.size} salon(s) deplace(s).`);
+        multiSel.clear();
+        await renderPreviewPage(id);
+      } catch (err) {
+        showToast(err.message, 'error');
+      }
+    });
+    document.getElementById('dp-multibar-delete').addEventListener('click', async () => {
+      if (!window.confirm(`Supprimer ${multiSel.size} salon(s) ? Ils resteront restaurables 24h dans la corbeille.`)) return;
+      try {
+        for (const chId of multiSel) {
+          // eslint-disable-next-line no-await-in-loop
+          await Api.deleteChannel(id, chId);
+        }
+        showToast(`${multiSel.size} salon(s) supprime(s) (corbeille 24h).`);
+        multiSel.clear();
+        await renderPreviewPage(id);
+      } catch (err) {
+        showToast(err.message, 'error');
+      }
+    });
+  }
+
   app.querySelectorAll('.dp-channel[data-channel]').forEach((chEl) => {
     chEl.addEventListener('dblclick', (e) => {
       e.stopPropagation();
       inlineRename(chEl, '.dp-channel-name', chEl.dataset.name, (newName) => Api.renameChannel(id, chEl.dataset.channel, newName));
     });
-    chEl.addEventListener('click', () => openChannel(chEl));
+    chEl.addEventListener('click', (e) => {
+      if (e.ctrlKey || e.metaKey) {
+        const chId = chEl.dataset.channel;
+        if (multiSel.has(chId)) { multiSel.delete(chId); chEl.classList.remove('multi-selected'); } else { multiSel.add(chId); chEl.classList.add('multi-selected'); }
+        refreshMultiBar();
+        return;
+      }
+      openChannel(chEl);
+    });
     chEl.addEventListener('keydown', async (e) => {
       if (e.key === 'Enter' || e.key === ' ') {
         e.preventDefault();
