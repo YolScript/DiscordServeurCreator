@@ -71,12 +71,25 @@ app.addEventListener('click', async (e) => {
 // leurs propres handlers de depose (salons/categories) a ne pas reveiller.
 (function initUrlFieldDropPaste() {
   const isUrlInput = (el) => el?.matches?.('input[type=text]') && /https?:\/\//.test(el.placeholder || '');
+  // Zones de texte markdown (description d'embed, valeur de champ...) : un
+  // lien depose y devient, au choix, un lien cliquable [texte](url).
+  const isMdArea = (el) => el?.matches?.('textarea[data-md-link]');
   const isHttpUrl = (s) => /^https?:\/\/\S+$/i.test(s);
 
   const setValue = (input, url) => {
     input.value = url;
     input.dispatchEvent(new Event('input', { bubbles: true }));
     showToast('Lien insere.');
+  };
+
+  const insertAtCursor = (area, text) => {
+    const start = area.selectionStart ?? area.value.length;
+    const end = area.selectionEnd ?? start;
+    area.value = area.value.slice(0, start) + text + area.value.slice(end);
+    const pos = start + text.length;
+    area.setSelectionRange(pos, pos);
+    area.focus();
+    area.dispatchEvent(new Event('input', { bubbles: true }));
   };
 
   const imgSrcFromHtml = (html) => {
@@ -95,24 +108,33 @@ app.addEventListener('click', async (e) => {
   };
 
   app.addEventListener('dragover', (e) => {
-    if (!isUrlInput(e.target)) return;
+    if (!isUrlInput(e.target) && !isMdArea(e.target)) return;
     e.preventDefault();
     e.stopPropagation();
     e.target.classList.add('drag-over');
   }, true);
   app.addEventListener('dragleave', (e) => {
-    if (isUrlInput(e.target)) e.target.classList.remove('drag-over');
+    if (isUrlInput(e.target) || isMdArea(e.target)) e.target.classList.remove('drag-over');
   }, true);
   app.addEventListener('drop', (e) => {
-    if (!isUrlInput(e.target)) return;
+    const isInput = isUrlInput(e.target);
+    const isArea = isMdArea(e.target);
+    if (!isInput && !isArea) return;
     e.preventDefault();
     e.stopPropagation();
     e.target.classList.remove('drag-over');
     const url = extractUrl(e.dataTransfer);
-    if (url) { setValue(e.target, url); return; }
-    if (e.dataTransfer.files?.length) {
-      showToast("Fichier local : Discord a besoin d'un lien public. Poste l'image dans un salon Discord, puis clic droit > Copier le lien.", 'error');
+    if (!url) {
+      if (e.dataTransfer.files?.length) {
+        showToast("Fichier local : Discord a besoin d'un lien public. Poste l'image dans un salon Discord, puis clic droit > Copier le lien.", 'error');
+      }
+      return;
     }
+    if (isInput) { setValue(e.target, url); return; }
+    const label = window.prompt('Texte affiche pour ce lien cliquable ? (laisser vide pour coller le lien brut)', '');
+    if (label === null) return;
+    insertAtCursor(e.target, label.trim() ? `[${label.trim()}](${url})` : url);
+    showToast(label.trim() ? 'Lien cliquable insere.' : 'Lien insere.');
   }, true);
 
   app.addEventListener('paste', (e) => {
@@ -3584,7 +3606,7 @@ function embedFieldRowHtml(field = {}) {
     <div class="embed-field-row" draggable="true">
       <button type="button" class="embed-field-handle" aria-label="Reordonner ce champ (fleches haut/bas)">⠿</button>
       <input type="text" class="embed-field-name" placeholder="Nom du champ" aria-label="Nom du champ" maxlength="256" value="${escapeHtml(field.name || '')}" />
-      <textarea class="embed-field-value" placeholder="Valeur du champ" aria-label="Valeur du champ" maxlength="1024">${escapeHtml(field.value || '')}</textarea>
+      <textarea class="embed-field-value" placeholder="Valeur du champ" aria-label="Valeur du champ" maxlength="1024" data-md-link>${escapeHtml(field.value || '')}</textarea>
       <label class="embed-field-inline"><input type="checkbox" class="embed-field-inline-input" ${field.inline ? 'checked' : ''} /> Cote a cote</label>
       <button type="button" class="btn danger embed-field-remove" title="Supprimer ce champ" aria-label="Supprimer ce champ">✕</button>
     </div>`;
@@ -3876,7 +3898,7 @@ async function renderEmbedBuilderPage(id, container = app) {
               </span>
             </div>
             <label for="embed-content">Texte au-dessus des embeds (optionnel)</label>
-            <textarea id="embed-content" placeholder="Texte simple, en plus des embeds"></textarea>
+            <textarea id="embed-content" placeholder="Texte simple, en plus des embeds" data-md-link></textarea>
 
             <div class="row" id="embed-tabs" style="flex-wrap:wrap; gap:6px; margin:14px 0 4px;"></div>
 
@@ -3893,7 +3915,7 @@ async function renderEmbedBuilderPage(id, container = app) {
               </div>
             </div>
             <label for="embed-description">Description</label>
-            <textarea id="embed-description" maxlength="4096" placeholder="Texte principal (markdown Discord supporte)" data-charcount></textarea>
+            <textarea id="embed-description" maxlength="4096" placeholder="Texte principal (markdown Discord supporte)" data-charcount data-md-link></textarea>
             <label for="embed-color">Couleur</label>
             <div class="dp-role-color-row">
               <input type="color" id="embed-color" value="#5865f2" />
