@@ -4,8 +4,8 @@
      d'action reelles (cf design/dashboard-redesign-brief.md). */
   --void: #08090b;
   --bg: #08090b;
-  --bg-sidebar: #08090b;
-  --bg-elevated: #08090b;
+  --bg-sidebar: #151112;
+  --bg-elevated: #151112;
   --bg-input: #1a1c22;
   --border: rgba(255, 255, 255, 0.08);
   --border-strong: rgba(255, 255, 255, 0.17);
@@ -78,7 +78,11 @@ body {
   min-height: 100%;
   width: auto;
   height: auto;
-  transform: translate(-50%, -50%) scale(1.06);
+  /* translateZ(0) sur la video elle-meme (pas seulement le wrapper) :
+     force sa propre couche de compositing. Sans ca, certains GPU/drivers
+     Windows figent l'image sur Chromium (decode continue, aucun repaint). */
+  transform: translate(-50%, -50%) scale(1.06) translateZ(0);
+  backface-visibility: hidden;
   object-fit: cover;
 }
 .bg-overlay {
@@ -867,8 +871,8 @@ input::placeholder, textarea::placeholder { color: var(--text-faint); }
   :root:not([data-theme]) {
     --void: #eef0f3;
     --bg: #eef0f3;
-    --bg-sidebar: #ffffff;
-    --bg-elevated: #ffffff;
+    --bg-sidebar: #eee9e9;
+    --bg-elevated: #eee9e9;
     --bg-input: #ffffff;
     --border: rgba(15, 17, 21, 0.09);
     --border-strong: rgba(15, 17, 21, 0.16);
@@ -882,8 +886,8 @@ input::placeholder, textarea::placeholder { color: var(--text-faint); }
 
 :root[data-theme="light"] {
   --void: #eef0f3; --bg: #eef0f3;
-  --bg-sidebar: #ffffff;
-  --bg-elevated: #ffffff; --bg-input: #ffffff;
+  --bg-sidebar: #eee9e9;
+  --bg-elevated: #eee9e9; --bg-input: #ffffff;
   --border: rgba(15, 17, 21, 0.09); --border-strong: rgba(15, 17, 21, 0.16);
   --text: #15171b; --text-muted: #5c5f68; --text-faint: #656870;
   --accent-hover: #4750d6;
@@ -891,8 +895,8 @@ input::placeholder, textarea::placeholder { color: var(--text-faint); }
 }
 :root[data-theme="dark"] {
   --void: #08090b; --bg: #08090b;
-  --bg-sidebar: #08090b;
-  --bg-elevated: #08090b; --bg-input: #1a1c22;
+  --bg-sidebar: #151112;
+  --bg-elevated: #151112; --bg-input: #1a1c22;
   --border: rgba(255, 255, 255, 0.08); --border-strong: rgba(255, 255, 255, 0.17);
   --text: #eef0f3; --text-muted: #9297a3; --text-faint: #848a97;
   --accent-hover: #717cf7;
