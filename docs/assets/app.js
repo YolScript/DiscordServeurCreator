@@ -3763,7 +3763,7 @@ async function renderGenerateChoice(guildId, guildName) {
   ];
 
   app.innerHTML = `
-    <div class="inner">
+    <div class="inner wide">
       ${sectionHtml(`Generer "${escapeHtml(guildName)}"`, `
         <p class="dp-panel-title">🪄 Generer "${escapeHtml(guildName)}"</p>
         <p class="muted">Choisis un template : sa structure (roles, salons, permissions, textes) sera recreee en direct sur ce serveur.</p>
