@@ -57,6 +57,7 @@ window.Api = (function api() {
     xp: (guildId) => request(`/api/guilds/${guildId}/xp`),
     suggestions: (guildId) => request(`/api/guilds/${guildId}/suggestions`),
     setPublicLeaderboard: (guildId, enabled) => request(`/api/guilds/${guildId}/public-leaderboard`, { method: 'POST', body: JSON.stringify({ enabled }) }),
+    setInboundWebhook: (guildId, enabled, channelId) => request(`/api/guilds/${guildId}/inbound-webhook`, { method: 'POST', body: JSON.stringify({ enabled, channelId }) }),
     giveaways: (guildId) => request(`/api/guilds/${guildId}/giveaways`),
     createGiveaway: (guildId, payload) => request(`/api/guilds/${guildId}/giveaways`, { method: 'POST', body: JSON.stringify(payload) }),
     endGiveaway: (guildId, giveawayId) => request(`/api/guilds/${guildId}/giveaways/${giveawayId}/end`, { method: 'POST' }),

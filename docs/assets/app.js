@@ -3406,6 +3406,19 @@ async function renderAutomationsPage(id, container = app) {
           <input type="text" id="new-webhook-url" placeholder="https://..." aria-label="URL du webhook" style="flex:1; min-width:220px;" />
           <button class="btn secondary" id="add-webhook">Ajouter</button>
         </div>
+        <h2 style="margin-top:18px; font-size:0.85rem;">📥 Webhook entrant</h2>
+        <p class="muted">URL unique a coller dans GitHub, un moniteur d'uptime, une boutique... : chaque POST recu est formate et poste dans le salon choisi.</p>
+        ${config?.inboundWebhook?.token
+    ? `<div class="row" style="gap:8px; flex-wrap:wrap;">
+             <input type="text" readonly id="inbound-webhook-url" aria-label="URL du webhook entrant" value="https://discord-serveur-creator-worker.energiecraft-online.workers.dev/public/inbound/${id}/${escapeHtml(config.inboundWebhook.token)}" style="flex:1; min-width:220px; margin:0;" />
+             <button class="btn secondary" id="copy-inbound-webhook">📋 Copier</button>
+             <button class="btn danger" id="toggle-inbound-webhook" data-enable="false">Desactiver</button>
+           </div>
+           <p class="muted" style="font-size:0.76rem; margin-top:4px;">Destination : ${escapeHtml(channelName(config.inboundWebhook.channelId))}</p>`
+    : `<div class="row" style="gap:8px; flex-wrap:wrap;">
+             <select id="inbound-webhook-channel" aria-label="Salon de destination" style="flex:1; min-width:160px;">${textChannelOptions}</select>
+             <button class="btn secondary" id="toggle-inbound-webhook" data-enable="true">Activer le webhook entrant</button>
+           </div>`}
       `, { id: 'webhooks' })}
 
       ${sectionHtml('Flux RSS', `
@@ -3539,6 +3552,10 @@ async function renderAutomationsPage(id, container = app) {
       `, { id: 'streamers' })}
 
       ${sectionHtml('Annonces programmees', `
+        <label class="dp-toggle-row" style="margin-bottom:12px;">
+          <span>Publication croisee automatique (les messages des salons d'annonces sont publies vers les serveurs abonnes)</span>
+          <input type="checkbox" id="auto-crosspost-toggle" ${config?.autoCrosspost ? 'checked' : ''} />
+        </label>
         <div id="scheduled-list">${scheduledRows}</div>
         <div style="margin-top:10px;">
           <label for="new-scheduled-channel">Salon</label>
@@ -3795,6 +3812,38 @@ async function renderAutomationsPage(id, container = app) {
         showToast(err.message, 'error');
       }
     });
+  });
+
+  // Publication croisee automatique (roadmap n°101).
+  document.getElementById('auto-crosspost-toggle').addEventListener('change', async (e) => {
+    try {
+      await Api.updateConfig(id, { autoCrosspost: e.target.checked });
+      showToast(e.target.checked ? 'Publication croisee activee.' : 'Publication croisee desactivee.');
+    } catch (err) {
+      showToast(err.message, 'error');
+      e.target.checked = !e.target.checked;
+    }
+  });
+
+  // Webhook entrant (roadmap n°100).
+  document.getElementById('toggle-inbound-webhook')?.addEventListener('click', async (e) => {
+    const enable = e.currentTarget.dataset.enable === 'true';
+    if (!enable && !window.confirm('Desactiver le webhook entrant ? L\'URL actuelle cessera de fonctionner.')) return;
+    try {
+      await Api.setInboundWebhook(id, enable, enable ? document.getElementById('inbound-webhook-channel').value : undefined);
+      showToast(enable ? 'Webhook entrant actif : copie l\'URL.' : 'Webhook entrant desactive.');
+      await renderAutomationsPage(id, container);
+    } catch (err) {
+      showToast(err.message, 'error');
+    }
+  });
+  document.getElementById('copy-inbound-webhook')?.addEventListener('click', async () => {
+    try {
+      await navigator.clipboard.writeText(document.getElementById('inbound-webhook-url').value);
+      showToast('URL copiee.');
+    } catch {
+      showToast('Copie impossible (permission navigateur).', 'error');
+    }
   });
 
   // Classement public (roadmap n°087) : active/revoque le token de partage.

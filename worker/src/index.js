@@ -143,6 +143,30 @@ async function router(request, env) {
     return json({ ok: true, time: new Date().toISOString() }, env);
   }
 
+  // --- Webhook entrant universel (roadmap n°100) : POST public protege par
+  // token, formate le contenu recu et le poste dans le salon configure.
+  // Reconnait les pushes GitHub, sinon extrait content/message/text ou
+  // affiche le JSON compact. ---
+  if (method === 'POST' && parts[0] === 'public' && parts[1] === 'inbound' && parts.length === 4) {
+    const gid = parts[2];
+    const config = await getGuildConfig(env, gid);
+    const hook = config?.inboundWebhook;
+    if (!hook?.token || hook.token !== parts[3]) throw new HttpError(403, 'Webhook invalide ou desactive.');
+    const raw = (await request.text()).slice(0, 20000);
+    let payload = null;
+    try { payload = JSON.parse(raw); } catch { /* texte brut accepte */ }
+    let text = payload?.content || payload?.message || payload?.text;
+    if (!text && payload?.commits && payload?.repository) {
+      text = `🔧 **${payload.pusher?.name || 'Quelqu\'un'}** a pousse ${payload.commits.length} commit(s) sur ${payload.repository.full_name} :\n${payload.commits.slice(0, 5).map((c) => `• ${(c.message || '').split('\n')[0]}`).join('\n')}`;
+    }
+    if (!text) text = payload ? `📥 Webhook recu :\n\`\`\`json\n${JSON.stringify(payload).slice(0, 800)}\n\`\`\`` : `📥 ${raw.slice(0, 800) || 'Webhook recu (vide).'}`;
+    await botFetchJson(env, `/channels/${hook.channelId}/messages`, {
+      method: 'POST',
+      body: JSON.stringify({ content: String(text).slice(0, 1900) }),
+    });
+    return json({ ok: true }, env);
+  }
+
   // --- Classement public en lecture seule (roadmap n°087) : aucune session,
   // protege par un token de partage stocke dans la config du serveur. Ne
   // renvoie que pseudo/niveau/XP, jamais d'identifiants Discord. ---
@@ -1193,6 +1217,24 @@ async function router(request, env) {
     if (sub === 'auditlog' && parts.length === 4 && method === 'GET') {
       await requireGuildAccess(env, request, guildId);
       return json(await getAuditLog(env, guildId), env);
+    }
+
+    // Webhook entrant (roadmap n°100) : genere/revoque le token et fixe le
+    // salon de destination.
+    if (sub === 'inbound-webhook' && parts.length === 4 && method === 'POST') {
+      const session = await requireGuildAccess(env, request, guildId);
+      const { enabled, channelId } = await readJson(request);
+      const existing = (await getGuildConfig(env, guildId)) || {};
+      const inboundWebhook = enabled
+        ? { token: existing.inboundWebhook?.token || crypto.randomUUID().replace(/-/g, ''), channelId: channelId || existing.inboundWebhook?.channelId }
+        : null;
+      if (enabled && !inboundWebhook.channelId) throw new HttpError(400, 'Salon requis.');
+      await putGuildConfig(env, guildId, { ...existing, inboundWebhook });
+      await logAudit(env, guildId, {
+        title: 'Webhook entrant',
+        description: `${session.username} a ${enabled ? 'active' : 'desactive'} le webhook entrant.`,
+      });
+      return json({ inboundWebhook }, env);
     }
 
     // Classement public (roadmap n°087) : genere ou revoque le token de
