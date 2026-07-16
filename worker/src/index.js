@@ -7,6 +7,7 @@ import {
 import { getSession, destroySession, clearSessionCookie } from './session.js';
 import { botFetch, botFetchJson, notifyGuildOwner } from './discordApi.js';
 import { HttpError } from './errors.js';
+import { toSmallCaps } from './smallCaps.js';
 import {
   getGuildConfig, putGuildConfig, getGameRoles, putGameRoles,
   getModConfig, putModConfig,
@@ -555,13 +556,39 @@ async function router(request, env) {
     if (sub === 'feature-channel' && parts.length === 4 && method === 'POST') {
       const session = await requireGuildAccess(env, request, guildId);
       const { feature } = await readJson(request);
+      // Noms en petites capitales (meme police custom que les salons crees
+      // par /setup), sans emoji. Chaque salon recoit son embed d'accueil ;
+      // support recoit le VRAI panneau de tickets (meme custom_id
+      // 'ticket_open' que le bot, qui gere ensuite les clics).
       const FEATURE_CHANNELS = {
-        giveaways: { name: '🎉・giveaways', topic: 'Giveaways du serveur — participe avec le bouton !', readonly: true, configKey: 'giveawayChannelId' },
-        annonces: { name: '📣・annonces', topic: 'Annonces officielles du serveur', readonly: true, configKey: 'announceChannelId' },
-        suggestions: { name: '💡・suggestions', topic: 'Propose tes idees pour ameliorer le serveur', readonly: false, configKey: 'suggestionChannelId' },
-        modlog: { name: '📋・mod-log', topic: 'Journal de moderation automatique du bot', staffOnly: true, configKey: 'modLogChannelId' },
-        bienvenue: { name: '👋・bienvenue', topic: 'Arrivees et departs des membres', readonly: true, configKey: 'arrivalDepartureChannelId' },
-        support: { name: '🎫・support', topic: 'Ouvre un ticket avec le bouton ci-dessous', readonly: true, configKey: 'ticketPanelChannelId' },
+        giveaways: {
+          name: 'giveaways', topic: 'Giveaways du serveur — participe avec le bouton !', readonly: true, configKey: 'giveawayChannelId',
+          welcome: { embeds: [{ title: '🎉 Giveaways', description: 'Les giveaways du serveur sont annonces ici.\nClique sur le bouton **Participer** sous chaque giveaway pour tenter ta chance !', color: 0x30a46c }] },
+        },
+        annonces: {
+          name: 'annonces', topic: 'Annonces officielles du serveur', readonly: true, configKey: 'announceChannelId',
+          welcome: { embeds: [{ title: '📣 Annonces', description: 'Les annonces officielles du serveur sont publiees ici.', color: 0x5865f2 }] },
+        },
+        suggestions: {
+          name: 'suggestions', topic: 'Propose tes idees pour ameliorer le serveur', readonly: false, configKey: 'suggestionChannelId',
+          welcome: { embeds: [{ title: '💡 Suggestions', description: 'Propose tes idees pour ameliorer le serveur : ecris-les simplement ici.\nLe staff les passera en revue.', color: 0xfee75c }] },
+        },
+        modlog: {
+          name: 'mod-log', topic: 'Journal de moderation automatique du bot', staffOnly: true, configKey: 'modLogChannelId',
+          welcome: { embeds: [{ title: '📋 Journal de moderation', description: 'Le bot enregistre ici chaque action de moderation automatique (messages supprimes, timeouts, slowmode...).', color: 0xe5484d }] },
+        },
+        bienvenue: {
+          name: 'bienvenue', topic: 'Arrivees et departs des membres', readonly: true, configKey: 'arrivalDepartureChannelId',
+          welcome: { embeds: [{ title: '👋 Bienvenue', description: 'Les arrivees et departs des membres sont annonces ici automatiquement.', color: 0x57f287 }] },
+        },
+        support: {
+          name: 'support', topic: 'Ouvre un ticket avec le bouton ci-dessous', readonly: true, configKey: 'ticketPanelChannelId',
+          // Reproduction exacte du panneau poste par le bot (ticketManager).
+          welcome: {
+            embeds: [{ title: '🎫 Support', description: 'Besoin d\'aide ou d\'une question ? Clique sur le bouton ci-dessous pour ouvrir un ticket prive avec le staff.', color: 0x5b8def }],
+            components: [{ type: 1, components: [{ type: 2, style: 1, label: 'Ouvrir un ticket', emoji: { name: '🎫' }, custom_id: 'ticket_open' }] }],
+          },
+        },
       };
       const def = FEATURE_CHANNELS[feature];
       if (!def) throw new HttpError(400, 'Fonctionnalite inconnue.');
@@ -571,14 +598,22 @@ async function router(request, env) {
       if (def.staffOnly) overwrites.push({ id: guildId, type: 0, deny: '1024' });
       else if (def.readonly) overwrites.push({ id: guildId, type: 0, deny: '2048' });
 
+      const channelName = toSmallCaps(def.name);
       const channel = await botFetchJson(env, `/guilds/${guildId}/channels`, {
         method: 'POST',
         body: JSON.stringify({
-          name: def.name, type: 0, topic: def.topic,
+          name: channelName, type: 0, topic: def.topic,
           ...(overwrites.length ? { permission_overwrites: overwrites } : {}),
         }),
         headers: { 'X-Audit-Log-Reason': `Dashboard : ${session.username}` },
       });
+
+      if (def.welcome) {
+        await botFetchJson(env, `/channels/${channel.id}/messages`, {
+          method: 'POST',
+          body: JSON.stringify(def.welcome),
+        }).catch((err) => console.error('embed accueil feature-channel', err));
+      }
 
       if (def.configKey) {
         const existing = (await getGuildConfig(env, guildId)) || {};
@@ -588,7 +623,7 @@ async function router(request, env) {
         title: 'Salon fonctionnel cree',
         description: `${session.username} a cree <#${channel.id}> (${feature}) et l'a configure automatiquement.`,
       });
-      return json({ channelId: channel.id, name: def.name }, env);
+      return json({ channelId: channel.id, name: channelName }, env);
     }
 
     // --- Giveaways (roadmap n°089) : le worker cree l'entree KV et poste le
