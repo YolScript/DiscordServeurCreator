@@ -570,7 +570,7 @@ async function router(request, env) {
           welcome: { embeds: [{ title: '📣 Annonces', description: 'Les annonces officielles du serveur sont publiees ici.', color: 0x5865f2 }] },
         },
         suggestions: {
-          name: 'suggestions', topic: 'Propose tes idees et cree des sondages', readonly: false, configKey: 'suggestionChannelId',
+          name: 'suggestions', topic: 'Propose tes idees et cree des sondages', readonly: false, configKey: 'suggestionChannelId', botPanel: 'poll',
           // Panneau sondages identique a celui du bot (pollManager) : le
           // bouton poll_create_open ouvre le modal de creation de sondage.
           welcome: {
@@ -587,7 +587,7 @@ async function router(request, env) {
           welcome: { embeds: [{ title: '👋 Bienvenue', description: 'Les arrivees et departs des membres sont annonces ici automatiquement.', color: 0x57f287 }] },
         },
         support: {
-          name: 'support', topic: 'Ouvre un ticket avec le bouton ci-dessous', readonly: true, configKey: 'ticketPanelChannelId',
+          name: 'support', topic: 'Ouvre un ticket avec le bouton ci-dessous', readonly: true, configKey: 'ticketPanelChannelId', botPanel: 'ticket',
           // Reproduction exacte du panneau poste par le bot (ticketManager).
           welcome: {
             embeds: [{ title: '🎫 Support', description: 'Besoin d\'aide ou d\'une question ? Clique sur le bouton ci-dessous pour ouvrir un ticket prive avec le staff.', color: 0x5b8def }],
@@ -595,6 +595,18 @@ async function router(request, env) {
           },
         },
       };
+      // Categorie Staff complete : construite par le BOT lui-meme (role
+      // Staff Actif, categorie privee, SERVICE STAFF, createur de vocal,
+      // mod-log) via sa file d'actions — la logique vit cote bot.
+      if (feature === 'staff') {
+        await pushPendingPanelAction(env, guildId, { type: 'staffcategory' });
+        await logAudit(env, guildId, {
+          title: 'Categorie Staff demandee',
+          description: `${session.username} a demande la creation de la categorie Staff complete.`,
+        });
+        return json({ queued: true, name: 'Staff' }, env);
+      }
+
       const def = FEATURE_CHANNELS[feature];
       if (!def) throw new HttpError(400, 'Fonctionnalite inconnue.');
 
@@ -614,10 +626,20 @@ async function router(request, env) {
       });
 
       if (def.welcome) {
-        await botFetchJson(env, `/channels/${channel.id}/messages`, {
-          method: 'POST',
-          body: JSON.stringify(def.welcome),
-        }).catch((err) => console.error('embed accueil feature-channel', err));
+        try {
+          await botFetchJson(env, `/channels/${channel.id}/messages`, {
+            method: 'POST',
+            body: JSON.stringify(def.welcome),
+          });
+        } catch (err) {
+          // Secours automatique : si l'envoi direct echoue, le bot postera
+          // le panneau equivalent sous ~8 s via sa file d'actions.
+          console.error('welcome direct echoue, secours via la file du bot', err);
+          const fallback = def.botPanel
+            ? { type: def.botPanel, channelId: channel.id }
+            : { type: 'embed', channelId: channel.id, embeds: def.welcome.embeds };
+          await pushPendingPanelAction(env, guildId, fallback).catch(() => {});
+        }
       }
 
       if (def.configKey) {
@@ -1155,7 +1177,19 @@ async function router(request, env) {
         const embeds = body.embeds || (body.embed ? [body.embed] : null);
         if (!body.channelId || !embeds?.length) throw new HttpError(400, 'channelId et embeds requis.');
         if (embeds.length > 10) throw new HttpError(400, '10 embeds maximum par message.');
-        await pushPendingPanelAction(env, guildId, { type: 'embed', channelId: body.channelId, embeds, content: body.content });
+        // Envoi DIRECT via l'API Discord (immediat) : la file du bot ajoutait
+        // jusqu'a 8 s de latence percue comme un bug. La file reste pour les
+        // panneaux (reglement/roles/poll/ticket) qui exigent la logique bot.
+        const prepared = embeds.map((e) => {
+          const embed = { ...e };
+          if (embed.timestamp) embed.timestamp = new Date().toISOString();
+          else delete embed.timestamp;
+          return embed;
+        });
+        await botFetchJson(env, `/channels/${body.channelId}/messages`, {
+          method: 'POST',
+          body: JSON.stringify({ content: body.content || undefined, embeds: prepared }),
+        });
         await logAudit(env, guildId, { title: 'Embed poste', description: `${session.username} a poste un embed dans <#${body.channelId}>.` });
         return json({ ok: true }, env);
       }

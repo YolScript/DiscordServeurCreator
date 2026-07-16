@@ -7,6 +7,9 @@ const { postTicketPanel } = require('../support/ticketManager');
 const { postOrRefresh: postReactionRoleGroup } = require('../roles/reactionRoleManager');
 const reactionRoleStore = require('../../kv/reactionRoleStore');
 const guildConfigStore = require('../../kv/guildConfigStore');
+const { ensureStaffCategory, syncStaffChatChannel } = require('../roles/staffCategory');
+const { syncCreatorChannel } = require('../roles/staffVoiceCreator');
+const { ensureModLogChannel } = require('../moderation/modLog');
 const logger = require('../../shared/logger');
 
 const TICK_MS = 8_000;
@@ -39,6 +42,16 @@ async function executeAction(guild, action) {
       // bouton "Ouvrir un ticket".
       await guildConfigStore.upsert(guild.id, { ticketPanelChannelId: channel.id });
     }
+    return;
+  }
+  // Categorie Staff complete demandee depuis le createur du dashboard :
+  // reutilise la vraie logique du bot (role Staff Actif, categorie privee,
+  // vocal SERVICE STAFF, createur de vocal, salon staff, mod-log).
+  if (action.type === 'staffcategory') {
+    await ensureStaffCategory(guild);
+    await syncStaffChatChannel(guild);
+    await syncCreatorChannel(guild);
+    await ensureModLogChannel(guild);
     return;
   }
   if (action.type === 'reactionroles') {

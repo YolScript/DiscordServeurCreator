@@ -4032,6 +4032,7 @@ const FEATURE_CHANNEL_CARDS = [
   { key: 'modlog', icon: '📋', label: 'Journal de moderation', desc: 'Visible du staff uniquement, le bot y ecrit chaque action automod.', configKey: 'modLogChannelId' },
   { key: 'bienvenue', icon: '👋', label: 'Bienvenue', desc: 'Arrivees et departs annonces par le bot, lecture seule.', configKey: 'arrivalDepartureChannelId' },
   { key: 'support', icon: '🎫', label: 'Support / tickets', desc: 'Salon du panneau de tickets, lecture seule.', configKey: 'ticketPanelChannelId' },
+  { key: 'staff', icon: '🛡️', label: 'Categorie Staff complete', desc: 'Categorie privee avec mod-log, salon staff, vocal SERVICE STAFF et createur de vocal — construite par le bot.', configKey: 'staffCategoryId' },
 ];
 
 async function renderCreatorPage(id, container = app) {
@@ -4086,8 +4087,10 @@ async function renderCreatorPage(id, container = app) {
     btn.addEventListener('click', async () => {
       btn.disabled = true;
       try {
-        const { name } = await Api.createFeatureChannel(id, btn.dataset.feature);
-        showToast(`Salon ${name} cree et configure.`);
+        const res = await Api.createFeatureChannel(id, btn.dataset.feature);
+        showToast(res.queued
+          ? 'Le bot construit la categorie Staff complete (~10 s).'
+          : `Salon ${res.name} cree et configure.`);
         await renderCreatorPage(id, container);
       } catch (err) {
         showToast(err.message, 'error');
@@ -5003,7 +5006,7 @@ async function renderEmbedBuilderPage(id, container = app) {
         showToast('Message mis a jour.');
       } else {
         await Api.postEmbed(id, channelId, embeds, content);
-        showToast(`Embed${embeds.length > 1 ? 's' : ''} en cours d'envoi, actif sous quelques secondes.`);
+        showToast(`Embed${embeds.length > 1 ? 's' : ''} poste dans Discord.`);
       }
       localStorage.removeItem(container.__draftKey);
     } catch (err) {
