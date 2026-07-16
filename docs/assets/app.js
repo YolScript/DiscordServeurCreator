@@ -445,6 +445,7 @@ const SETTINGS_PANELS = [
   { key: 'templates', label: 'Templates', icon: '📁' },
   { key: 'customcommands', label: 'Commandes personnalisees', icon: '💻' },
   { key: 'assistant-ia', label: 'Assistant IA', icon: '✨' },
+  { key: 'memberlookup', label: 'Recherche de membres', icon: '🔎' },
 ];
 
 // Accueil en 2 temps : une grille de categories thematiques, puis (au clic)
@@ -452,44 +453,59 @@ const SETTINGS_PANELS = [
 // directement accessible en un clic depuis sa categorie, sans page hub a lui
 // tout seul a traverser (le clic sur un module ouvre directement le bon
 // panneau, deja preselectionne).
+// Categories reequilibrees : "Creation" concentrait a elle seule 16 des 29
+// modules (tout ce qui n'etait ni jeu/fun ni stats y atterrissait par
+// defaut), pendant que les 4 autres categories n'en avaient que 3-4 chacune.
+// Securite et Integrations extraites en categories a part entiere plutot
+// que noyees dans Creation/Administration.
 const HOME_CATEGORIES = [
   { id: 'administration', icon: '🛠️', label: 'Administration' },
+  { id: 'securite', icon: '🔒', label: 'Securite' },
   { id: 'moderation', icon: '🛡️', label: 'Moderation' },
+  { id: 'integrations', icon: '🔌', label: 'Integrations' },
   { id: 'creation', icon: '🎨', label: 'Creation' },
   { id: 'fun', icon: '🎉', label: 'Fun' },
   { id: 'statistiques', icon: '📊', label: 'Statistiques' },
 ];
 
 const HOME_MODULES = [
-  { parent: 'permissions', section: 'perm-bulk', icon: '⚡', label: 'Edition en masse', category: 'creation' },
-  { parent: 'permissions', section: 'perm-io', icon: '📋', label: 'Export / Import', category: 'creation' },
-  { parent: 'permissions', section: 'perm-default', icon: '♻️', label: 'Permissions par defaut', category: 'creation' },
-  { parent: 'permissions', section: 'perm-dashboard', icon: '🔑', label: 'Acces au dashboard', category: 'creation' },
-  { parent: 'jeux', section: 'game-catalog', icon: '📚', label: 'Catalogue de jeux', category: 'creation' },
-  { parent: 'jeux', section: 'game-active', icon: '🎮', label: 'Roles de jeu actifs', category: 'fun' },
-  { parent: 'jeux', section: 'game-reaction', icon: '🎭', label: 'Roles-reaction', category: 'creation' },
-  { parent: 'automatisations', section: 'bots', icon: '🧩', label: 'Bots complementaires', category: 'creation' },
-  { parent: 'automatisations', section: 'arrivee', icon: '👋', label: 'Arrivee & statut du bot', category: 'creation' },
-  { parent: 'automatisations', section: 'webhooks', icon: '🔗', label: 'Webhooks sortants', category: 'creation' },
-  { parent: 'automatisations', section: 'economie', icon: '🪙', label: 'Economie / boutique', category: 'fun' },
-  { parent: 'automatisations', section: 'automod', icon: '🚫', label: 'Auto-moderation', category: 'moderation' },
-  { parent: 'automatisations', section: 'niveaux', icon: '⭐', label: 'Roles de niveau (XP)', category: 'fun' },
-  { parent: 'automatisations', section: 'parrainage', icon: '🎗️', label: 'Parrainage', category: 'fun' },
+  // Administration : reglages de portee serveur, controle d'acces.
+  { parent: 'permissions', section: 'perm-bulk', icon: '⚡', label: 'Edition en masse', category: 'administration' },
+  { parent: 'permissions', section: 'perm-io', icon: '📋', label: 'Export / Import', category: 'administration' },
+  { parent: 'permissions', section: 'perm-default', icon: '♻️', label: 'Permissions par defaut', category: 'administration' },
+  { parent: 'permissions', section: 'perm-dashboard', icon: '🔑', label: 'Acces au dashboard', category: 'administration' },
+  { parent: 'automatisations', section: 'arrivee', icon: '👋', label: 'Arrivee & statut du bot', category: 'administration' },
   { parent: 'automatisations', section: 'streamers', icon: '📺', label: 'Streamers lies', category: 'administration' },
-  { parent: 'automatisations', section: 'annonces', icon: '📅', label: 'Annonces programmees', category: 'creation' },
   { parent: 'automatisations', section: 'service', icon: '🚨', label: 'Service (staff)', category: 'administration' },
+  // Securite : sauvegarde, restauration, verrouillage d'urgence.
+  { parent: 'securite', section: 'sec-export', icon: '💾', label: 'Export / Restauration', category: 'securite' },
+  { parent: 'securite', section: 'sec-snapshots', icon: '📸', label: 'Snapshots automatiques', category: 'securite' },
+  { parent: 'securite', section: 'sec-lockdown', icon: '🔒', label: 'Lockdown', category: 'securite' },
+  // Moderation : surveillance et gestion du comportement des membres.
+  { parent: 'automatisations', section: 'automod', icon: '🚫', label: 'Auto-moderation', category: 'moderation' },
   { parent: 'automatisations', section: 'tickets', icon: '🎫', label: 'Tickets', category: 'moderation' },
-  { parent: 'securite', section: 'sec-export', icon: '💾', label: 'Export / Restauration', category: 'creation' },
-  { parent: 'securite', section: 'sec-snapshots', icon: '📸', label: 'Snapshots automatiques', category: 'creation' },
-  { parent: 'securite', section: 'sec-lockdown', icon: '🔒', label: 'Lockdown', category: 'administration' },
-  { parent: 'stats', section: 'stats-members', icon: '👥', label: 'Membres', category: 'statistiques' },
-  { parent: 'stats', section: 'stats-activity', icon: '💬', label: 'Activite', category: 'statistiques' },
   { parent: 'auditlog', icon: '📋', label: "Logs d'audit", category: 'moderation' },
+  // Integrations : connecter des services/bots externes.
+  { parent: 'automatisations', section: 'bots', icon: '🧩', label: 'Bots complementaires', category: 'integrations' },
+  { parent: 'automatisations', section: 'webhooks', icon: '🔗', label: 'Webhooks sortants', category: 'integrations' },
+  // Creation : construire du contenu (salons, textes, structure).
+  { parent: 'jeux', section: 'game-catalog', icon: '📚', label: 'Catalogue de jeux', category: 'creation' },
+  { parent: 'jeux', section: 'game-reaction', icon: '🎭', label: 'Roles-reaction', category: 'creation' },
+  { parent: 'automatisations', section: 'annonces', icon: '📅', label: 'Annonces programmees', category: 'creation' },
   { parent: 'embedbuilder', icon: '💬', label: 'Generateur embed', category: 'creation' },
-  { parent: 'botstatus', icon: '🤖', label: 'Statut du bot', category: 'statistiques' },
   { parent: 'templates', icon: '📁', label: 'Templates', category: 'creation' },
   { parent: 'customcommands', icon: '💻', label: 'Commandes personnalisees', category: 'creation' },
   { parent: 'assistant-ia', icon: '✨', label: 'Assistant IA', category: 'creation' },
+  // Fun : engagement communautaire.
+  { parent: 'jeux', section: 'game-active', icon: '🎮', label: 'Roles de jeu actifs', category: 'fun' },
+  { parent: 'automatisations', section: 'economie', icon: '🪙', label: 'Economie / boutique', category: 'fun' },
+  { parent: 'automatisations', section: 'niveaux', icon: '⭐', label: 'Roles de niveau (XP)', category: 'fun' },
+  { parent: 'automatisations', section: 'parrainage', icon: '🎗️', label: 'Parrainage', category: 'fun' },
+  // Statistiques : lecture seule, vue d'ensemble du serveur.
+  { parent: 'stats', section: 'stats-members', icon: '👥', label: 'Membres', category: 'statistiques' },
+  { parent: 'stats', section: 'stats-activity', icon: '💬', label: 'Activite', category: 'statistiques' },
+  { parent: 'botstatus', icon: '🤖', label: 'Statut du bot', category: 'statistiques' },
+  { parent: 'memberlookup', icon: '🔎', label: 'Recherche de membres', category: 'statistiques' },
 ];
 
 function customChannelFormHtml(catId) {
@@ -1254,6 +1270,7 @@ const SETTINGS_PANEL_INTROS = {
   templates: 'Gere les templates de structure de serveur.',
   customcommands: 'Cree tes propres commandes personnalisees.',
   'assistant-ia': "Configure ta cle API pour discuter avec l'assistant et lui laisser creer/modifier des salons, categories et roles a ta place.",
+  memberlookup: 'Recherche un membre par pseudo ou par ID et vois ses roles en un coup d\'oeil.',
 };
 
 async function renderSettingsPanel(guildId, key, preselectSectionId) {
@@ -1290,6 +1307,7 @@ async function renderSettingsPanel(guildId, key, preselectSectionId) {
     templates: () => renderTemplatesPage(guildId, body),
     customcommands: () => renderCustomCommandsPage(guildId, body),
     'assistant-ia': () => renderAiConfigPage(guildId, body),
+    memberlookup: () => renderMemberLookupPage(guildId, body),
   };
   await renderers[key]?.();
   // Les pages a plusieurs modules (sectionHtml avec id) n'ont plus de grille
@@ -3348,6 +3366,60 @@ async function renderAuditLogPage(id, container = app) {
       ? logs.filter((l) => `${l.title} ${l.description}`.toLowerCase().includes(q))
       : logs;
     document.getElementById('audit-log-list').innerHTML = filtered.map(rowHtml).join('') || '<p class="muted">Aucun resultat.</p>';
+  });
+}
+
+/* ---------- Page: recherche de membres ---------- */
+// 100% frontend : reutilise Api.members()/Api.roles() deja exposes, ne
+// necessite aucun nouvel endpoint backend. Recherche/tri cote client
+// uniquement (jusqu'a quelques milliers de membres, largement suffisant
+// pour un salon Discord classique).
+
+async function renderMemberLookupPage(id, container = app) {
+  container.innerHTML = skeletonHtml();
+  const [members, roles] = await Promise.all([
+    Api.members(id).catch(() => []), Api.roles(id).catch(() => []),
+  ]);
+  const roleById = new Map(roles.map((r) => [r.id, r]));
+  const sorted = [...members].sort((a, b) => (a.displayName || '').localeCompare(b.displayName || ''));
+
+  const rowHtml = (m, q) => {
+    const roleChips = (m.roles || [])
+      .map((rid) => roleById.get(rid))
+      .filter((r) => r && r.name !== '@everyone')
+      .sort((a, b) => b.position - a.position)
+      .map((r) => `<span class="member-lookup-chip" style="--rc:${r.color ? `#${r.color.toString(16).padStart(6, '0')}` : 'var(--text-faint)'}">${escapeHtml(r.name)}</span>`)
+      .join('') || '<span class="muted">Aucun role</span>';
+    return `
+      <div class="member-lookup-row">
+        <img class="member-lookup-avatar" src="${memberAvatarUrl(m)}" alt="" width="36" height="36" />
+        <div class="member-lookup-info">
+          <div class="member-lookup-name">${highlightMatch(m.displayName || m.userId, q)}</div>
+          <div class="member-lookup-id">
+            ${highlightMatch(m.userId, q)}
+            <button type="button" class="dp-copy-id-btn" data-copy-id="${m.userId}" title="Copier l'ID" aria-label="Copier l'ID de ${escapeHtml(m.displayName || m.userId)}">📋</button>
+          </div>
+        </div>
+        <div class="member-lookup-roles">${roleChips}</div>
+      </div>`;
+  };
+
+  container.innerHTML = `
+    <div class="inner">
+      ${sectionHtml('Recherche de membres', `
+        <p class="muted">${members.length} membre(s). Recherche par pseudo ou par ID.</p>
+        <input type="text" id="member-search" placeholder="Rechercher un membre..." aria-label="Rechercher un membre" style="margin-bottom:10px;" />
+        <div class="member-lookup-list" id="member-lookup-list">${sorted.map((m) => rowHtml(m, '')).join('') || '<p class="muted">Aucun membre trouve.</p>'}</div>
+      `, { alwaysOpen: true })}
+    </div>
+  `;
+
+  document.getElementById('member-search').addEventListener('input', (e) => {
+    const q = e.target.value.trim().toLowerCase();
+    const filtered = q
+      ? sorted.filter((m) => (m.displayName || '').toLowerCase().includes(q) || m.userId.includes(q))
+      : sorted;
+    document.getElementById('member-lookup-list').innerHTML = filtered.map((m) => rowHtml(m, e.target.value.trim())).join('') || '<p class="muted">Aucun resultat.</p>';
   });
 }
 
