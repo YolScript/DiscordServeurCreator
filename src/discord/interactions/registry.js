@@ -66,6 +66,7 @@ const handleGiveawayRerollCommand = require('../commands/giveawayReroll');
 const handlePollPanelCommand = require('../commands/pollPanel');
 const handleReglementPanelCommand = require('../commands/reglementPanel');
 const handleRolesPanelCommand = require('../commands/rolesPanel');
+const handleRemindCommand = require('../commands/remind');
 const logger = require('../../shared/logger');
 
 const commandHandlers = {
@@ -108,6 +109,7 @@ const commandHandlers = {
   'poll-panel': handlePollPanelCommand,
   'reglement-panel': handleReglementPanelCommand,
   'roles-panel': handleRolesPanelCommand,
+  remind: handleRemindCommand,
 };
 
 async function routeInteraction(interaction) {

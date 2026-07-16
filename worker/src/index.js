@@ -586,6 +586,10 @@ async function router(request, env) {
           name: 'bienvenue', topic: 'Arrivees et departs des membres', readonly: true, configKey: 'arrivalDepartureChannelId',
           welcome: { embeds: [{ title: '👋 Bienvenue', description: 'Les arrivees et departs des membres sont annonces ici automatiquement.', color: 0x57f287 }] },
         },
+        starboard: {
+          name: 'hall-of-fame', topic: 'Les meilleurs messages du serveur, elus a la reaction ⭐', readonly: true, configKey: 'starboardChannelId',
+          welcome: { embeds: [{ title: '🌟 Hall of fame', description: 'Reagis avec ⭐ aux messages que tu adores : a partir de 4 etoiles, ils sont republies ici automatiquement.', color: 0xfee75c }] },
+        },
         avis: {
           name: 'avis', topic: 'Avis des membres apres leurs tickets', readonly: true, configKey: 'reviewChannelId',
           welcome: { embeds: [{ title: '⭐ Avis', description: 'Les evaluations laissees apres chaque ticket s\'affichent ici automatiquement, avec le membre du staff qui l\'a pris en charge.', color: 0xd3a13a }] },

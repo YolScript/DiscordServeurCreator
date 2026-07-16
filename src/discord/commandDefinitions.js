@@ -307,7 +307,15 @@ const rolesPanelCommand = new SlashCommandBuilder()
   .setDefaultMemberPermissions(PermissionFlagsBits.Administrator)
   .toJSON();
 
+const remindCommand = new SlashCommandBuilder()
+  .setName('remind')
+  .setDescription('Te rappelle quelque chose en MP apres un delai.')
+  .addStringOption((o) => o.setName('duree').setDescription('Ex : 10m, 2h, 1j (max 30j)').setRequired(true).setMaxLength(10))
+  .addStringOption((o) => o.setName('message').setDescription('Ce que je dois te rappeler').setRequired(true).setMaxLength(500))
+  .toJSON();
+
 module.exports = [
+  remindCommand,
   setupCommand, warnCommand, warningsCommand, clearwarnsCommand, timeoutCommand, tempbanCommand, unlockCommand, automodCommand,
   scheduleAnnouncementCommand, scheduleEventCommand, scheduledListCommand, scheduledCancelCommand,
   rankCommand, leaderboardCommand, levelroleCommand, pollCommand, pollPanelCommand, giveawayCommand,
