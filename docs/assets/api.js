@@ -65,6 +65,7 @@ window.Api = (function api() {
     resolveReport: (guildId, reportId) => request(`/api/guilds/${guildId}/reports/${reportId}/resolve`, { method: 'POST' }),
     dashboardLogins: (guildId) => request(`/api/guilds/${guildId}/logins`),
     duplicateCategory: (guildId, categoryId) => request(`/api/guilds/${guildId}/categories/${categoryId}/duplicate`, { method: 'POST' }),
+    duplicateChannel: (guildId, channelId) => request(`/api/guilds/${guildId}/channels/${channelId}/duplicate`, { method: 'POST' }),
     trash: (guildId) => request(`/api/guilds/${guildId}/trash`),
     setSlowmodeAll: (guildId, seconds) => request(`/api/guilds/${guildId}/slowmode-all`, { method: 'POST', body: JSON.stringify({ seconds }) }),
     ticketTranscript: (guildId, ticketId) => request(`/api/guilds/${guildId}/tickets/${ticketId}/transcript`),

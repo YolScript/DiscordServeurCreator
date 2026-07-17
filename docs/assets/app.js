@@ -1184,12 +1184,6 @@ function aiHomeHtml(guild, config) {
       </div>
       <div id="dp-ai-tail">${aiConversationHtml()}</div>
     </div>
-    ${aiConversation.length ? '' : `
-    <div class="dp-ai-suggestions" role="group" aria-label="Suggestions de demandes">
-      <button type="button" class="dp-ai-suggestion" data-prompt="Cree une categorie Gaming avec 3 salons textuels et 2 vocaux">🎮 Categorie gaming complete</button>
-      <button type="button" class="dp-ai-suggestion" data-prompt="Liste les roles du serveur et propose un nettoyage des roles inutiles">🧹 Nettoyer les roles</button>
-      <button type="button" class="dp-ai-suggestion" data-prompt="Cree un role VIP dore et mentionnable">⭐ Role VIP dore</button>
-    </div>`}
     <form class="dp-chat-input-bar" id="dp-ai-form">
       ${aiConversation.length ? '<button type="button" class="btn secondary" id="dp-ai-reset" title="Nouvelle conversation" aria-label="Nouvelle conversation">🔄</button>' : ''}
       <input type="text" id="dp-ai-input" placeholder="Ecris a l'assistant..." maxlength="1000" autocomplete="off" />
@@ -1211,14 +1205,6 @@ function wireAiHome(guildId, channels, rolesSorted) {
     aiPendingConfirmation = null;
     Api.clearAiHistory(guildId).catch(() => {});
     withViewTransition(() => renderPreviewPage(guildId));
-  });
-
-  // Suggestions de prompts (roadmap n°134) : pre-remplit l'input.
-  document.querySelectorAll('.dp-ai-suggestion').forEach((btn) => {
-    btn.addEventListener('click', () => {
-      input.value = btn.dataset.prompt;
-      input.focus();
-    });
   });
 
   function refreshTail() {
@@ -2464,6 +2450,7 @@ function channelActionsFor(channelId, type, config) {
     ...(config?.reglementValidatedRoleId && type !== 4 ? [{ key: 'visibility', icon: '👁️', label: 'Visibilite' }] : []),
     { key: 'service', icon: '🛡️', label: 'Service staff', on: isServiceHidden },
     { key: 'permissions', icon: '🔐', label: 'Permissions' },
+    { key: 'duplicate', icon: '⧉', label: 'Dupliquer' },
     { key: 'delete', icon: '🗑️', label: 'Supprimer', danger: true },
   ];
 }
@@ -2608,6 +2595,14 @@ function channelActionDetailHtml(key, ctx) {
         </select>
         <button class="btn secondary" id="dp-import-perms" style="margin-top:8px;">Importer</button>
         <p class="muted" style="margin-top:12px;">Pour voir le detail complet des permissions, utilise la page Permissions.</p>
+      </div>`;
+  }
+  if (key === 'duplicate') {
+    return `
+      <div class="dp-block">
+        <p class="dp-block-title">⧉ Dupliquer ce salon</p>
+        <p class="muted" style="margin:0 0 12px;">Cree une copie (« ${escapeHtml(name)}-copie ») avec les memes permissions, le meme sujet et le meme slowmode, dans la meme categorie.</p>
+        <button class="btn secondary" id="dp-duplicate">Dupliquer</button>
       </div>`;
   }
   if (key === 'delete') {
@@ -3321,6 +3316,21 @@ function renderChannelPanel(guildId, channelId, name, type, config, channels, ro
           showToast('Permissions importees.');
         } catch (err) {
           showToast(err.message, 'error');
+        }
+      });
+    }
+
+    const duplicateBtn = scope.querySelector('#dp-duplicate');
+    if (duplicateBtn) {
+      duplicateBtn.addEventListener('click', async () => {
+        duplicateBtn.disabled = true;
+        try {
+          await Api.duplicateChannel(guildId, channelId);
+          showToast('Salon duplique.');
+          await renderPreviewPage(guildId);
+        } catch (err) {
+          showToast(err.message, 'error');
+          duplicateBtn.disabled = false;
         }
       });
     }
@@ -7999,6 +8009,21 @@ async function init() {
   window.addEventListener('online', () => { paintOnline(); showToast('Connexion retablie.'); });
   window.addEventListener('offline', paintOnline);
   paintOnline();
+
+  // Bannière bot Render injoignable (roadmap n°192) : verifie /health (route
+  // publique, pas d'auth) au chargement — le bot peut etre endormi/plante
+  // meme si le worker (donc le dashboard) repond normalement.
+  if (guildId) {
+    fetch(`${window.API_BASE_URL}/health`).then((r) => r.json()).then((health) => {
+      if (health.bot && health.bot.online === false) {
+        const banner = document.createElement('div');
+        banner.id = 'dsc-bot-offline-banner';
+        banner.textContent = '🤖 Le bot semble hors ligne (dernier signal il y a plus de 25 min). Les actions instantanees marchent encore, mais les fonctions du bot peuvent etre en retard.';
+        banner.style.cssText = 'position:fixed; top:0; left:0; right:0; z-index:299; background:var(--danger); color:#fff; font-size:0.8rem; font-weight:600; text-align:center; padding:6px;';
+        document.body.appendChild(banner);
+      }
+    }).catch(() => { /* /health injoignable : pas d'alerte supplementaire, le bandeau hors-ligne suffit */ });
+  }
 
   // Pull-to-refresh (roadmap n°125), telephone uniquement : tirer vers le
   // bas tout en haut de la page pour recharger les donnees fraiches.

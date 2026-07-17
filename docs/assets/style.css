@@ -1359,7 +1359,7 @@ button.embed-json-jump { background: none; border: none; padding: 0; font-family
   .embed-field-remove, .embed-field-handle, .embed-field-duplicate,
   .member-warns-btn, .member-timeout-btn, .dp-chat-copy, .embed-md-btn,
   .dp-fav-star, .embed-var-chip { opacity: 1; min-width: 34px; min-height: 34px; }
-  .dp-ai-suggestion, .dp-drawer-btn { min-height: 44px; }
+  .dp-drawer-btn { min-height: 44px; }
   .dp-pin-btn { display: none; }
 }
 .embed-char-total {
@@ -1575,13 +1575,6 @@ button.embed-json-jump { background: none; border: none; padding: 0; font-family
   border-radius: 4px; background: var(--bg-input); color: var(--text-faint);
 }
 .dp-ch-badge.nsfw { color: var(--danger); font-weight: 700; }
-.dp-ai-suggestions { display: flex; gap: 6px; flex-wrap: wrap; padding: 0 16px 8px; }
-.dp-ai-suggestion {
-  background: var(--bg-input); border: 1px solid var(--border); color: var(--text);
-  border-radius: 999px; padding: 5px 12px; font-size: 0.78rem; cursor: pointer;
-  transition: border-color 0.12s ease, background 0.12s ease;
-}
-.dp-ai-suggestion:hover { border-color: var(--accent); background: var(--accent-soft); }
 
 .dp-empty-state { text-align: center; padding: 22px 12px; }
 

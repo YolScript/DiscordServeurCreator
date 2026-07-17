@@ -1756,6 +1756,32 @@ async function router(request, env) {
       return json({ ok: true, categoryId: newCat.id, channels: children.length }, env);
     }
 
+    // Clonage d'un salon individuel (roadmap n°142) : permissions, topic et
+    // slowmode copies, place juste apres l'original dans la meme categorie.
+    if (sub === 'channels' && parts[5] === 'duplicate' && parts.length === 6 && method === 'POST') {
+      const session = await requireGuildAccess(env, request, guildId);
+      const channels = await botFetchJson(env, `/guilds/${guildId}/channels`);
+      const source = channels.find((c) => c.id === parts[4] && (c.type === 0 || c.type === 2));
+      if (!source) throw new HttpError(404, 'Salon introuvable.');
+      const clone = await botFetchJson(env, `/guilds/${guildId}/channels`, {
+        method: 'POST',
+        body: JSON.stringify({
+          name: `${source.name}-copie`.slice(0, 100),
+          type: source.type,
+          parent_id: source.parent_id || undefined,
+          topic: source.topic || undefined,
+          nsfw: source.nsfw || undefined,
+          rate_limit_per_user: source.rate_limit_per_user || undefined,
+          bitrate: source.bitrate || undefined,
+          user_limit: source.user_limit || undefined,
+          permission_overwrites: source.permission_overwrites || [],
+        }),
+        headers: { 'X-Audit-Log-Reason': `Dashboard : ${session.username}` },
+      });
+      await logAudit(env, guildId, { title: 'Salon clone', description: `${session.username} a duplique #${source.name}.` });
+      return json(clone, env);
+    }
+
     // Occupation des salons vocaux (roadmap n°019), ecrite par le bot.
     if (sub === 'voice-occupancy' && parts.length === 4 && method === 'GET') {
       await requireGuildAccess(env, request, guildId);
