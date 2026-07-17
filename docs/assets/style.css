@@ -878,7 +878,7 @@ input::placeholder, textarea::placeholder { color: var(--text-faint); }
 /* Apercu de salon au survol prolonge (roadmap n°256). */
 .dp-channel-preview-bubble {
   position: fixed; z-index: 500; max-width: 260px; padding: 10px 12px; border-radius: 8px;
-  background: var(--bg-card); border: 1px solid var(--border); box-shadow: 0 8px 24px rgba(0,0,0,0.35);
+  background: var(--bg-elevated); border: 1px solid var(--border); box-shadow: 0 8px 24px rgba(0,0,0,0.35);
   font-size: 0.78rem; line-height: 1.4; pointer-events: none;
 }
 .dp-channel-preview-bubble strong { display: block; margin-bottom: 4px; }
@@ -1079,6 +1079,10 @@ input::placeholder, textarea::placeholder { color: var(--text-faint); }
   0% { transform: translateY(0) rotate(0deg); opacity: 0.9; }
   100% { transform: translateY(100vh) rotate(540deg); opacity: 0; }
 }
+.dp-activity-details { margin: 12px 0 6px; }
+.dp-activity-details summary { cursor: pointer; list-style: revert; margin: 0; }
+.dp-activity-details summary::marker { color: var(--text-muted); }
+.dp-activity-details .dp-activity-list { margin-top: 8px; }
 .dp-activity-list { display: flex; flex-direction: column; gap: 4px; }
 .dp-activity-row {
   display: flex; align-items: baseline; justify-content: space-between; gap: 10px;

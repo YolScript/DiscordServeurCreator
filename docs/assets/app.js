@@ -1489,14 +1489,16 @@ function wireAiHome(guildId, channels, rolesSorted, members) {
       const recent = (logs || []).slice(0, 5);
       if (!recent.length) return;
       feedEl.innerHTML = `
-        <p class="dp-block-title" style="margin:12px 0 6px;">🕓 Activite recente</p>
-        <div class="dp-activity-list">
-          ${recent.map((entry) => `
-            <div class="dp-activity-row">
-              <span class="dp-activity-text"><strong>${escapeHtml(entry.title)}</strong> — ${resolveMentions(entry.description, members, rolesSorted)}</span>
-              <span class="dp-activity-time muted">${new Date(entry.timestamp).toLocaleString('fr-FR', { day: '2-digit', month: '2-digit', hour: '2-digit', minute: '2-digit' })}</span>
-            </div>`).join('')}
-        </div>`;
+        <details class="dp-activity-details">
+          <summary class="dp-block-title">🕓 Activite recente</summary>
+          <div class="dp-activity-list">
+            ${recent.map((entry) => `
+              <div class="dp-activity-row">
+                <span class="dp-activity-text"><strong>${escapeHtml(entry.title)}</strong> — ${resolveMentions(entry.description, members, rolesSorted)}</span>
+                <span class="dp-activity-time muted">${new Date(entry.timestamp).toLocaleString('fr-FR', { day: '2-digit', month: '2-digit', hour: '2-digit', minute: '2-digit' })}</span>
+              </div>`).join('')}
+          </div>
+        </details>`;
     }).catch(() => {});
   }
 
