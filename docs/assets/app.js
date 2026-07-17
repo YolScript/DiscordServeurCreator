@@ -1484,6 +1484,7 @@ function renderPreviewContent(id, { channels, config, roles, members }) {
         <div class="dp-roles-panel">
           <div class="dp-roles-header${rolesSorted.length >= 230 ? ' near-limit' : ''}" title="${rolesSorted.length >= 230 ? 'Limite Discord : 250 roles par serveur' : ''}">
             <span style="flex:1;">Roles — ${rolesSorted.length}</span>
+            <button type="button" class="dp-pin-btn" id="dp-roles-sort-members" title="Trier par nombre de membres" aria-pressed="false" style="opacity:1;">🔢</button>
             <button type="button" class="dp-pin-btn" id="dp-pin-right" title="Epingler le panneau (toujours visible)" aria-pressed="false">📌</button>
           </div>
           <div class="dp-sidebar-search">
@@ -1621,6 +1622,29 @@ function renderPreviewContent(id, { channels, config, roles, members }) {
       draggedRole.classList.add('settings-active');
       renderRolePanel(id, draggedRole.dataset.role, draggedRole.dataset.roleName, config, rolesSorted, members);
     }
+  });
+
+  // Tri des roles par nombre de membres (roadmap n°197) : reordonnancement
+  // DOM uniquement (rien n'est persiste), re-clic = retour a l'ordre Discord.
+  document.getElementById('dp-roles-sort-members')?.addEventListener('click', (e) => {
+    e.stopPropagation();
+    const btn = e.currentTarget;
+    const byMembers = btn.getAttribute('aria-pressed') !== 'true';
+    btn.setAttribute('aria-pressed', String(byMembers));
+    btn.title = byMembers ? 'Revenir a l\'ordre Discord' : 'Trier par nombre de membres';
+    const list = app.querySelector('.dp-roles-list');
+    if (!list) return;
+    const rows = [...list.querySelectorAll('.dp-role-row[data-role]')];
+    const countFor = (roleId) => (members || []).filter((m) => (m.roles || []).includes(roleId)).length;
+    const sortedRows = byMembers
+      ? rows.slice().sort((a, b) => countFor(b.dataset.role) - countFor(a.dataset.role))
+      : rows.slice().sort((a, b) => {
+        const ra = rolesSorted.findIndex((r) => r.id === a.dataset.role);
+        const rb = rolesSorted.findIndex((r) => r.id === b.dataset.role);
+        return ra - rb;
+      });
+    sortedRows.forEach((row) => list.appendChild(row));
+    showToast(byMembers ? 'Roles tries par nombre de membres.' : 'Ordre Discord retabli.');
   });
 
   app.querySelectorAll('.dp-role-row').forEach((row) => {
@@ -5067,9 +5091,39 @@ async function renderSecurityPage(id, container = app) {
           <button class="btn danger" id="lockdown-btn">Verrouiller le serveur</button>
           <button class="btn secondary" id="unlock-btn">Deverrouiller</button>
         </div>
+        <h2 style="margin-top:18px; font-size:0.85rem;">🐌 Mode lent global</h2>
+        <p class="muted">Applique un slowmode d'un coup sur TOUS les salons texte publics (les salons staff ne sont pas touches). Pour calmer une surchauffe sans verrouiller.</p>
+        <div class="row" style="gap:8px; flex-wrap:wrap;">
+          <select id="slowmode-all-seconds" aria-label="Duree du slowmode" style="margin:0;">
+            <option value="10">10 secondes</option>
+            <option value="30" selected>30 secondes</option>
+            <option value="60">1 minute</option>
+            <option value="300">5 minutes</option>
+          </select>
+          <button class="btn secondary" id="slowmode-all-apply">Appliquer partout</button>
+          <button class="btn secondary" id="slowmode-all-clear">Retirer partout</button>
+        </div>
       `, { id: 'sec-lockdown' })}
     </div>
   `;
+
+  // Mode lent global (roadmap n°198).
+  const applySlowmodeAll = async (seconds) => {
+    try {
+      const res = await Api.setSlowmodeAll(id, seconds);
+      showToast(seconds
+        ? `Mode lent ${seconds}s applique sur ${res.updated} salon(s) public(s).`
+        : `Mode lent retire de ${res.updated} salon(s).`);
+    } catch (err) {
+      showToast(err.message, 'error');
+    }
+  };
+  document.getElementById('slowmode-all-apply')?.addEventListener('click', () => {
+    const seconds = Number(document.getElementById('slowmode-all-seconds').value);
+    if (!window.confirm(`Appliquer ${seconds}s de mode lent sur tous les salons publics ?`)) return;
+    applySlowmodeAll(seconds);
+  });
+  document.getElementById('slowmode-all-clear')?.addEventListener('click', () => applySlowmodeAll(0));
 
   // Corbeille (roadmap n°138) : restauration en un clic.
   container.querySelectorAll('.trash-restore').forEach((btn) => {

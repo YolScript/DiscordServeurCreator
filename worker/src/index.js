@@ -1239,6 +1239,33 @@ async function router(request, env) {
       return json(channel, env);
     }
 
+    // Mode lent global (roadmap n°198) : slowmode applique d'un coup sur
+    // tous les salons texte PUBLICS (les salons caches a @everyone sont des
+    // salons staff, on n'y touche pas). seconds=0 = retirer partout.
+    if (sub === 'slowmode-all' && parts.length === 4 && method === 'POST') {
+      const session = await requireGuildAccess(env, request, guildId);
+      const { seconds } = await readJson(request);
+      const value = Math.max(0, Math.min(21600, Number(seconds) || 0));
+      const channels = await botFetchJson(env, `/guilds/${guildId}/channels`);
+      const publicText = channels.filter((c) => c.type === 0
+        && !(c.permission_overwrites || []).some((o) => o.id === guildId && (BigInt(o.deny || 0) & 1024n)));
+      let updated = 0;
+      for (const channel of publicText) {
+        if ((channel.rate_limit_per_user || 0) === value) continue;
+        // eslint-disable-next-line no-await-in-loop
+        const res = await botFetch(env, `/channels/${channel.id}`, {
+          method: 'PATCH',
+          body: JSON.stringify({ rate_limit_per_user: value }),
+        });
+        if (res.ok) updated += 1;
+      }
+      await logAudit(env, guildId, {
+        title: value ? 'Mode lent global active' : 'Mode lent global retire',
+        description: `${session.username} a ${value ? `mis ${value}s de slowmode sur` : 'retire le slowmode de'} ${updated} salon(s) public(s).`,
+      });
+      return json({ updated, total: publicText.length }, env);
+    }
+
     // Compte a rebours (roadmap n°186) : salon vocal verrouille dont le nom
     // affiche J-N jusqu'a une date ; le bot le renomme chaque heure.
     if (sub === 'countdown-channel' && parts.length === 4 && method === 'POST') {
