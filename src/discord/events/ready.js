@@ -31,6 +31,7 @@ const voiceAfkKick = require('../automation/voiceAfkKick');
 const weeklyLottery = require('../automation/weeklyLottery');
 const channelCleanup = require('../automation/channelCleanup');
 const dashboardAccessReminder = require('../automation/dashboardAccessReminder');
+const tenureRole = require('../automation/tenureRole');
 const logger = require('../../shared/logger');
 
 client.once(Events.ClientReady, async (readyClient) => {
@@ -88,4 +89,5 @@ client.once(Events.ClientReady, async (readyClient) => {
   weeklyLottery.start();
   channelCleanup.start();
   dashboardAccessReminder.start();
+  tenureRole.start();
 });

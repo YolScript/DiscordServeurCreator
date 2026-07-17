@@ -851,10 +851,27 @@ function sectionHtml(title, bodyHtml, { id = '', alwaysOpen = false } = {}) {
 // Table des matieres rapide (retour utilisateur : les pages a beaucoup de
 // sections empilees font rater les fonctionnalites recentes en scrollant).
 // `entries` = [[sectionId, label, icon?], ...] dans l'ordre d'apparition.
-function quickJumpBarHtml(entries) {
+// Sections epinglees (roadmap n°224) : sur les pages a rallonge
+// (permissions, automatisations...), epingler les sections les plus
+// utilisees en tete de la barre de raccourcis plutot que de scroller.
+function getPinnedSections(pageKey) {
+  try { return JSON.parse(localStorage.getItem(`dsc-pinned-sections-${pageKey}`) || '[]'); } catch { return []; }
+}
+function savePinnedSections(pageKey, sids) {
+  try { localStorage.setItem(`dsc-pinned-sections-${pageKey}`, JSON.stringify(sids)); } catch { /* stockage plein */ }
+}
+function quickJumpBarHtml(entries, pageKey = 'default') {
+  const pinned = getPinnedSections(pageKey);
+  const sorted = [...entries].sort((a, b) => Number(pinned.includes(b[0])) - Number(pinned.includes(a[0])));
   return `
-    <div class="dp-quickjump" role="navigation" aria-label="Aller a une section">
-      ${entries.map(([sid, label, icon]) => `<button type="button" class="dp-quickjump-btn" data-jump-to="${sid}">${icon ? `${icon} ` : ''}${escapeHtml(label)}</button>`).join('')}
+    <div class="dp-quickjump" role="navigation" aria-label="Aller a une section" data-page-key="${pageKey}">
+      ${sorted.map(([sid, label, icon]) => {
+    const isPinned = pinned.includes(sid);
+    return `<span class="dp-quickjump-item${isPinned ? ' pinned' : ''}">
+        <button type="button" class="dp-quickjump-btn" data-jump-to="${sid}">${icon ? `${icon} ` : ''}${escapeHtml(label)}</button>
+        <button type="button" class="dp-quickjump-pin" data-pin-section="${sid}" title="${isPinned ? 'Desepingler' : 'Epingler en tete'}" aria-label="${isPinned ? 'Desepingler' : 'Epingler'} la section ${escapeHtml(label)}">${isPinned ? '📌' : '📍'}</button>
+      </span>`;
+  }).join('')}
     </div>`;
 }
 function wireQuickJump(container) {
@@ -865,6 +882,22 @@ function wireQuickJump(container) {
       target.scrollIntoView({ behavior: 'smooth', block: 'start' });
       target.classList.add('flash-highlight');
       setTimeout(() => target.classList.remove('flash-highlight'), 2400);
+    });
+  });
+  container.querySelectorAll('.dp-quickjump-pin').forEach((btn) => {
+    btn.addEventListener('click', (e) => {
+      e.stopPropagation();
+      const bar = btn.closest('.dp-quickjump');
+      const pageKey = bar.dataset.pageKey;
+      const sid = btn.dataset.pinSection;
+      const pinned = getPinnedSections(pageKey);
+      const idx = pinned.indexOf(sid);
+      if (idx >= 0) pinned.splice(idx, 1);
+      else pinned.push(sid);
+      savePinnedSections(pageKey, pinned);
+      btn.closest('.dp-quickjump-item').classList.toggle('pinned', idx < 0);
+      btn.textContent = idx < 0 ? '📌' : '📍';
+      window.UISound?.click();
     });
   });
 }
@@ -1316,6 +1349,16 @@ function getFavModuleKeys() {
 }
 function favModuleKey(m) { return `${m.parent}|${m.section || ''}`; }
 
+// Groupes de favoris nommes (roadmap n°220) : en plus de l'etoile "Favoris"
+// existante (inchangee), l'utilisateur peut creer ses propres groupes
+// nommes (« Quotidien », « Evenements »...) avec une selection de modules.
+function getFavGroups() {
+  try { return JSON.parse(localStorage.getItem('dsc-fav-groups') || '[]'); } catch { return []; }
+}
+function saveFavGroups(groups) {
+  try { localStorage.setItem('dsc-fav-groups', JSON.stringify(groups)); } catch { /* stockage plein */ }
+}
+
 // Badge "Nouveau" (roadmap n°221) : un module reste marque recent 21 jours
 // apres son ajout (champ `since`, format YYYY-MM-DD), puis redevient un
 // module normal sans intervention manuelle.
@@ -1443,9 +1486,22 @@ function aiHomeHtml(guild, config) {
       .map((key) => HOME_MODULES.find((m) => favModuleKey(m) === key))
       .filter(Boolean);
     return favs.length
-      ? `<p class="dp-block-title" style="margin:12px 0 6px;">⭐ Favoris</p><div class="dp-action-grid">${favs.map(homeModuleCardHtml).join('')}</div><p class="dp-block-title" style="margin:12px 0 6px;">Categories</p>`
+      ? `<p class="dp-block-title" style="margin:12px 0 6px;">⭐ Favoris</p><div class="dp-action-grid">${favs.map(homeModuleCardHtml).join('')}</div>`
       : '';
   })()}
+          ${getFavGroups().map((g) => {
+    const mods = (g.keys || []).map((key) => HOME_MODULES.find((m) => favModuleKey(m) === key)).filter(Boolean);
+    return `
+            <div class="dp-fav-group" data-group-id="${g.id}">
+              <p class="dp-block-title" style="margin:12px 0 6px;">
+                <span>📌 ${escapeHtml(g.name)}</span>
+                <button type="button" class="dp-fav-group-delete" data-group-id="${g.id}" title="Supprimer ce groupe" aria-label="Supprimer le groupe ${escapeHtml(g.name)}">🗑️</button>
+              </p>
+              ${mods.length ? `<div class="dp-action-grid">${mods.map(homeModuleCardHtml).join('')}</div>` : '<p class="muted" style="font-size:0.8rem;">Groupe vide.</p>'}
+            </div>`;
+  }).join('')}
+          <button type="button" class="btn secondary" id="dp-new-fav-group" style="margin:8px 0;">➕ Nouveau groupe de favoris</button>
+          <p class="dp-block-title" style="margin:12px 0 6px;">Categories</p>
           <div class="dp-action-grid">
             ${HOME_CATEGORIES.map((c) => `
               <button type="button" class="dp-action-card" data-home-category="${c.id}">
@@ -1524,6 +1580,54 @@ function wireAiHome(guildId, channels, rolesSorted, members) {
     chip.addEventListener('click', () => {
       input.value = chip.dataset.prompt;
       form.requestSubmit();
+    });
+  });
+
+  // Groupes de favoris nommes (roadmap n°220).
+  document.querySelectorAll('.dp-fav-group-delete').forEach((btn) => {
+    btn.addEventListener('click', (e) => {
+      e.stopPropagation();
+      const groups = getFavGroups().filter((g) => g.id !== btn.dataset.groupId);
+      saveFavGroups(groups);
+      withViewTransition(() => renderPreviewPage(guildId));
+    });
+  });
+  document.getElementById('dp-new-fav-group')?.addEventListener('click', () => {
+    const existing = document.getElementById('dp-new-fav-group-pop');
+    if (existing) { existing.remove(); return; }
+    const pop = document.createElement('div');
+    pop.id = 'dp-new-fav-group-pop';
+    pop.className = 'dp-modal-pop';
+    pop.innerHTML = `
+      <div class="dp-modal-pop-inner">
+        <p class="dp-block-title" style="margin:0 0 8px;">➕ Nouveau groupe de favoris</p>
+        <label for="new-fav-group-name">Nom du groupe</label>
+        <input type="text" id="new-fav-group-name" placeholder="Ex : Quotidien, Evenements..." maxlength="40" />
+        <label style="margin-top:10px;">Modules a inclure</label>
+        <div style="max-height:240px; overflow-y:auto; margin-top:6px;">
+          ${HOME_MODULES.map((m) => `
+            <label class="dp-toggle-row" style="padding:6px 10px; margin-top:4px;">
+              <span>${m.icon} ${escapeHtml(m.label)}</span>
+              <input type="checkbox" class="new-fav-group-module" value="${favModuleKey(m)}" />
+            </label>`).join('')}
+        </div>
+        <div class="row" style="justify-content:flex-end; gap:8px; margin-top:12px;">
+          <button type="button" class="btn secondary" id="new-fav-group-cancel">Annuler</button>
+          <button type="button" class="btn" id="new-fav-group-confirm">Creer</button>
+        </div>
+      </div>`;
+    document.body.appendChild(pop);
+    pop.querySelector('#new-fav-group-cancel').addEventListener('click', () => pop.remove());
+    pop.addEventListener('click', (e) => { if (e.target === pop) pop.remove(); });
+    pop.querySelector('#new-fav-group-confirm').addEventListener('click', () => {
+      const name = pop.querySelector('#new-fav-group-name').value.trim();
+      if (!name) { showToast('Nom du groupe requis.', 'error'); return; }
+      const keys = [...pop.querySelectorAll('.new-fav-group-module:checked')].map((el) => el.value);
+      const groups = getFavGroups();
+      groups.push({ id: `${Date.now()}-${Math.floor(Math.random() * 1000)}`, name, keys });
+      saveFavGroups(groups);
+      pop.remove();
+      withViewTransition(() => renderPreviewPage(guildId));
     });
   });
 
@@ -3974,7 +4078,7 @@ async function renderPermissionsPage(id, container = app) {
       ${quickJumpBarHtml([
     ['perm-bulk', 'Edition en masse'], ['perm-topics', 'Topics en masse'], ['perm-matrix', 'Matrice'], ['perm-viewas', 'Voir comme'],
     ['perm-whocansee', 'Qui voit ce salon'], ['perm-io', 'Export/Import'], ['perm-history', 'Historique'], ['perm-default', 'Par defaut'], ['perm-dashboard', 'Acces dashboard'],
-  ])}
+  ], 'permissions')}
       ${sectionHtml('Edition en masse', `
         <p class="muted">Choisis les salons, le role, et une action rapide a appliquer partout en un clic.</p>
         <label>Salons</label>
@@ -4795,7 +4899,7 @@ async function renderAutomationsPage(id, container = app) {
 
   const shopItemRows = shopItems.map((it) => `
     <div class="row" data-id="${it.id}" style="justify-content:space-between; margin-bottom:6px;">
-      <span>${escapeHtml(it.name)} — 🪙 ${it.price}${it.roleId ? ` → ${escapeHtml(roleName(it.roleId))}` : ''}</span>
+      <span>${escapeHtml(it.name)} — 🪙 ${it.price}${it.roleId ? ` → ${escapeHtml(roleName(it.roleId))}` : ''}${it.stock != null ? ` <span class="muted">(${it.stock > 0 ? `${it.stock} en stock` : 'rupture de stock'})</span>` : ''}</span>
       <button class="btn danger delete-shop-item" data-id="${it.id}">Supprimer</button>
     </div>
   `).join('') || '<p class="muted">Aucun article en boutique.</p>';
@@ -4879,7 +4983,7 @@ async function renderAutomationsPage(id, container = app) {
     ['signalements', 'Signalements'], ['economie', 'Economie'], ['niveaux', 'Niveaux'], ['parrainage', 'Parrainage'],
     ['bots', 'Bots'], ['webhooks', 'Webhooks'], ['rss', 'RSS'], ['arrivee', 'Bot & role auto'],
     ['autoreact', 'Reactions auto'], ['notifications', 'Notifications push'],
-  ])}
+  ], 'automatisations')}
       ${sectionHtml('Bots complementaires', `
         <p class="muted">Ajoute des modules complementaires a ce serveur en invitant ces bots.</p>
         <div class="row">
@@ -4897,6 +5001,12 @@ async function renderAutomationsPage(id, container = app) {
         </select>
         <button class="btn secondary" id="save-auto-role" style="margin-top:8px;">Enregistrer</button>
 
+        <label style="margin-top:18px;" for="tenure-role-select">Role d'anciennete (roadmap n°283, optionnel)</label>
+        <select id="tenure-role-select"><option value="">Aucun</option>${roleOptions(config?.tenureRoleId)}</select>
+        <label for="tenure-days">Attribue automatiquement apres N jours de presence</label>
+        <input type="number" id="tenure-days" value="${config?.tenureDays ?? 30}" min="1" />
+        <button class="btn secondary" id="save-tenure-role" style="margin-top:8px;">Enregistrer</button>
+
         <label style="margin-top:18px;" for="bot-statuses">Statuts du bot (un par ligne, tournent automatiquement)</label>
         <textarea id="bot-statuses" placeholder="Regarde ServeurCreator&#10;/setup pour demarrer&#10;{membercount} membres">${escapeHtml((config?.botStatuses || []).join('\n'))}</textarea>
         <p class="muted">Variable disponible : {membercount}</p>
@@ -4907,6 +5017,8 @@ async function renderAutomationsPage(id, container = app) {
           <option value="">Meme salon que bienvenue/depart</option>
           ${textChannelOptions}
         </select>
+        <label for="birthday-role-select">Role anniversaire (roadmap n°314, optionnel — attribue le jour J, retire le lendemain)</label>
+        <select id="birthday-role-select"><option value="">Aucun</option>${roleOptions(config?.birthdayRoleId)}</select>
         <button class="btn secondary" id="save-birthday-channel" style="margin-top:8px;">Enregistrer</button>
 
         <label style="margin-top:18px;" for="suggestions-channel-select">Salon des suggestions (/suggest)</label>
@@ -4917,9 +5029,16 @@ async function renderAutomationsPage(id, container = app) {
         <button class="btn secondary" id="save-suggestions-channel" style="margin-top:8px;">Enregistrer</button>
 
         <label style="margin-top:18px;">Salon vocal "compteur de membres" (verrouille, nom auto)</label>
-        ${config?.memberCountChannelId ? `<p class="muted">Salon actif : ${channelName(config.memberCountChannelId)} (mise a jour toutes les ~10 minutes).</p>` : `
+        ${config?.memberCountChannelId ? `
+          <p class="muted">Salon actif : ${channelName(config.memberCountChannelId)} (mise a jour toutes les ~10 minutes).</p>
+          <input type="text" id="membercount-template" placeholder="Modele de nom" value="${escapeHtml(config?.memberCountChannelNameTemplate || '👥 Membres : {count}')}" />
+          <p class="muted">Variables (roadmap n°287) : {count}, {boosts}, {goal}, {remaining}, {progress}</p>
+          <label for="membercount-goal">Objectif de membres (optionnel, pour {goal}/{remaining}/{progress})</label>
+          <input type="number" id="membercount-goal" value="${config?.memberCountGoal || ''}" min="1" placeholder="Ex : 1000" />
+          <button class="btn secondary" id="save-membercount-template" style="margin-top:8px;">Enregistrer</button>
+        ` : `
           <input type="text" id="membercount-template" placeholder="Modele de nom" value="👥 Membres : {count}" />
-          <p class="muted">Variable disponible : {count}</p>
+          <p class="muted">Variables disponibles : {count}, {boosts}, {goal}, {remaining}, {progress}</p>
           <button class="btn secondary" id="create-membercount-channel" style="margin-top:8px;">Creer le salon compteur</button>
         `}
       `, { id: 'arrivee' })}
@@ -4996,6 +5115,7 @@ async function renderAutomationsPage(id, container = app) {
         <div class="row" style="margin-top:10px;">
           <input type="text" id="new-shop-name" placeholder="Nom de l'article" aria-label="Nom de l'article" style="flex:1; min-width:160px;" />
           <input type="number" id="new-shop-price" placeholder="Prix" aria-label="Prix" min="1" style="width:100px;" />
+          <input type="number" id="new-shop-stock" placeholder="Stock (vide = illimite)" aria-label="Stock (roadmap n°299)" min="1" style="width:150px;" />
           <select id="new-shop-role" aria-label="Role attribue par l'article">
             <option value="">Aucun role</option>
             ${roleOptions()}
@@ -5146,6 +5266,15 @@ async function renderAutomationsPage(id, container = app) {
           ${[['0.5', 'x0.5 — progression lente'], ['1', 'x1 — normal'], ['1.5', 'x1.5 — rapide'], ['2', 'x2 — tres rapide'], ['3', 'x3 — evenement special']]
     .map(([v, l]) => `<option value="${v}"${String(config?.xpRate || 1) === v ? ' selected' : ''}>${l}</option>`).join('')}
         </select>
+        <label for="xp-booster-mult">Multiplicateur XP pour les boosters du serveur (roadmap n°293)</label>
+        <select id="xp-booster-mult">
+          ${[['1', 'x1 — aucun bonus'], ['1.5', 'x1.5'], ['2', 'x2'], ['3', 'x3']]
+    .map(([v, l]) => `<option value="${v}"${String(config?.xpBoosterMultiplier || 1) === v ? ' selected' : ''}>${l}</option>`).join('')}
+        </select>
+        <label for="weekly-quest-goal">Objectif hebdo (roadmap n°297) : messages a atteindre pour un bonus (0 = desactive)</label>
+        <input type="number" id="weekly-quest-goal" value="${config?.weeklyQuestGoal ?? 0}" min="0" />
+        <label for="weekly-quest-bonus">Bonus XP a l'objectif atteint</label>
+        <input type="number" id="weekly-quest-bonus" value="${config?.weeklyQuestBonusXp ?? 200}" min="1" />
         <label for="xp-boost-channel">Salon booste (XP multipliee dans ce salon uniquement)</label>
         <div class="row" style="gap:8px; flex-wrap:wrap;">
           <select id="xp-boost-channel" style="flex:2; min-width:150px;">${channels.filter((c) => c.type === 0).map((c) => `<option value="${c.id}">#${escapeHtml(c.name)}</option>`).join('')}</select>
@@ -5452,6 +5581,7 @@ async function renderAutomationsPage(id, container = app) {
         </div>
         <textarea id="new-canned-text" maxlength="1900" placeholder="Texte de la reponse..." style="margin-top:6px;"></textarea>
 
+        <label class="dp-toggle-row" style="margin-top:18px;"><span>Assignation automatique equitable (roadmap n°306, au staff en service ayant le moins de tickets ouverts)</span><input type="checkbox" id="auto-assign-tickets" ${config?.autoAssignTickets ? 'checked' : ''} /></label>
         <label style="margin-top:18px;" for="max-open-tickets">Tickets ouverts simultanes maximum par membre (roadmap n°313)</label>
         <input type="number" id="max-open-tickets" value="${config?.maxOpenTicketsPerMember || 1}" min="1" style="max-width:120px;" />
         <button class="btn secondary" id="save-max-tickets" style="margin-top:8px;">Enregistrer</button>
@@ -5507,6 +5637,18 @@ async function renderAutomationsPage(id, container = app) {
     }
   });
 
+  document.getElementById('save-tenure-role').addEventListener('click', async () => {
+    try {
+      await Api.updateConfig(id, {
+        tenureRoleId: document.getElementById('tenure-role-select').value || null,
+        tenureDays: Math.max(1, Number(document.getElementById('tenure-days').value) || 30),
+      });
+      showToast('Role d\'anciennete enregistre.');
+    } catch (err) {
+      showToast(err.message, 'error');
+    }
+  });
+
   document.getElementById('save-bot-statuses').addEventListener('click', async () => {
     try {
       const botStatuses = document.getElementById('bot-statuses').value.split('\n').map((s) => s.trim()).filter(Boolean);
@@ -5519,7 +5661,10 @@ async function renderAutomationsPage(id, container = app) {
 
   document.getElementById('save-birthday-channel').addEventListener('click', async () => {
     try {
-      await Api.updateConfig(id, { birthdayChannelId: document.getElementById('birthday-channel-select').value || null });
+      await Api.updateConfig(id, {
+        birthdayChannelId: document.getElementById('birthday-channel-select').value || null,
+        birthdayRoleId: document.getElementById('birthday-role-select').value || null,
+      });
       showToast('Salon d\'anniversaire enregistre.');
     } catch (err) {
       showToast(err.message, 'error');
@@ -5655,9 +5800,11 @@ async function renderAutomationsPage(id, container = app) {
     const name = document.getElementById('new-shop-name').value.trim();
     const price = Number(document.getElementById('new-shop-price').value);
     const roleId = document.getElementById('new-shop-role').value || null;
+    const stockRaw = document.getElementById('new-shop-stock').value.trim();
+    const stock = stockRaw ? Math.max(1, Number(stockRaw)) : null;
     if (!name || !price || price < 1) { showToast('Nom et prix valides requis.', 'error'); return; }
     try {
-      await Api.addShopItem(id, { name, price, roleId });
+      await Api.addShopItem(id, { name, price, roleId, stock });
       showToast('Article ajoute.');
       await renderAutomationsPage(id, container);
     } catch (err) {
@@ -5668,6 +5815,18 @@ async function renderAutomationsPage(id, container = app) {
     btn.addEventListener('click', () => {
       undoableDelete(btn, 'Article de boutique supprime.', () => Api.deleteShopItem(id, btn.dataset.id));
     });
+  });
+
+  document.getElementById('save-membercount-template')?.addEventListener('click', async () => {
+    try {
+      await Api.updateConfig(id, {
+        memberCountChannelNameTemplate: document.getElementById('membercount-template').value.trim() || '👥 Membres : {count}',
+        memberCountGoal: Number(document.getElementById('membercount-goal').value) || null,
+      });
+      showToast('Salon compteur mis a jour (visible sous ~10 min).');
+    } catch (err) {
+      showToast(err.message, 'error');
+    }
   });
 
   document.getElementById('create-membercount-channel')?.addEventListener('click', async () => {
@@ -5882,6 +6041,9 @@ async function renderAutomationsPage(id, container = app) {
     try {
       await Api.updateConfig(id, {
         xpRate: Number(document.getElementById('xp-rate').value) || 1,
+        xpBoosterMultiplier: Number(document.getElementById('xp-booster-mult').value) || 1,
+        weeklyQuestGoal: Math.max(0, Number(document.getElementById('weekly-quest-goal').value) || 0),
+        weeklyQuestBonusXp: Math.max(1, Number(document.getElementById('weekly-quest-bonus').value) || 200),
         xpChannelBoosts: boosts,
         xpExcludedChannels,
       });
@@ -6218,6 +6380,16 @@ async function renderAutomationsPage(id, container = app) {
     }
   });
 
+  document.getElementById('auto-assign-tickets').addEventListener('change', async (e) => {
+    try {
+      await Api.updateConfig(id, { autoAssignTickets: e.target.checked });
+      showToast(e.target.checked ? 'Assignation automatique activee.' : 'Assignation automatique desactivee.');
+    } catch (err) {
+      showToast(err.message, 'error');
+      e.target.checked = !e.target.checked;
+    }
+  });
+
   container.querySelectorAll('.ticket-priority-select').forEach((sel) => {
     sel.addEventListener('change', async () => {
       try {
@@ -6523,6 +6695,34 @@ async function exportStructureMockup(guildName, channels, structRoles, realMembe
 
 /* ---------- Pages: securite ---------- */
 
+// Export chiffre des sauvegardes (roadmap n°337) : AES-GCM via Web Crypto
+// API (native navigateur, pas de librairie), cle derivee du mot de passe
+// par PBKDF2. Le fichier .json contient {v, salt, iv, data} en base64.
+async function deriveBackupKey(password, salt) {
+  const enc = new TextEncoder();
+  const keyMaterial = await crypto.subtle.importKey('raw', enc.encode(password), 'PBKDF2', false, ['deriveKey']);
+  return crypto.subtle.deriveKey(
+    { name: 'PBKDF2', salt, iterations: 100000, hash: 'SHA-256' },
+    keyMaterial, { name: 'AES-GCM', length: 256 }, false, ['encrypt', 'decrypt'],
+  );
+}
+function bufToB64(buf) { return btoa(String.fromCharCode(...new Uint8Array(buf))); }
+function b64ToBuf(b64) { return Uint8Array.from(atob(b64), (c) => c.charCodeAt(0)); }
+async function encryptBackupJson(obj, password) {
+  const salt = crypto.getRandomValues(new Uint8Array(16));
+  const iv = crypto.getRandomValues(new Uint8Array(12));
+  const key = await deriveBackupKey(password, salt);
+  const ciphertext = await crypto.subtle.encrypt({ name: 'AES-GCM', iv }, key, new TextEncoder().encode(JSON.stringify(obj)));
+  return {
+    v: 1, salt: bufToB64(salt), iv: bufToB64(iv), data: bufToB64(ciphertext),
+  };
+}
+async function decryptBackupJson(payload, password) {
+  const key = await deriveBackupKey(password, b64ToBuf(payload.salt));
+  const plain = await crypto.subtle.decrypt({ name: 'AES-GCM', iv: b64ToBuf(payload.iv) }, key, b64ToBuf(payload.data));
+  return JSON.parse(new TextDecoder().decode(plain));
+}
+
 async function renderSecurityPage(id, container = app) {
   container.innerHTML = skeletonHtml();
   const [snapshots, trashItems, currentChannels, currentRoles, securityConfig] = await Promise.all([
@@ -6532,6 +6732,12 @@ async function renderSecurityPage(id, container = app) {
     Api.roles(id).catch(() => []),
     Api.config(id).catch(() => ({})),
   ]);
+
+  // Detection de permissions dangereuses sur @everyone (roadmap n°334).
+  const DANGEROUS_EVERYONE_PERMS = ['Administrator', 'BanMembers', 'KickMembers', 'ManageGuild', 'ManageRoles', 'ManageChannels', 'ManageWebhooks', 'MentionEveryone'];
+  const everyoneRole = currentRoles.find((r) => r.id === id);
+  const everyoneMask = BigInt(everyoneRole?.permissions || 0);
+  const dangerousOnEveryone = DANGEROUS_EVERYONE_PERMS.filter((name) => (everyoneMask & PERMISSION_BITS[name]) === PERMISSION_BITS[name]);
 
   // Corbeille (roadmap n°138) : elements supprimes restaurables 24h.
   const trashRows = trashItems.slice().reverse().map((t) => {
@@ -6593,7 +6799,10 @@ async function renderSecurityPage(id, container = app) {
       ${sectionHtml('Configuration complete (JSON versionne)', `
         <p class="muted">Exporte TOUS les reglages du bot pour ce serveur (niveaux, paliers, parrainage, boutique, commandes perso, modeles d'embed, reaction-roles, roles de jeu) — pas la structure (roles/salons), voir ci-dessus. Utile pour dupliquer une config sur un autre serveur ou revenir en arriere.</p>
         <button class="btn secondary" id="export-config">⬇️ Telecharger la configuration (.json)</button>
-        <label for="config-file-input" style="margin-top:14px;">Importer depuis un fichier</label>
+        <button class="btn secondary" id="export-config-encrypted" style="margin-top:6px;">🔒 Telecharger chiffree (mot de passe)</button>
+        <label for="config-file-input-encrypted" style="margin-top:14px;">Importer un export chiffre</label>
+        <input type="file" id="config-file-input-encrypted" accept="application/json" />
+        <label for="config-file-input" style="margin-top:14px;">Importer depuis un fichier (non chiffre)</label>
         <div class="dp-dropzone" id="config-dropzone" tabindex="0">
           <span class="dp-dropzone-icon">⚙️</span>
           <span class="dp-dropzone-text" id="config-dropzone-text">Glisse un fichier .json ici, ou clique pour parcourir</span>
@@ -6602,6 +6811,19 @@ async function renderSecurityPage(id, container = app) {
         <p class="muted" style="font-size:0.76rem; margin-top:6px;">L'import REMPLACE les paliers/boutique/commandes/modeles/reaction-roles/roles de jeu existants (les reglages generaux sont fusionnes, rien d'autre n'est efface).</p>
         <button class="btn danger" id="import-config" style="margin-top:10px;" disabled>Importer ce fichier</button>
       `, { id: 'sec-config-export' })}
+
+      ${dangerousOnEveryone.length ? sectionHtml('🛡️ Permission dangereuse sur @everyone (roadmap n°334)', `
+        <div class="inline-banner error">
+          <span class="icon">⚠️</span>
+          <span class="msg">@everyone a actuellement : <strong>${dangerousOnEveryone.map((p) => escapeHtml(PERMISSION_LABELS[p] || p)).join(', ')}</strong>. Ces droits s'appliquent a absolument tous les membres.</span>
+        </div>
+        <button type="button" class="btn danger" id="fix-everyone-perms" style="margin-top:10px;">Retirer ces permissions de @everyone</button>
+      `, { id: 'sec-everyone-danger' }) : ''}
+
+      ${sectionHtml('🔎 Scan des webhooks (roadmap n°338)', `
+        <p class="muted">Liste tous les webhooks Discord actifs sur ce serveur (integrations tierces incluses) — revoque ceux que tu ne reconnais pas.</p>
+        <div id="server-webhooks-list"><p class="muted" style="font-size:0.8rem;">Chargement...</p></div>
+      `, { id: 'sec-webhook-scan' })}
 
       ${sectionHtml('Snapshots automatiques', `
         <p class="muted">Un snapshot de la structure est pris automatiquement chaque jour (5 derniers conserves).</p>
@@ -6830,6 +7052,47 @@ async function renderSecurityPage(id, container = app) {
     }
   });
 
+  document.getElementById('export-config-encrypted').addEventListener('click', async () => {
+    const password = window.prompt('Mot de passe pour chiffrer cette sauvegarde (a retenir, non recuperable) :');
+    if (!password) return;
+    try {
+      const bundle = await Api.configExport(id);
+      const payload = await encryptBackupJson(bundle, password);
+      const blob = new Blob([JSON.stringify(payload)], { type: 'application/json' });
+      const url = URL.createObjectURL(blob);
+      const a = document.createElement('a');
+      a.href = url;
+      a.download = `configuration-${id}-${Date.now()}.enc.json`;
+      document.body.appendChild(a);
+      a.click();
+      a.remove();
+      URL.revokeObjectURL(url);
+      showToast('Fichier chiffre telecharge.');
+    } catch (err) {
+      showToast(err.message, 'error');
+    }
+  });
+
+  document.getElementById('config-file-input-encrypted').addEventListener('change', async (e) => {
+    const file = e.target.files[0];
+    if (!file) return;
+    const password = window.prompt('Mot de passe de ce fichier chiffre :');
+    if (!password) { e.target.value = ''; return; }
+    try {
+      const payload = JSON.parse(await file.text());
+      if (!payload.salt || !payload.iv || !payload.data) throw new Error('Ce fichier ne semble pas etre un export chiffre.');
+      const bundle = await decryptBackupJson(payload, password);
+      if (!window.confirm('Importer cette configuration ? Les paliers, boutique, commandes perso, modeles d\'embed, reaction-roles et roles de jeu existants seront remplaces.')) return;
+      const result = await Api.configImport(id, bundle);
+      showToast(`Configuration dechiffree et importee (${result.sectionsImported} section(s)).`);
+      await renderSecurityPage(id, container);
+    } catch (err) {
+      showToast(err.name === 'OperationError' ? 'Mot de passe incorrect.' : (err.message || 'Fichier invalide.'), 'error');
+    } finally {
+      e.target.value = '';
+    }
+  });
+
   const configDropzone = document.getElementById('config-dropzone');
   const configFileInput = document.getElementById('config-file-input');
   const configDropzoneText = document.getElementById('config-dropzone-text');
@@ -6968,6 +7231,48 @@ async function renderSecurityPage(id, container = app) {
     }
   });
 
+  // Scan des webhooks (roadmap n°338) : charge a part, une revocation
+  // retire juste la ligne concernee sans re-rendre toute la page.
+  Api.serverWebhooks(id).then((hooks) => {
+    const listEl = document.getElementById('server-webhooks-list');
+    if (!listEl) return;
+    listEl.innerHTML = hooks.length ? hooks.map((h) => `
+      <div class="row" data-webhook-id="${h.id}" style="justify-content:space-between; margin-bottom:6px;">
+        <span style="overflow:hidden; text-overflow:ellipsis; white-space:nowrap;">
+          ${escapeHtml(h.name || 'Sans nom')} → ${escapeHtml(currentChannels.find((c) => c.id === h.channel_id)?.name || h.channel_id)}
+          ${h.user ? `<span class="muted" style="font-size:0.76rem;"> — cree par ${escapeHtml(h.user.username)}</span>` : '<span class="muted" style="font-size:0.76rem;"> — integration Discord</span>'}
+        </span>
+        <button type="button" class="btn danger delete-server-webhook" data-webhook-id="${h.id}">Revoquer</button>
+      </div>`).join('') : '<p class="muted" style="font-size:0.8rem;">Aucun webhook actif sur ce serveur.</p>';
+    listEl.querySelectorAll('.delete-server-webhook').forEach((btn) => {
+      btn.addEventListener('click', async () => {
+        if (!window.confirm('Revoquer ce webhook ? Toute integration qui l\'utilise cessera de fonctionner immediatement.')) return;
+        try {
+          await Api.deleteServerWebhook(id, btn.dataset.webhookId);
+          btn.closest('[data-webhook-id]').remove();
+          showToast('Webhook revoque.');
+        } catch (err) {
+          showToast(err.message, 'error');
+        }
+      });
+    });
+  }).catch(() => {
+    const listEl = document.getElementById('server-webhooks-list');
+    if (listEl) listEl.innerHTML = '<p class="muted" style="font-size:0.8rem;">Impossible de charger les webhooks.</p>';
+  });
+
+  document.getElementById('fix-everyone-perms')?.addEventListener('click', async () => {
+    try {
+      const dangerousMask = dangerousOnEveryone.reduce((mask, name) => mask | PERMISSION_BITS[name], 0n);
+      const cleaned = everyoneMask & ~dangerousMask;
+      await Api.setRolePermissions(id, id, cleaned.toString());
+      showToast('Permissions dangereuses retirees de @everyone.');
+      await renderSecurityPage(id, container);
+    } catch (err) {
+      showToast(err.message, 'error');
+    }
+  });
+
   document.getElementById('save-autocleanup').addEventListener('click', async () => {
     try {
       await Api.updateConfig(id, {
@@ -7095,8 +7400,8 @@ async function renderAuditLogPage(id, container = app) {
 
 async function renderMemberLookupPage(id, container = app) {
   container.innerHTML = skeletonHtml('list');
-  const [members, roles] = await Promise.all([
-    Api.members(id).catch(() => []), Api.roles(id).catch(() => []),
+  const [members, roles, xpData] = await Promise.all([
+    Api.members(id).catch(() => []), Api.roles(id).catch(() => []), Api.xp(id).catch(() => ({})),
   ]);
   const roleById = new Map(roles.map((r) => [r.id, r]));
   // Bots masques par defaut (demande utilisateur) : flag bot renvoye par le
@@ -7142,8 +7447,38 @@ async function renderMemberLookupPage(id, container = app) {
       </div>`;
   };
 
+  // Membres inactifs (roadmap n°331) : derniere activite = dernier message
+  // suivi par xpManager, repli sur la date d'arrivee si jamais poste.
+  const inactiveThresholdDays = 60;
+  const inactiveMembers = members.filter((m) => {
+    if (isBot(m)) return false;
+    const lastActive = xpData[m.userId]?.lastMessageAt || (m.joinedAt ? new Date(m.joinedAt).getTime() : 0);
+    if (!lastActive) return false;
+    return (Date.now() - lastActive) >= inactiveThresholdDays * 86400000;
+  }).sort((a, b) => (xpData[a.userId]?.lastMessageAt || 0) - (xpData[b.userId]?.lastMessageAt || 0));
+
   container.innerHTML = `
     <div class="inner">
+      ${sectionHtml(`Membres inactifs (${inactiveThresholdDays}j+, roadmap n°331)`, `
+        <p class="muted">${inactiveMembers.length} membre(s) sans activite suivie depuis au moins ${inactiveThresholdDays} jours.</p>
+        ${inactiveMembers.length ? `
+        <div class="channel-picker" style="max-height:220px;">
+          ${inactiveMembers.map((m) => {
+    const lastActive = xpData[m.userId]?.lastMessageAt || new Date(m.joinedAt).getTime();
+    const days = Math.floor((Date.now() - lastActive) / 86400000);
+    return `<label><input type="checkbox" value="${m.userId}" class="inactive-member-check" /> ${escapeHtml(m.displayName || m.userId)} — inactif depuis ${days}j</label>`;
+  }).join('')}
+        </div>
+        <div class="row" style="gap:8px; margin-top:10px; flex-wrap:wrap; align-items:center;">
+          <button type="button" class="btn secondary" id="inactive-select-all">Tout selectionner</button>
+          <select id="inactive-action-role" aria-label="Role a attribuer">${roles.filter((r) => r.name !== '@everyone').map((r) => `<option value="${r.id}">${escapeHtml(r.name)}</option>`).join('')}</select>
+          <button type="button" class="btn secondary" id="inactive-apply-role">🏷️ Attribuer ce role aux selectionnes</button>
+        </div>
+        <div class="row" style="gap:8px; margin-top:8px; flex-wrap:wrap;">
+          <input type="text" id="inactive-dm-message" placeholder="Message a envoyer par MP..." style="flex:1; min-width:200px;" maxlength="1000" />
+          <button type="button" class="btn secondary" id="inactive-apply-dm">✉️ Envoyer un MP aux selectionnes</button>
+        </div>` : ''}
+      `, { id: 'inactive-members' })}
       ${sectionHtml('Recherche de membres', `
         <p class="muted">${members.length - botCount} membre(s)${botCount ? ` + ${botCount} bot(s) masques` : ''}. Recherche par pseudo ou par ID.</p>
         <div class="row" style="gap:8px; flex-wrap:wrap; margin-bottom:10px; align-items:center;">
@@ -7186,6 +7521,34 @@ async function renderMemberLookupPage(id, container = app) {
   document.getElementById('member-show-bots')?.addEventListener('change', (e) => {
     showBots = e.target.checked;
     repaintMembers();
+  });
+
+  // Action groupee sur membres inactifs (roadmap n°331).
+  document.getElementById('inactive-select-all')?.addEventListener('click', () => {
+    container.querySelectorAll('.inactive-member-check').forEach((c) => { c.checked = true; });
+  });
+  document.getElementById('inactive-apply-role')?.addEventListener('click', async () => {
+    const userIds = [...container.querySelectorAll('.inactive-member-check:checked')].map((c) => c.value);
+    const roleId = document.getElementById('inactive-action-role').value;
+    if (!userIds.length) { showToast('Choisis au moins un membre.', 'error'); return; }
+    try {
+      const result = await Api.membersBulkAction(id, { userIds, action: 'role', roleId });
+      showToast(`Role attribue a ${result.ok} membre(s)${result.failed ? `, ${result.failed} en erreur` : ''}.`, result.failed ? 'error' : 'success');
+    } catch (err) {
+      showToast(err.message, 'error');
+    }
+  });
+  document.getElementById('inactive-apply-dm')?.addEventListener('click', async () => {
+    const userIds = [...container.querySelectorAll('.inactive-member-check:checked')].map((c) => c.value);
+    const message = document.getElementById('inactive-dm-message').value.trim();
+    if (!userIds.length) { showToast('Choisis au moins un membre.', 'error'); return; }
+    if (!message) { showToast('Message requis.', 'error'); return; }
+    try {
+      const result = await Api.membersBulkAction(id, { userIds, action: 'dm', message });
+      showToast(`MP envoye a ${result.ok} membre(s)${result.failed ? `, ${result.failed} en erreur (MP fermes ?)` : ''}.`, result.failed ? 'error' : 'success');
+    } catch (err) {
+      showToast(err.message, 'error');
+    }
   });
   document.getElementById('member-sort').addEventListener('change', (e) => {
     currentSort = MEMBER_SORTS[e.target.value] ? e.target.value : 'name_asc';
@@ -7650,7 +8013,9 @@ async function renderGiveawaysPage(id, container = app) {
 
 /* ---------- Pages: statistiques ---------- */
 
-function lineChartSvg(points, { width = 560, height = 140, color = 'var(--accent)', gradId = `lc${Math.random().toString(36).slice(2, 8)}` } = {}) {
+function lineChartSvg(points, {
+  width = 560, height = 140, color = 'var(--accent)', gradId = `lc${Math.random().toString(36).slice(2, 8)}`, annotations = [],
+} = {}) {
   if (!points.length) return '<p class="muted">Pas encore de donnees.</p>';
   const max = Math.max(1, ...points);
   const min = Math.min(0, ...points);
@@ -7665,6 +8030,16 @@ function lineChartSvg(points, { width = 560, height = 140, color = 'var(--accent
   const [lastX, lastY] = coords[coords.length - 1];
   const areaPath = `${path} L${lastX.toFixed(1)},${height} L${coords[0][0].toFixed(1)},${height} Z`;
   const dots = coords.slice(0, -1).map(([x, y]) => `<circle cx="${x.toFixed(1)}" cy="${y.toFixed(1)}" r="2" fill="${color}" opacity="0.5" />`).join('');
+  // Annotations d'evenements (roadmap n°325) : ligne pointillee + marqueur,
+  // le titre SVG natif sert de tooltip (pas de JS supplementaire requis).
+  const annotationMarks = annotations
+    .filter((a) => a.index >= 0 && a.index < coords.length)
+    .map((a) => {
+      const [x] = coords[a.index];
+      return `
+        <line x1="${x.toFixed(1)}" y1="0" x2="${x.toFixed(1)}" y2="${height}" stroke="var(--warning)" stroke-width="1" stroke-dasharray="3,3" opacity="0.7" />
+        <circle cx="${x.toFixed(1)}" cy="8" r="4" fill="var(--warning)"><title>${escapeHtml(a.label)}</title></circle>`;
+    }).join('');
   return `
     <svg viewBox="0 0 ${width} ${height}" class="stats-chart" preserveAspectRatio="none">
       <defs>
@@ -7677,6 +8052,7 @@ function lineChartSvg(points, { width = 560, height = 140, color = 'var(--accent
       <path d="${path}" fill="none" stroke="${color}" stroke-width="2" stroke-linejoin="round" stroke-linecap="round" />
       ${dots}
       <circle cx="${lastX.toFixed(1)}" cy="${lastY.toFixed(1)}" r="4" fill="${color}" stroke="var(--bg-elevated)" stroke-width="2" />
+      ${annotationMarks}
     </svg>`;
 }
 
@@ -7950,13 +8326,31 @@ async function renderStatsPage(id, container = app) {
     return `<span class="stats-trend ${cls}" title="Delta net de membres : 7 derniers jours vs 7 precedents">${deltaLast >= deltaPrev ? '▲' : '▼'} ${sign(deltaLast)} membres (vs ${sign(deltaPrev)})</span>`;
   })();
 
+  // Annotations d'evenements sur le graphique de croissance (roadmap n°325) :
+  // texte libre pose par le staff sur une date, resolu vers l'index du
+  // releve journalier correspondant.
+  const growthAnnotations = (statConfig?.growthAnnotations || [])
+    .map((a) => ({ ...a, index: stats.findIndex((s) => s.date === a.date) }));
+
   container.innerHTML = `
     <div class="inner">
       ${sectionHtml('Membres', `
         <p class="muted">Evolution du nombre de membres (${stats.length} jour(s) enregistre(s)${firstDate ? `, depuis le ${firstDate}` : ''}). ${memberTrendHtml}</p>
-        ${lineChartSvg(memberPoints, { color: 'var(--accent)' })}
+        ${lineChartSvg(memberPoints, { color: 'var(--accent)', annotations: growthAnnotations })}
         ${lastDate ? `<p class="muted" style="margin-top:8px;">Dernier releve : ${lastDate} — ${memberPoints[memberPoints.length - 1]} membre(s)</p>` : ''}
         <button type="button" class="btn secondary chart-export-png" data-chart="membres" style="margin-top:6px;">🖼️ Exporter en PNG</button>
+        <div class="dp-subsection-divider"></div>
+        <p class="dp-block-title">🚩 Annotations d'evenements</p>
+        <div id="growth-annotations-list">${(statConfig?.growthAnnotations || []).map((a, i) => `
+          <div class="row" style="justify-content:space-between; margin-bottom:4px;">
+            <span class="muted" style="font-size:0.82rem;">${a.date} — ${escapeHtml(a.label)}</span>
+            <button type="button" class="btn danger delete-growth-annotation" data-index="${i}">Supprimer</button>
+          </div>`).join('') || '<p class="muted" style="font-size:0.8rem;">Aucune annotation.</p>'}</div>
+        <div class="row" style="margin-top:8px; gap:8px; flex-wrap:wrap;">
+          <input type="date" id="new-growth-annotation-date" aria-label="Date de l'evenement" style="flex:none;" />
+          <input type="text" id="new-growth-annotation-label" placeholder="Ex : lancement du giveaway Noel" maxlength="80" style="flex:1; min-width:160px;" />
+          <button type="button" class="btn secondary" id="add-growth-annotation">Ajouter</button>
+        </div>
       `, { id: 'stats-members' })}
       ${sectionHtml('Activite (messages/jour)', `
         <p class="muted">Nombre de messages envoyes par jour (hors bots). ${trendHtml}</p>
@@ -8115,6 +8509,32 @@ async function renderStatsPage(id, container = app) {
         }, 'image/png');
       } catch (err) {
         showToast(`Export impossible : ${err.message}`, 'error');
+      }
+    });
+  });
+
+  document.getElementById('add-growth-annotation')?.addEventListener('click', async () => {
+    const date = document.getElementById('new-growth-annotation-date').value;
+    const label = document.getElementById('new-growth-annotation-label').value.trim();
+    if (!date || !label) { showToast('Date et texte requis.', 'error'); return; }
+    try {
+      const annotations = [...(statConfig?.growthAnnotations || []), { date, label }];
+      await Api.updateConfig(id, { growthAnnotations: annotations });
+      showToast('Annotation ajoutee.');
+      await renderStatsPage(id, container);
+    } catch (err) {
+      showToast(err.message, 'error');
+    }
+  });
+  container.querySelectorAll('.delete-growth-annotation').forEach((btn) => {
+    btn.addEventListener('click', async () => {
+      try {
+        const annotations = (statConfig?.growthAnnotations || []).filter((_, i) => i !== Number(btn.dataset.index));
+        await Api.updateConfig(id, { growthAnnotations: annotations });
+        showToast('Annotation supprimee.');
+        await renderStatsPage(id, container);
+      } catch (err) {
+        showToast(err.message, 'error');
       }
     });
   });
@@ -8839,6 +9259,10 @@ async function renderEmbedBuilderPage(id, container = app) {
             ${templates.length > 5 ? '<input type="text" id="embed-template-search" placeholder="Rechercher un modele..." aria-label="Rechercher un modele" style="margin-bottom:8px;" />' : ''}
             <button type="button" class="btn secondary" id="embed-import-shared" style="margin-bottom:8px;">📥 Importer via un code</button>
             <div id="embed-templates-list">${templateRows()}</div>
+            <details class="dp-activity-details" id="embed-trash-details">
+              <summary class="dp-block-title">🗑️ Corbeille d'embeds (roadmap n°222)</summary>
+              <div id="embed-trash-list"><p class="muted" style="font-size:0.8rem;">Chargement...</p></div>
+            </details>
 
             <div class="dp-subsection-divider"></div>
             <p class="dp-block-title">🕘 Derniers envois</p>
@@ -8867,11 +9291,18 @@ async function renderEmbedBuilderPage(id, container = app) {
           <div class="row" style="justify-content:space-between; align-items:center;">
             <p class="muted" style="margin:0;">Apercu en direct</p>
             <button type="button" class="embed-json-jump" id="embed-preview-width-btn" aria-pressed="false" title="Simuler la largeur d'un telephone">📱 Apercu mobile</button>
+            <button type="button" class="embed-json-jump" id="embed-preview-theme-btn" aria-pressed="false" title="Simuler le theme clair de Discord">☀️ Theme clair</button>
           </div>
           <div id="embed-preview-slot"></div>
           <p class="embed-char-total" id="embed-char-total" aria-live="polite"></p>
           <label style="margin-top:14px;" for="embed-target-channel">Salon de destination</label>
           <select id="embed-target-channel">${channelOptions}</select>
+          <details class="dp-activity-details" id="embed-multi-channel-details">
+            <summary style="font-size:0.8rem;">➕ Envoyer aussi vers d'autres salons (roadmap n°234)</summary>
+            <div class="channel-picker" style="max-height:140px; margin-top:8px;">
+              ${textChannels.map((c) => `<label><input type="checkbox" value="${c.id}" class="embed-extra-channel" /> #${escapeHtml(c.name)}</label>`).join('')}
+            </div>
+          </details>
           <label style="margin-top:10px;" for="embed-target-message-id">ID du message a editer (optionnel — laisse vide pour poster un nouveau message)</label>
           <input type="text" id="embed-target-message-id" placeholder="Clic droit sur le message > Copier l'ID" />
           <button class="btn secondary" id="embed-load-message-btn" style="margin-top:8px; width:100%;">📥 Charger le contenu de ce message</button>
@@ -9051,6 +9482,14 @@ async function renderEmbedBuilderPage(id, container = app) {
     const mobile = wrap.classList.toggle('mobile-preview');
     e.currentTarget.setAttribute('aria-pressed', String(mobile));
     e.currentTarget.textContent = mobile ? '🖥️ Apercu bureau' : '📱 Apercu mobile';
+  });
+
+  // Simulation du theme clair Discord (roadmap n°238).
+  container.querySelector('#embed-preview-theme-btn').addEventListener('click', (e) => {
+    const slot = container.querySelector('#embed-preview-slot');
+    const light = slot.classList.toggle('light-theme');
+    e.currentTarget.setAttribute('aria-pressed', String(light));
+    e.currentTarget.textContent = light ? '🌙 Theme sombre' : '☀️ Theme clair';
   });
 
   // Validation en direct des URL d'images (n°010), avec dimensions + poids
@@ -9248,12 +9687,19 @@ async function renderEmbedBuilderPage(id, container = app) {
       } else {
         const buttons = buildButtonsFromForm(container);
         const localFiles = [...window.__embedLocalFiles.values()];
-        if (localFiles.length) {
-          await Api.postEmbedWithFiles(id, channelId, embeds, content, buttons.length ? buttons : undefined, localFiles);
-        } else {
-          await Api.postEmbed(id, channelId, embeds, content, buttons.length ? buttons : undefined);
-        }
-        showToast(`Embed${embeds.length > 1 ? 's' : ''} poste dans Discord.`);
+        // Envoi multi-salons (roadmap n°234) : le salon principal plus les
+        // salons additionnels coches, un post independant dans chacun.
+        const extraChannelIds = [...container.querySelectorAll('.embed-extra-channel:checked')].map((el) => el.value);
+        const targetChannelIds = [...new Set([channelId, ...extraChannelIds])];
+        const results = await Promise.allSettled(targetChannelIds.map((cid) => (
+          localFiles.length
+            ? Api.postEmbedWithFiles(id, cid, embeds, content, buttons.length ? buttons : undefined, localFiles)
+            : Api.postEmbed(id, cid, embeds, content, buttons.length ? buttons : undefined)
+        )));
+        const failed = results.filter((r) => r.status === 'rejected').length;
+        showToast(failed
+          ? `Poste dans ${targetChannelIds.length - failed}/${targetChannelIds.length} salon(s), ${failed} en erreur.`
+          : `Embed${embeds.length > 1 ? 's' : ''} poste dans ${targetChannelIds.length} salon(s).`, failed ? 'error' : 'success');
       }
       localStorage.removeItem(container.__draftKey);
     } catch (err) {
@@ -9341,6 +9787,37 @@ async function renderEmbedBuilderPage(id, container = app) {
     });
   }
   wireTemplateButtons();
+
+  // Corbeille d'embeds (roadmap n°222) : chargee a part, restauration remet
+  // le modele dans la liste principale et retire l'entree de la corbeille.
+  function loadEmbedTrash() {
+    Api.embedTrash(id).then((trash) => {
+      const listEl = container.querySelector('#embed-trash-list');
+      if (!listEl) return;
+      listEl.innerHTML = trash.length ? trash.map((t) => `
+        <div class="embed-template-row" data-trash-id="${t.id}">
+          <span class="embed-template-name" title="${escapeHtml(t.name)}">${escapeHtml(t.name)}</span>
+          <span class="muted" style="font-size:0.72rem;">${new Date(t.deletedAt).toLocaleDateString('fr-FR')}</span>
+          <button class="btn secondary embed-restore-trash" data-trash-id="${t.id}">♻️ Restaurer</button>
+        </div>`).join('') : '<p class="muted" style="font-size:0.8rem;">Corbeille vide.</p>';
+      listEl.querySelectorAll('.embed-restore-trash').forEach((btn) => {
+        btn.addEventListener('click', async () => {
+          try {
+            const restored = await Api.restoreEmbedTrash(id, btn.dataset.trashId);
+            templates.push(restored);
+            container.querySelector('#embed-templates-list').innerHTML = templateRows();
+            wireTemplateButtons();
+            showToast('Modele restaure.');
+            loadEmbedTrash();
+          } catch (err) {
+            showToast(err.message, 'error');
+          }
+        });
+      });
+    }).catch(() => {});
+  }
+  loadEmbedTrash();
+
   container.querySelector('#embed-template-search')?.addEventListener('input', (e) => {
     container.querySelector('#embed-templates-list').innerHTML = templateRows(e.target.value);
     wireTemplateButtons();

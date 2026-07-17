@@ -6,8 +6,19 @@ const logger = require('../../shared/logger');
 // on ne tick donc pas plus souvent que ca.
 const TICK_MS = 10 * 60_000;
 
-function buildName(template, guild) {
-  return (template || '👥 Membres : {count}').replaceAll('{count}', String(guild.memberCount)).slice(0, 100);
+// Variables etendues (roadmap n°287) : boosts et objectif de membres, en
+// plus du nombre de membres deja gere.
+function buildName(template, guild, goal) {
+  const boosts = guild.premiumSubscriptionCount || 0;
+  const remaining = goal > 0 ? Math.max(0, goal - guild.memberCount) : 0;
+  const progress = goal > 0 ? Math.min(100, Math.round((guild.memberCount / goal) * 100)) : 0;
+  return (template || '👥 Membres : {count}')
+    .replaceAll('{count}', String(guild.memberCount))
+    .replaceAll('{boosts}', String(boosts))
+    .replaceAll('{goal}', String(goal || 0))
+    .replaceAll('{remaining}', String(remaining))
+    .replaceAll('{progress}', String(progress))
+    .slice(0, 100);
 }
 
 async function tick() {
@@ -19,7 +30,7 @@ async function tick() {
       const channel = await guild.channels.fetch(config.memberCountChannelId).catch(() => null);
       if (!channel) continue;
 
-      const name = buildName(config.memberCountChannelNameTemplate, guild);
+      const name = buildName(config.memberCountChannelNameTemplate, guild, config.memberCountGoal);
       if (channel.name !== name) await channel.setName(name).catch((err) => logger.error('memberCountChannel.setName', err));
     } catch (err) {
       logger.error('memberCountChannel.tick', err);

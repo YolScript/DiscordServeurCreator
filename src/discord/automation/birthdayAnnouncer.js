@@ -18,7 +18,21 @@ async function tick() {
     try {
       const config = await guildConfigStore.find(guild.id);
       const channelId = config?.birthdayChannelId || config?.arrivalDepartureChannelId;
-      if (!channelId) continue;
+      const roleId = config?.birthdayRoleId;
+
+      // Role anniversaire (roadmap n°314) : retire le role de la veille avant
+      // de traiter le nouveau jour, meme si aucun salon n'est configure.
+      if (roleId && config?.birthdayRoleActiveUserIds?.length) {
+        for (const uid of config.birthdayRoleActiveUserIds) {
+          // eslint-disable-next-line no-await-in-loop
+          const member = await guild.members.fetch(uid).catch(() => null);
+          // eslint-disable-next-line no-await-in-loop
+          await member?.roles.remove(roleId).catch(() => {});
+        }
+        await guildConfigStore.upsert(guild.id, { birthdayRoleActiveUserIds: [] }).catch(() => {});
+      }
+
+      if (!channelId && !roleId) continue;
 
       const [month, day] = today.split('-').map(Number);
       const birthdays = await birthdayStore.list(guild.id);
@@ -26,9 +40,24 @@ async function tick() {
       lastAnnouncedDate.set(guild.id, today);
       if (!todayBirthdays.length) continue;
 
-      const channel = await guild.channels.fetch(channelId).catch(() => null);
-      if (!channel) continue;
-      await channel.send(`🎂 Joyeux anniversaire ${todayBirthdays.map((b) => `<@${b.userId}>`).join(', ')} !`).catch(() => {});
+      if (roleId) {
+        const activeIds = [];
+        for (const b of todayBirthdays) {
+          // eslint-disable-next-line no-await-in-loop
+          const member = await guild.members.fetch(b.userId).catch(() => null);
+          if (member) {
+            // eslint-disable-next-line no-await-in-loop
+            await member.roles.add(roleId).catch(() => {});
+            activeIds.push(b.userId);
+          }
+        }
+        await guildConfigStore.upsert(guild.id, { birthdayRoleActiveUserIds: activeIds }).catch(() => {});
+      }
+
+      if (channelId) {
+        const channel = await guild.channels.fetch(channelId).catch(() => null);
+        await channel?.send(`🎂 Joyeux anniversaire ${todayBirthdays.map((b) => `<@${b.userId}>`).join(', ')} !`).catch(() => {});
+      }
     } catch (err) {
       logger.error('birthdayAnnouncer.tick', err);
     }

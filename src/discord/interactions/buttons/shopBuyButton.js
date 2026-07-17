@@ -20,12 +20,21 @@ async function handleShopBuyButton(interaction, itemId) {
     return;
   }
 
+  // Stock limite (roadmap n°299) : `stock` null/undefined = illimite.
+  if (item.stock != null && item.stock <= 0) {
+    await interaction.reply({ content: 'Cet article est en rupture de stock.', flags: MessageFlags.Ephemeral });
+    return;
+  }
+
   const account = await economyStore.getAccount(interaction.guild.id, interaction.user.id);
   if (account.balance < item.price) {
     await interaction.reply({ content: `Solde insuffisant (tu as ${account.balance} pieces, il en faut ${item.price}).`, flags: MessageFlags.Ephemeral });
     return;
   }
 
+  if (item.stock != null) {
+    await shopStore.replaceAll(interaction.guild.id, items.map((i) => (i.id === item.id ? { ...i, stock: i.stock - 1 } : i)));
+  }
   await economyStore.addBalance(interaction.guild.id, interaction.user.id, -item.price, `achat : ${item.name}`);
   if (item.roleId) await interaction.member.roles.add(item.roleId).catch(() => {});
   await recordPurchase(interaction.guild.id, interaction.user.id, item).catch(() => {});

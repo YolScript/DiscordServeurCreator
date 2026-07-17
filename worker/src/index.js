@@ -51,6 +51,7 @@ import {
   twitchLoginRedirect, handleTwitchCallback, syncTwitchSubs, getTwitchSubs, disconnectTwitch, syncAllTwitchSubs,
 } from './twitch.js';
 import { getTrash, pushTrash, removeTrash } from './trash.js';
+import { getEmbedTrash, pushEmbedTrash, removeEmbedTrash } from './embedTrash.js';
 import { SERVER_TEMPLATES, applyServerTemplate } from './serverTemplates.js';
 
 // Serveur de reference dont la structure est lue en direct pour le template
@@ -1196,6 +1197,55 @@ async function router(request, env) {
         description: `${session.username} ${method === 'PUT' ? 'a donne' : 'a retire'} <@&${roleId}> ${method === 'PUT' ? 'a' : 'de'} <@${targetId}>.`,
       });
       return json({ ok: true }, env);
+    }
+
+    // Scan des webhooks Discord reels du serveur (roadmap n°338) : liste et
+    // revocation, distinct des webhooks SORTANTS (vers une URL externe,
+    // voir sub === 'panels'/config.outgoingWebhooks plus haut).
+    if (sub === 'server-webhooks' && parts.length === 4 && method === 'GET') {
+      await requireGuildAccess(env, request, guildId);
+      const hooks = await botFetchJson(env, `/guilds/${guildId}/webhooks`);
+      return json(hooks, env);
+    }
+    if (sub === 'server-webhooks' && parts.length === 5 && method === 'DELETE') {
+      const session = await requireGuildAccess(env, request, guildId);
+      await botFetch(env, `/webhooks/${parts[4]}`, { method: 'DELETE' });
+      await logAudit(env, guildId, { title: 'Webhook revoque', description: `${session.username} a supprime un webhook Discord (scan de securite).` });
+      return json({ ok: true }, env);
+    }
+
+    // Action groupee sur membres inactifs (roadmap n°331) : role ou MP sur
+    // une liste d'IDs, un echec individuel (MP bloques, membre parti) ne
+    // bloque pas le reste du lot.
+    if (sub === 'members' && parts[4] === 'bulk-action' && parts.length === 5 && method === 'POST') {
+      const session = await requireGuildAccess(env, request, guildId);
+      const { userIds, action, roleId, message } = await readJson(request);
+      if (!Array.isArray(userIds) || !userIds.length) throw new HttpError(400, 'userIds requis.');
+      if (action === 'role' && !roleId) throw new HttpError(400, 'roleId requis.');
+      if (action === 'dm' && !message) throw new HttpError(400, 'message requis.');
+      let ok = 0;
+      let failed = 0;
+      for (const uid of userIds.slice(0, 50)) {
+        try {
+          if (action === 'role') {
+            const res = await botFetch(env, `/guilds/${guildId}/members/${uid}/roles/${roleId}`, {
+              method: 'PUT', headers: { 'X-Audit-Log-Reason': `Dashboard (inactifs) : ${session.username}` },
+            });
+            if (!res.ok) throw new Error('role failed');
+          } else {
+            const dm = await botFetchJson(env, '/users/@me/channels', { method: 'POST', body: JSON.stringify({ recipient_id: uid }) });
+            await botFetchJson(env, `/channels/${dm.id}/messages`, { method: 'POST', body: JSON.stringify({ content: message }) });
+          }
+          ok += 1;
+        } catch {
+          failed += 1;
+        }
+      }
+      await logAudit(env, guildId, {
+        title: 'Action groupee sur membres inactifs',
+        description: `${session.username} a applique une action "${action}" a ${ok} membre(s) inactif(s)${failed ? `, ${failed} en erreur` : ''}.`,
+      });
+      return json({ ok, failed }, env);
     }
 
     // Timeout d'un membre depuis le dashboard (roadmap n°075).
@@ -2382,9 +2432,29 @@ async function router(request, env) {
     }
     if (sub === 'embedtemplates' && parts.length === 5 && method === 'DELETE') {
       await requireGuildAccess(env, request, guildId);
-      const items = (await getEmbedTemplates(env, guildId)).filter((t) => t.id !== parts[4]);
+      const all = await getEmbedTemplates(env, guildId);
+      const deleted = all.find((t) => t.id === parts[4]);
+      const items = all.filter((t) => t.id !== parts[4]);
       await putEmbedTemplates(env, guildId, items);
+      // Corbeille d'embeds (roadmap n°222) : restaurable 7 jours.
+      if (deleted) await pushEmbedTrash(env, guildId, { name: deleted.name, embed: deleted.embed });
       return json({ ok: true }, env);
+    }
+
+    if (sub === 'embedtrash' && parts.length === 4 && method === 'GET') {
+      await requireGuildAccess(env, request, guildId);
+      return json(await getEmbedTrash(env, guildId), env);
+    }
+    if (sub === 'embedtrash' && parts[5] === 'restore' && parts.length === 6 && method === 'POST') {
+      await requireGuildAccess(env, request, guildId);
+      const entry = (await getEmbedTrash(env, guildId)).find((t) => t.id === parts[4]);
+      if (!entry) throw new HttpError(404, 'Modele introuvable dans la corbeille (expire ?).');
+      const items = await getEmbedTemplates(env, guildId);
+      const restored = { id: `${Date.now().toString(36)}${Math.random().toString(36).slice(2, 6)}`, name: entry.name, embed: entry.embed };
+      items.push(restored);
+      await putEmbedTemplates(env, guildId, items);
+      await removeEmbedTrash(env, guildId, entry.id);
+      return json(restored, env);
     }
 
     // --- Roles-reaction generiques (select menu, pas de restriction aux jeux) ---

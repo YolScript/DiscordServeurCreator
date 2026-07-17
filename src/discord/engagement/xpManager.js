@@ -10,6 +10,16 @@ const XP_PER_MESSAGE = 15;
 const MESSAGE_COOLDOWN_MS = 60_000;
 const XP_PER_VOICE_TICK = 10;
 
+// Objectif hebdo / quete (roadmap n°297) : debut de semaine = lundi 00:00,
+// heure du serveur qui heberge le bot (pas besoin de fuseau par guilde ici).
+function startOfWeekTimestamp() {
+  const now = new Date();
+  const day = now.getDay(); // 0 = dimanche
+  const diffToMonday = (day + 6) % 7;
+  const monday = new Date(now.getFullYear(), now.getMonth(), now.getDate() - diffToMonday);
+  return monday.getTime();
+}
+
 // Courbe d'XP configurable (roadmap n°082) : xpRate global (x0.5 a x3) et
 // multiplicateurs par salon (config.xpChannelBoosts = { channelId: mult }).
 // Cache memoire 5 min pour ne pas relire la config a chaque message.
@@ -25,6 +35,11 @@ async function getXpConfig(guildId) {
     excluded: new Set(config?.xpExcludedChannels || []),
     // Pause globale des automatisations (roadmap n°494).
     paused: !!config?.automationsPaused,
+    // XP bonus pour les boosters du serveur (roadmap n°293).
+    boosterMultiplier: Math.min(5, Math.max(1, Number(config?.xpBoosterMultiplier) || 1)),
+    // Objectif hebdo / quete (roadmap n°297) : 0 = desactive.
+    questGoal: Math.max(0, Number(config?.weeklyQuestGoal) || 0),
+    questBonusXp: Math.max(0, Number(config?.weeklyQuestBonusXp) || 200),
     expires: Date.now() + 5 * 60_000,
   };
   xpConfigCache.set(guildId, entry);
@@ -153,7 +168,9 @@ async function awardMessageXp(message) {
   if (message.author.bot || !message.guild || !message.member) return;
 
   try {
-    const { rate, boosts, excluded, paused } = await getXpConfig(message.guild.id);
+    const {
+      rate, boosts, excluded, paused, boosterMultiplier, questGoal, questBonusXp,
+    } = await getXpConfig(message.guild.id);
     // Pause globale des automatisations (roadmap n°494).
     if (paused) return;
     // Salon exclu (roadmap n°294) : sort AVANT de consommer le cooldown, pour
@@ -166,14 +183,41 @@ async function awardMessageXp(message) {
     messageCooldowns.set(cooldownKey, now + MESSAGE_COOLDOWN_MS);
 
     const boost = Math.min(5, Math.max(0.5, Number(boosts[message.channel.id]) || 1));
+    const booster = message.member.premiumSinceTimestamp ? boosterMultiplier : 1;
     const data = await getMemberBuffered(message.guild.id, message.author.id);
     const oldLevel = data.level;
-    data.xp += Math.round(XP_PER_MESSAGE * rate * boost);
+    data.xp += Math.round(XP_PER_MESSAGE * rate * boost * booster);
     data.messageCount += 1;
+    // Derniere activite (roadmap n°331) : precision a la minute pres (meme
+    // granularite que le cooldown XP), suffisant pour un seuil en jours.
+    data.lastMessageAt = now;
+
+    // Objectif hebdo / quete (roadmap n°297) : compteur remis a zero chaque
+    // lundi, recompense une seule fois par semaine des que le seuil tombe.
+    let questCompleted = false;
+    if (questGoal > 0) {
+      const weekStart = startOfWeekTimestamp();
+      if ((data.weeklyResetAt || 0) < weekStart) {
+        data.weeklyMessageCount = 0;
+        data.weeklyQuestClaimed = false;
+        data.weeklyResetAt = weekStart;
+      }
+      data.weeklyMessageCount = (data.weeklyMessageCount || 0) + 1;
+      if (data.weeklyMessageCount >= questGoal && !data.weeklyQuestClaimed) {
+        data.weeklyQuestClaimed = true;
+        data.xp += questBonusXp;
+        questCompleted = true;
+      }
+    }
+
     const newLevel = levelFromXp(data.xp);
     const leveledUp = newLevel > data.level;
     data.level = newLevel;
     queueXpWrite(message.guild.id, message.author.id, data);
+    if (questCompleted) {
+      await flushMemberNow(message.guild.id, message.author.id);
+      await message.channel.send(`🎯 <@${message.author.id}> a atteint l'objectif hebdo (${questGoal} messages) : +${questBonusXp} XP bonus !`).catch(() => {});
+    }
 
     if (leveledUp) {
       await flushMemberNow(message.guild.id, message.author.id);
@@ -198,15 +242,16 @@ async function tickVoiceXp(client) {
       // salon exclu de l'XP : ce sont deux informations distinctes.
       if (activeMembers.length) queueChannelMinutes(guild.id, channel.id, 5);
       // eslint-disable-next-line no-await-in-loop
-      const { rate, excluded, paused } = await getXpConfig(guild.id);
+      const { rate, excluded, paused, boosterMultiplier } = await getXpConfig(guild.id);
       // Pause globale des automatisations (roadmap n°494) : les stats
       // d'occupation restent suivies au-dessus, seul l'XP s'arrete.
       if (paused || excluded.has(channel.id)) continue;
       for (const member of activeMembers) {
         try {
+          const booster = member.premiumSinceTimestamp ? boosterMultiplier : 1;
           const data = await getMemberBuffered(guild.id, member.id);
           const oldLevel = data.level;
-          data.xp += Math.round(XP_PER_VOICE_TICK * rate);
+          data.xp += Math.round(XP_PER_VOICE_TICK * rate * booster);
           data.voiceMinutes += 5;
           const newLevel = levelFromXp(data.xp);
           const leveledUp = newLevel > data.level;

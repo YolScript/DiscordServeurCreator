@@ -101,6 +101,28 @@ async function createTicket(guild, member, form = null) {
   await ticketStore.add(guild.id, {
     channelId: channel.id, userId: member.id, status: 'open', createdAt: Date.now(), priority: normalizePriority(form?.urgence),
   });
+
+  // Assignation automatique equitable (roadmap n°306) : parmi le staff
+  // actuellement en service (role SERVICE STAFF), celui avec le moins de
+  // tickets ouverts assignes recoit ce nouveau ticket.
+  let autoAssigned = null;
+  if (config?.autoAssignTickets && config.staffActifRoleId) {
+    const onDutyMembers = [...guild.members.cache.filter((m) => m.roles.cache.has(config.staffActifRoleId)).values()];
+    if (onDutyMembers.length) {
+      const allTickets = await ticketStore.list(guild.id);
+      const openCounts = new Map(onDutyMembers.map((m) => [m.id, 0]));
+      allTickets.forEach((t) => {
+        if (t.status === 'open' && openCounts.has(t.assignedTo)) openCounts.set(t.assignedTo, openCounts.get(t.assignedTo) + 1);
+      });
+      const [chosenId] = [...openCounts.entries()].sort((a, b) => a[1] - b[1])[0];
+      const chosen = onDutyMembers.find((m) => m.id === chosenId);
+      if (chosen) {
+        await ticketStore.assign(guild.id, channel.id, chosen.id, chosen.user.tag);
+        autoAssigned = chosen;
+      }
+    }
+  }
+
   sendPushToGuild(guild.id, {
     title: '🎫 Nouveau ticket',
     body: `${member.user.username} a ouvert un ticket.`,
@@ -119,11 +141,16 @@ async function createTicket(guild, member, form = null) {
       ...(form.urgence ? [{ name: 'Urgence', value: form.urgence.slice(0, 100), inline: true }] : []),
     );
   }
+  if (autoAssigned) embed.addFields({ name: 'Assigne a', value: `<@${autoAssigned.id}>`, inline: true });
   const row = new ActionRowBuilder().addComponents(
     new ButtonBuilder().setCustomId(TICKET_CLAIM_ID).setLabel('Prendre en charge').setEmoji('🙋').setStyle(ButtonStyle.Secondary),
     new ButtonBuilder().setCustomId(TICKET_CLOSE_ID).setLabel('Fermer le ticket').setStyle(ButtonStyle.Danger),
   );
-  await channel.send({ content: `<@${member.id}>`, embeds: [embed], components: [row] });
+  await channel.send({
+    content: `<@${member.id}>${autoAssigned ? ` <@${autoAssigned.id}>` : ''}`,
+    embeds: [embed],
+    components: [row],
+  });
 
   return { channel, alreadyOpen: false };
 }
