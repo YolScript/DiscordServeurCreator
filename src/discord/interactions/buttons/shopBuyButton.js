@@ -26,7 +26,7 @@ async function handleShopBuyButton(interaction, itemId) {
     return;
   }
 
-  await economyStore.addBalance(interaction.guild.id, interaction.user.id, -item.price);
+  await economyStore.addBalance(interaction.guild.id, interaction.user.id, -item.price, `achat : ${item.name}`);
   if (item.roleId) await interaction.member.roles.add(item.roleId).catch(() => {});
   await recordPurchase(interaction.guild.id, interaction.user.id, item).catch(() => {});
 

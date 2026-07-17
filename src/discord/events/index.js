@@ -5,5 +5,6 @@ require('./guildMemberRemove');
 require('./presenceUpdate');
 require('./voiceStateUpdate');
 require('./messageCreate');
+require('./messageDelete');
 require('./messageReactionAdd');
 require('./interactionCreate');

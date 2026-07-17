@@ -28,8 +28,8 @@ async function handlePayCommand(interaction) {
   const tax = Math.floor((amount * taxPercent) / 100);
   const received = amount - tax;
 
-  await economyStore.addBalance(interaction.guild.id, interaction.user.id, -amount);
-  await economyStore.addBalance(interaction.guild.id, target.id, received);
+  await economyStore.addBalance(interaction.guild.id, interaction.user.id, -amount, `envoye a ${target.tag}`);
+  await economyStore.addBalance(interaction.guild.id, target.id, received, `recu de ${interaction.user.tag}`);
   await interaction.reply(`🪙 <@${interaction.user.id}> a envoye **${received}** pieces a <@${target.id}>${tax ? ` (taxe de ${taxPercent}% : -${tax})` : ''}.`);
 }
 

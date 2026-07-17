@@ -25,6 +25,9 @@ const rssWatcher = require('../automation/rssWatcher');
 const dailyPoll = require('../engagement/dailyPoll');
 const countdownChannel = require('../automation/countdownChannel');
 const threadAutoClose = require('../automation/threadAutoClose');
+const roleSalary = require('../automation/roleSalary');
+const dailyQuote = require('../automation/dailyQuote');
+const voiceAfkKick = require('../automation/voiceAfkKick');
 const logger = require('../../shared/logger');
 
 client.once(Events.ClientReady, async (readyClient) => {
@@ -76,4 +79,7 @@ client.once(Events.ClientReady, async (readyClient) => {
   dailyPoll.start();
   countdownChannel.start();
   threadAutoClose.start();
+  roleSalary.start();
+  dailyQuote.start();
+  voiceAfkKick.start();
 });

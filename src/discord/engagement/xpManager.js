@@ -142,7 +142,7 @@ async function awardLevelRewards(guildId, userId, triggered) {
   for (const lr of triggered) {
     if (lr.bonus) {
       // eslint-disable-next-line no-await-in-loop
-      await economyStore.addBalance(guildId, userId, lr.bonus).catch(() => {});
+      await economyStore.addBalance(guildId, userId, lr.bonus, `bonus palier niveau ${lr.level}`).catch(() => {});
     }
   }
 }

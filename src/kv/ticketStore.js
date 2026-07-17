@@ -55,6 +55,32 @@ async function rate(guildId, ticketId, stars) {
   return ticket;
 }
 
+// Priorite/tags geres cote staff depuis le dashboard (roadmap n°307,n°309),
+// apres creation — un modal Discord est deja limite a 3 champs texte pour
+// le formulaire d'ouverture, en ajouter la n'aurait fait qu'alourdir le flux
+// pour un membre qui ouvre un ticket.
+async function setPriority(guildId, ticketId, priority) {
+  const items = await list(guildId);
+  const ticket = items.find((t) => t.id === ticketId);
+  if (ticket) ticket.priority = priority;
+  await replaceAll(guildId, items);
+  return ticket;
+}
+
+async function setTags(guildId, ticketId, tags) {
+  const items = await list(guildId);
+  const ticket = items.find((t) => t.id === ticketId);
+  if (ticket) ticket.tags = tags;
+  await replaceAll(guildId, items);
+  return ticket;
+}
+
+// Limite de tickets ouverts simultanes par membre (roadmap n°313).
+async function countOpenByUser(guildId, userId) {
+  const items = await list(guildId);
+  return items.filter((t) => t.userId === userId && t.status === 'open').length;
+}
+
 module.exports = {
-  list, replaceAll, add, findByChannel, findOpenByUser, close, assign, rate,
+  list, replaceAll, add, findByChannel, findOpenByUser, close, assign, rate, setPriority, setTags, countOpenByUser,
 };

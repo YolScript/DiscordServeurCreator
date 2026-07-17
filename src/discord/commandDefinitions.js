@@ -345,6 +345,68 @@ const remindCommand = new SlashCommandBuilder()
   .addStringOption((o) => o.setName('message').setDescription('Ce que je dois te rappeler').setRequired(true).setMaxLength(500))
   .toJSON();
 
+// Mini-commandes fun (roadmap n°315).
+const eightballCommand = new SlashCommandBuilder()
+  .setName('8ball')
+  .setDescription('Pose une question a la boule magique.')
+  .addStringOption((o) => o.setName('question').setDescription('Ta question').setRequired(true).setMaxLength(200))
+  .toJSON();
+
+const coinflipCommand = new SlashCommandBuilder()
+  .setName('pile-ou-face')
+  .setDescription('Lance une piece.')
+  .toJSON();
+
+const diceCommand = new SlashCommandBuilder()
+  .setName('de')
+  .setDescription('Lance un de simple.')
+  .addIntegerOption((o) => o.setName('faces').setDescription('Nombre de faces (defaut 6)').setRequired(false).setMinValue(2).setMaxValue(1000))
+  .toJSON();
+
+// Notation avancee type JDR (roadmap n°375), distinct de /de.
+const rollCommand = new SlashCommandBuilder()
+  .setName('roll')
+  .setDescription('Lance des des en notation JDR (ex: 2d20+5).')
+  .addStringOption((o) => o.setName('notation').setDescription('Ex : 2d20+5, 4d6-1, d100').setRequired(true).setMaxLength(20))
+  .toJSON();
+
+// Commandes d'info manquantes (roadmap n°371).
+const avatarCommand = new SlashCommandBuilder()
+  .setName('avatar')
+  .setDescription('Affiche l\'avatar en grand.')
+  .addUserOption((o) => o.setName('membre').setDescription('Membre (toi par defaut)').setRequired(false))
+  .toJSON();
+
+const bannerCommand = new SlashCommandBuilder()
+  .setName('banner')
+  .setDescription('Affiche la banniere de profil en grand.')
+  .addUserOption((o) => o.setName('membre').setDescription('Membre (toi par defaut)').setRequired(false))
+  .toJSON();
+
+const serverinfoCommand = new SlashCommandBuilder()
+  .setName('serverinfo')
+  .setDescription('Informations sur ce serveur.')
+  .toJSON();
+
+const userinfoCommand = new SlashCommandBuilder()
+  .setName('userinfo')
+  .setDescription('Informations sur un membre.')
+  .addUserOption((o) => o.setName('membre').setDescription('Membre (toi par defaut)').setRequired(false))
+  .toJSON();
+
+const afkCommand = new SlashCommandBuilder()
+  .setName('afk')
+  .setDescription('Te marque AFK : le bot repond a ta place aux mentions.')
+  .addStringOption((o) => o.setName('raison').setDescription('Raison de ton absence').setRequired(false).setMaxLength(100))
+  .toJSON();
+
+// Reserve au staff ("opt-in staff", roadmap n°377).
+const snipeCommand = new SlashCommandBuilder()
+  .setName('snipe')
+  .setDescription('Affiche le dernier message supprime de ce salon.')
+  .setDefaultMemberPermissions(PermissionFlagsBits.ModerateMembers)
+  .toJSON();
+
 module.exports = [
   reportMessageCommand,
   cannedResponseCommand,
@@ -359,4 +421,7 @@ module.exports = [
   reglementTranslationCommand, streamerLinkCommand, streamerUnlinkCommand, streamerListCommand,
   reglementPanelCommand, rolesPanelCommand, linkGameCommand, gameProfileCommand,
   balanceCommand, dailyCommand, payCommand, shopCommand, economyLeaderboardCommand,
+  eightballCommand, coinflipCommand, diceCommand, rollCommand,
+  avatarCommand, bannerCommand, serverinfoCommand, userinfoCommand,
+  afkCommand, snipeCommand,
 ];

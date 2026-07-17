@@ -80,6 +80,13 @@ const handlePollPanelCommand = require('../commands/pollPanel');
 const handleReglementPanelCommand = require('../commands/reglementPanel');
 const handleRolesPanelCommand = require('../commands/rolesPanel');
 const handleRemindCommand = require('../commands/remind');
+const { handleEightballCommand, handleCoinflipCommand, handleDiceCommand } = require('../commands/fun');
+const handleRollCommand = require('../commands/roll');
+const {
+  handleAvatarCommand, handleBannerCommand, handleServerinfoCommand, handleUserinfoCommand,
+} = require('../commands/info');
+const handleAfkCommand = require('../commands/afk');
+const handleSnipeCommand = require('../commands/snipe');
 const logger = require('../../shared/logger');
 
 const commandHandlers = {
@@ -126,6 +133,16 @@ const commandHandlers = {
   'reglement-panel': handleReglementPanelCommand,
   'roles-panel': handleRolesPanelCommand,
   remind: handleRemindCommand,
+  '8ball': handleEightballCommand,
+  'pile-ou-face': handleCoinflipCommand,
+  de: handleDiceCommand,
+  roll: handleRollCommand,
+  avatar: handleAvatarCommand,
+  banner: handleBannerCommand,
+  serverinfo: handleServerinfoCommand,
+  userinfo: handleUserinfoCommand,
+  afk: handleAfkCommand,
+  snipe: handleSnipeCommand,
 };
 
 async function routeInteraction(interaction) {

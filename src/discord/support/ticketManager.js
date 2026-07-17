@@ -60,13 +60,27 @@ async function ensureTicketCategory(guild, config) {
   return category;
 }
 
+// Priorite normalisee (roadmap n°307) a partir du champ libre "urgence" du
+// formulaire d'ouverture : structuree pour etre triable au dashboard, sans
+// imposer un select menu que les modals Discord ne supportent pas.
+function normalizePriority(text) {
+  const t = (text || '').toLowerCase();
+  if (/haut|urgent|critique|high/.test(t)) return 'haute';
+  if (/bas|faible|low/.test(t)) return 'basse';
+  return 'normale';
+}
+
 // form (roadmap n°160) : { motif, details, urgence } saisis dans le modal
 // d'ouverture — affiches en embed pour que le staff ait le contexte direct.
 async function createTicket(guild, member, form = null) {
   const config = await guildConfigStore.find(guild.id);
-  const existing = await ticketStore.findOpenByUser(guild.id, member.id);
-  if (existing) {
-    const channel = await guild.channels.fetch(existing.channelId).catch(() => null);
+  // Limite configurable de tickets ouverts simultanes par membre (roadmap
+  // n°313, defaut 1 = comportement historique inchange).
+  const maxOpen = config?.maxOpenTicketsPerMember || 1;
+  const openCount = await ticketStore.countOpenByUser(guild.id, member.id);
+  if (openCount >= maxOpen) {
+    const existing = await ticketStore.findOpenByUser(guild.id, member.id);
+    const channel = existing ? await guild.channels.fetch(existing.channelId).catch(() => null) : null;
     if (channel) return { channel, alreadyOpen: true };
   }
 
@@ -85,7 +99,7 @@ async function createTicket(guild, member, form = null) {
   });
 
   await ticketStore.add(guild.id, {
-    channelId: channel.id, userId: member.id, status: 'open', createdAt: Date.now(),
+    channelId: channel.id, userId: member.id, status: 'open', createdAt: Date.now(), priority: normalizePriority(form?.urgence),
   });
   sendPushToGuild(guild.id, {
     title: '🎫 Nouveau ticket',

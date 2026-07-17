@@ -5,6 +5,7 @@ const publicVoiceManager = require('../roles/publicVoiceManager');
 const staffVoiceCreator = require('../roles/staffVoiceCreator');
 const gameVoiceCreator = require('../roles/gameVoiceCreator');
 const voiceOccupancy = require('../automation/voiceOccupancy');
+const inVoiceRole = require('../roles/inVoiceRole');
 const logger = require('../../shared/logger');
 
 client.on(Events.VoiceStateUpdate, (oldState, newState) => {
@@ -13,4 +14,5 @@ client.on(Events.VoiceStateUpdate, (oldState, newState) => {
   staffVoiceCreator.handleVoiceStateUpdate(oldState, newState).catch((err) => logger.error('staffVoiceCreator', err));
   gameVoiceCreator.handleVoiceStateUpdate(oldState, newState).catch((err) => logger.error('gameVoiceCreator', err));
   voiceOccupancy.handleVoiceStateUpdate(oldState, newState);
+  inVoiceRole.handleVoiceStateUpdate(oldState, newState).catch((err) => logger.error('inVoiceRole', err));
 });

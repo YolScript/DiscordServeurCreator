@@ -4431,17 +4431,47 @@ async function renderAutomationsPage(id, container = app) {
     </div>
   `).join('') || '<p class="muted">Aucune annonce programmee.</p>';
 
-  const ticketRows = tickets.map((t) => `
-    <div class="row" data-id="${t.id}" style="justify-content:space-between; margin-bottom:6px;">
-      <span>${channelName(t.channelId)} <span class="muted">(${escapeHtml(t.userId)})</span><button type="button" class="dp-copy-id-btn" data-copy-id="${t.userId}" title="Copier l'ID" aria-label="Copier l'ID de l'auteur du ticket">📋</button> — <span class="badge ${t.status === 'open' ? 'configured' : 'not-configured'}">${t.status === 'open' ? 'Ouvert' : 'Ferme'}</span>${t.assignedToTag ? ` <span class="muted">— pris en charge par ${escapeHtml(t.assignedToTag)}</span>` : ''}${t.rating ? ` <span class="muted">— ${'⭐'.repeat(t.rating)}</span>` : ''}</span>
-      ${t.status === 'open'
+  // Priorite/tags (roadmap n°307,n°309) : tri haute -> normale -> basse,
+  // priorite affichee en badge colore + select pour la reassigner, tags en
+  // champ texte libre separes par des virgules.
+  const PRIORITY_ORDER = { haute: 0, normale: 1, basse: 2 };
+  const PRIORITY_COLORS = { haute: 'var(--danger)', normale: 'var(--text-muted)', basse: 'var(--text-faint)' };
+  const ticketsSorted = [...tickets].sort((a, b) => (PRIORITY_ORDER[a.priority] ?? 1) - (PRIORITY_ORDER[b.priority] ?? 1));
+  const ticketRows = ticketsSorted.map((t) => `
+    <div class="row" data-id="${t.id}" style="justify-content:space-between; margin-bottom:6px; flex-wrap:wrap;">
+      <span>
+        <span style="color:${PRIORITY_COLORS[t.priority] || PRIORITY_COLORS.normale}; font-weight:700; font-size:0.76rem; text-transform:uppercase;">${escapeHtml(t.priority || 'normale')}</span>
+        ${channelName(t.channelId)} <span class="muted">(${escapeHtml(t.userId)})</span><button type="button" class="dp-copy-id-btn" data-copy-id="${t.userId}" title="Copier l'ID" aria-label="Copier l'ID de l'auteur du ticket">📋</button> — <span class="badge ${t.status === 'open' ? 'configured' : 'not-configured'}">${t.status === 'open' ? 'Ouvert' : 'Ferme'}</span>${t.assignedToTag ? ` <span class="muted">— pris en charge par ${escapeHtml(t.assignedToTag)}</span>` : ''}${t.rating ? ` <span class="muted">— ${'⭐'.repeat(t.rating)}</span>` : ''}${t.tags?.length ? ` <span class="muted">— 🏷️ ${t.tags.map((tag) => escapeHtml(tag)).join(', ')}</span>` : ''}
+      </span>
+      <span style="display:flex; gap:6px; align-items:center;">
+        <select class="ticket-priority-select" data-id="${t.id}" aria-label="Priorite" style="margin:0; font-size:0.78rem;">
+          ${['haute', 'normale', 'basse'].map((p) => `<option value="${p}" ${((t.priority || 'normale') === p) ? 'selected' : ''}>${p}</option>`).join('')}
+        </select>
+        <button type="button" class="btn secondary ticket-edit-tags" data-id="${t.id}" data-tags="${escapeHtml((t.tags || []).join(', '))}" title="Modifier les tags" aria-label="Modifier les tags">🏷️</button>
+        ${t.status === 'open'
     ? `<button class="btn danger close-ticket" data-id="${t.id}">Fermer</button>`
     : `<span style="display:flex; gap:6px;">
          <button class="btn secondary ticket-transcript" data-id="${t.id}" title="Telecharger la transcription (HTML)" aria-label="Telecharger la transcription du ticket">📄</button>
          <button class="btn secondary ticket-reopen" data-id="${t.id}" title="Rouvrir ce ticket (nouveau salon prive)" aria-label="Rouvrir le ticket">🔓</button>
        </span>`}
+      </span>
     </div>
   `).join('') || '<p class="muted">Aucun ticket pour le moment.</p>';
+
+  // Satisfaction moyenne par membre du staff (roadmap n°311), PRIVEE
+  // (dashboard uniquement, jamais publiee) : agregee depuis les tickets
+  // notes + assignes, aucune nouvelle donnee necessaire.
+  const staffRatings = new Map();
+  tickets.filter((t) => t.rating && t.assignedToTag).forEach((t) => {
+    const arr = staffRatings.get(t.assignedToTag) || [];
+    arr.push(t.rating);
+    staffRatings.set(t.assignedToTag, arr);
+  });
+  const staffRatingRows = [...staffRatings.entries()]
+    .map(([tag, arr]) => ({ tag, avg: arr.reduce((a, b) => a + b, 0) / arr.length, count: arr.length }))
+    .sort((a, b) => b.avg - a.avg)
+    .map((s) => `<div class="stats-top-row"><span class="stats-top-name">${escapeHtml(s.tag)}</span><span class="stats-top-value">${s.avg.toFixed(1)} ⭐ (${s.count} avis)</span></div>`)
+    .join('') || '<p class="muted">Aucun ticket note pour le moment.</p>';
 
   container.innerHTML = `
     <div class="inner">
@@ -4952,6 +4982,13 @@ async function renderAutomationsPage(id, container = app) {
           <button class="btn secondary" id="add-canned">Ajouter</button>
         </div>
         <textarea id="new-canned-text" maxlength="1900" placeholder="Texte de la reponse..." style="margin-top:6px;"></textarea>
+
+        <label style="margin-top:18px;" for="max-open-tickets">Tickets ouverts simultanes maximum par membre (roadmap n°313)</label>
+        <input type="number" id="max-open-tickets" value="${config?.maxOpenTicketsPerMember || 1}" min="1" style="max-width:120px;" />
+        <button class="btn secondary" id="save-max-tickets" style="margin-top:8px;">Enregistrer</button>
+
+        <h2 style="margin-top:18px; font-size:0.85rem;">⭐ Satisfaction moyenne par membre du staff (prive, roadmap n°311)</h2>
+        <div id="staff-ratings-list">${staffRatingRows}</div>
 
         <h2 style="margin-top:18px; font-size:0.85rem;">Tickets</h2>
         <div id="tickets-list">${ticketRows}</div>
@@ -5643,6 +5680,42 @@ async function renderAutomationsPage(id, container = app) {
     });
   });
 
+  document.getElementById('save-max-tickets').addEventListener('click', async () => {
+    try {
+      const maxOpenTicketsPerMember = Math.max(1, Number(document.getElementById('max-open-tickets').value) || 1);
+      await Api.updateConfig(id, { maxOpenTicketsPerMember });
+      showToast('Limite enregistree.');
+    } catch (err) {
+      showToast(err.message, 'error');
+    }
+  });
+
+  container.querySelectorAll('.ticket-priority-select').forEach((sel) => {
+    sel.addEventListener('change', async () => {
+      try {
+        await Api.updateTicket(id, sel.dataset.id, { priority: sel.value });
+        showToast('Priorite mise a jour.');
+      } catch (err) {
+        showToast(err.message, 'error');
+      }
+    });
+  });
+
+  container.querySelectorAll('.ticket-edit-tags').forEach((btn) => {
+    btn.addEventListener('click', async () => {
+      const answer = window.prompt('Tags (separes par des virgules) :', btn.dataset.tags || '');
+      if (answer === null) return;
+      const tags = answer.split(',').map((s) => s.trim()).filter(Boolean).slice(0, 10);
+      try {
+        await Api.updateTicket(id, btn.dataset.id, { tags });
+        showToast('Tags mis a jour.');
+        await renderAutomationsPage(id, container);
+      } catch (err) {
+        showToast(err.message, 'error');
+      }
+    });
+  });
+
   container.querySelectorAll('.close-ticket').forEach((btn) => {
     btn.addEventListener('click', async () => {
       if (!window.confirm('Fermer ce ticket ? Le salon sera supprime.')) return;
@@ -5924,11 +5997,12 @@ async function exportStructureMockup(guildName, channels, structRoles, realMembe
 
 async function renderSecurityPage(id, container = app) {
   container.innerHTML = skeletonHtml();
-  const [snapshots, trashItems, currentChannels, currentRoles] = await Promise.all([
+  const [snapshots, trashItems, currentChannels, currentRoles, securityConfig] = await Promise.all([
     Api.securitySnapshots(id),
     Api.trash(id).catch(() => []),
     Api.channels(id).catch(() => []),
     Api.roles(id).catch(() => []),
+    Api.config(id).catch(() => ({})),
   ]);
 
   // Corbeille (roadmap n°138) : elements supprimes restaurables 24h.
@@ -6038,6 +6112,24 @@ async function renderSecurityPage(id, container = app) {
         <label class="dp-toggle-row" style="margin-top:6px;"><span>Uniquement les messages avec un lien</span><input type="checkbox" id="purge-links-only" /></label>
         <button class="btn danger" id="purge-btn" style="margin-top:10px;">🧹 Purger</button>
       `, { id: 'sec-purge' })}
+
+      ${sectionHtml('Liste blanche (roadmap n°333)', `
+        <p class="muted">IDs Discord jamais bannables depuis le dashboard ou via /tempban, meme par erreur.</p>
+        <div id="protected-ids-list">${(securityConfig?.protectedUserIds || []).map((uid) => `
+          <div class="row" style="justify-content:space-between; margin-bottom:6px;">
+            <span>${escapeHtml(uid)}</span>
+            <button type="button" class="btn danger delete-protected-id" data-id="${uid}">Retirer</button>
+          </div>`).join('') || '<p class="muted">Aucun ID protege.</p>'}</div>
+        <div class="row" style="margin-top:10px; gap:8px;">
+          <input type="text" id="new-protected-id" placeholder="ID Discord a proteger" style="flex:1; margin:0;" />
+          <button class="btn secondary" id="add-protected-id">Ajouter</button>
+        </div>
+      `, { id: 'sec-protected-ids' })}
+
+      ${sectionHtml('Mode maintenance (roadmap n°339)', `
+        <p class="muted">Verrouille ce serveur en LECTURE SEULE sur le dashboard (aucune modification possible, meme par un acces delegue) — utile pendant une intervention manuelle sur le serveur Discord.</p>
+        <label class="dp-toggle-row"><span>Dashboard en lecture seule</span><input type="checkbox" id="maintenance-toggle" ${securityConfig?.dashboardMaintenanceMode ? 'checked' : ''} /></label>
+      `, { id: 'sec-maintenance' })}
     </div>
   `;
 
@@ -6268,6 +6360,39 @@ async function renderSecurityPage(id, container = app) {
       showToast(err.message, 'error');
     } finally {
       btn.disabled = false;
+    }
+  });
+
+  document.getElementById('add-protected-id').addEventListener('click', async () => {
+    const uid = document.getElementById('new-protected-id').value.trim();
+    if (!/^\d{5,25}$/.test(uid)) { showToast('ID Discord invalide.', 'error'); return; }
+    try {
+      const protectedUserIds = [...new Set([...(securityConfig?.protectedUserIds || []), uid])];
+      await Api.updateConfig(id, { protectedUserIds });
+      showToast('ID protege ajoute.');
+      await renderSecurityPage(id, container);
+    } catch (err) {
+      showToast(err.message, 'error');
+    }
+  });
+  container.querySelectorAll('.delete-protected-id').forEach((btn) => {
+    btn.addEventListener('click', () => {
+      undoableDelete(btn, 'ID retire de la liste blanche.', async () => {
+        const protectedUserIds = (securityConfig?.protectedUserIds || []).filter((u) => u !== btn.dataset.id);
+        await Api.updateConfig(id, { protectedUserIds });
+      });
+    });
+  });
+
+  // Mode maintenance (roadmap n°339) : le toggle lui-meme passe par PATCH
+  // config, exempte du blocage cote worker (sinon impossible a desactiver).
+  document.getElementById('maintenance-toggle').addEventListener('change', async (e) => {
+    try {
+      await Api.updateConfig(id, { dashboardMaintenanceMode: e.target.checked });
+      showToast(e.target.checked ? 'Mode maintenance active : dashboard en lecture seule.' : 'Mode maintenance desactive.');
+    } catch (err) {
+      showToast(err.message, 'error');
+      e.target.checked = !e.target.checked;
     }
   });
 
@@ -6959,7 +7084,7 @@ const TIMEZONE_OPTIONS = [
 
 async function renderStatsPage(id, container = app) {
   container.innerHTML = skeletonHtml('chart');
-  const [stats, xpData, statMembers, ecoAccounts, statChannels, voiceChannelStats, statConfig] = await Promise.all([
+  const [stats, xpData, statMembers, ecoAccounts, statChannels, voiceChannelStats, statConfig, statRoles, channelMsgStats] = await Promise.all([
     Api.stats(id),
     Api.xp(id).catch(() => ({})),
     Api.members(id).catch(() => []),
@@ -6967,12 +7092,69 @@ async function renderStatsPage(id, container = app) {
     Api.channels(id).catch(() => []),
     Api.voiceChannelStats(id).catch(() => ({})),
     Api.config(id).catch(() => ({})),
+    Api.roles(id).catch(() => []),
+    Api.channelMessageStats(id).catch(() => ({})),
   ]);
 
   const memberPoints = stats.map((s) => s.memberCount);
   const messagePoints = stats.map((s) => s.messageCount);
   const lastDate = stats.length ? stats[stats.length - 1].date : null;
   const firstDate = stats.length ? stats[0].date : null;
+
+  // Compteur de boosts avec historique (roadmap n°330) : reutilise le
+  // releve journalier existant (statsStore), zero nouveau store.
+  const boostPoints = stats.map((s) => s.boostCount || 0);
+  const currentBoosts = boostPoints.length ? boostPoints[boostPoints.length - 1] : 0;
+
+  // Top salons par messages sur 7/30 jours (roadmap n°324).
+  const topChannelsFor = (days) => {
+    const cutoff = new Date(Date.now() - days * 86400000).toISOString().slice(0, 10);
+    const totals = Object.entries(channelMsgStats).map(([channelId, byDate]) => {
+      const total = Object.entries(byDate).filter(([d]) => d >= cutoff).reduce((sum, [, c]) => sum + c, 0);
+      return { channelId, total };
+    }).filter((e) => e.total > 0).sort((a, b) => b.total - a.total).slice(0, 10);
+    return totals;
+  };
+  const topChannels7 = topChannelsFor(7);
+  const topChannels30 = topChannelsFor(30);
+  const topChannelRowsHtml = (entries) => entries.map((e) => `
+    <div class="stats-top-row"><span class="stats-top-name">🔤 ${escapeHtml(statChannels.find((c) => c.id === e.channelId)?.name || 'salon supprime')}</span><span class="stats-top-value">${e.total.toLocaleString('fr-FR')} msg</span></div>
+  `).join('') || '<p class="muted">Pas encore assez de donnees.</p>';
+
+  // Repartition des membres par role, en camembert SVG (roadmap n°326).
+  const roleDistribution = (() => {
+    const realRoles = statRoles.filter((r) => r.name !== '@everyone').sort((a, b) => b.position - a.position);
+    const counts = realRoles.map((r) => ({
+      role: r,
+      count: statMembers.filter((m) => (m.roles || []).includes(r.id)).length,
+    })).filter((e) => e.count > 0).sort((a, b) => b.count - a.count).slice(0, 10);
+    const total = counts.reduce((sum, e) => sum + e.count, 0) || 1;
+    let angle = 0;
+    const R = 70;
+    const CX = 80;
+    const CY = 80;
+    const slices = counts.map((e) => {
+      const frac = e.count / total;
+      const startAngle = angle;
+      angle += frac * 360;
+      const endAngle = angle;
+      const large = (endAngle - startAngle) > 180 ? 1 : 0;
+      const toXY = (deg) => [CX + R * Math.cos((deg - 90) * Math.PI / 180), CY + R * Math.sin((deg - 90) * Math.PI / 180)];
+      const [x1, y1] = toXY(startAngle);
+      const [x2, y2] = toXY(endAngle);
+      const color = e.role.color ? `#${e.role.color.toString(16).padStart(6, '0')}` : '#7289da';
+      return { path: `M${CX},${CY} L${x1.toFixed(1)},${y1.toFixed(1)} A${R},${R} 0 ${large} 1 ${x2.toFixed(1)},${y2.toFixed(1)} Z`, color, role: e.role, count: e.count, pct: Math.round(frac * 100) };
+    });
+    return { slices, total: counts.reduce((sum, e) => sum + e.count, 0) };
+  })();
+  const roleDistributionSvg = roleDistribution.slices.length
+    ? `<svg viewBox="0 0 160 160" width="160" height="160" role="img" aria-label="Repartition des membres par role">
+        ${roleDistribution.slices.map((s) => `<path d="${s.path}" fill="${s.color}"><title>${escapeHtml(s.role.name)} : ${s.count} (${s.pct}%)</title></path>`).join('')}
+      </svg>`
+    : '<p class="muted">Pas assez de donnees de roles.</p>';
+  const roleDistributionLegend = roleDistribution.slices.map((s) => `
+    <div class="row" style="justify-content:space-between; gap:8px; font-size:0.8rem; margin-bottom:2px;"><span><span style="display:inline-block; width:9px; height:9px; border-radius:2px; background:${s.color}; margin-right:6px;"></span>${escapeHtml(s.role.name)}</span><span class="muted">${s.count} (${s.pct}%)</span></div>
+  `).join('');
 
   // Comparaison de periode (roadmap n°035) : 7 derniers jours vs 7 precedents.
   const sum = (arr) => arr.reduce((a, b) => a + (b || 0), 0);
@@ -7154,8 +7336,38 @@ async function renderStatsPage(id, container = app) {
         <p class="muted">Temps cumule d'occupation de chaque salon vocal (heures totales, tous membres confondus).</p>
         ${voiceChannelRows}
       `, { id: 'stats-voice-channels' })}
+
+      ${sectionHtml('Top salons par messages (roadmap n°324)', `
+        <div class="row" style="gap:8px; margin-bottom:10px;">
+          <button type="button" class="btn top-channels-period" data-days="7">7 jours</button>
+          <button type="button" class="btn secondary top-channels-period" data-days="30">30 jours</button>
+        </div>
+        <div id="top-channels-list">${topChannelRowsHtml(topChannels7)}</div>
+      `, { id: 'stats-top-channels' })}
+
+      ${sectionHtml('Repartition des membres par role (roadmap n°326)', `
+        <div class="row" style="gap:20px; align-items:flex-start; flex-wrap:wrap;">
+          <div>${roleDistributionSvg}</div>
+          <div style="flex:1; min-width:180px;">${roleDistributionLegend || '<p class="muted">Pas assez de donnees.</p>'}</div>
+        </div>
+      `, { id: 'stats-role-distribution' })}
+
+      ${sectionHtml('Compteur de boosts (roadmap n°330)', `
+        <p class="muted">Actuellement : <strong>${currentBoosts}</strong> boost(s).</p>
+        ${boostPoints.some((v) => v > 0) ? lineChartSvg(boostPoints, { color: '#f47fff' }) : '<p class="muted">Pas encore de boost enregistre.</p>'}
+      `, { id: 'stats-boosts' })}
     </div>
   `;
+
+  // Bascule 7/30 jours pour le top salons (roadmap n°324).
+  container.querySelectorAll('.top-channels-period').forEach((btn) => {
+    btn.addEventListener('click', () => {
+      container.querySelectorAll('.top-channels-period').forEach((b) => b.classList.add('secondary'));
+      btn.classList.remove('secondary');
+      const entries = Number(btn.dataset.days) === 30 ? topChannels30 : topChannels7;
+      container.querySelector('#top-channels-list').innerHTML = topChannelRowsHtml(entries);
+    });
+  });
 
   // Bascule heure locale / heure serveur sur la heatmap (roadmap n°203).
   container.querySelectorAll('.heatmap-tz-btn').forEach((btn) => {

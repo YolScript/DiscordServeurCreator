@@ -11,6 +11,7 @@ const pendingPanelActionsKey = (guildId) => `guild:${guildId}:pendingpanelaction
 const statsKey = (guildId) => `guild:${guildId}:stats`;
 const voiceChannelStatsKey = (guildId) => `guild:${guildId}:voicechannelstats`;
 const pushSubsKey = (guildId) => `guild:${guildId}:pushsubs`;
+const channelMsgStatsKey = (guildId) => `guild:${guildId}:channelmsgstats`;
 const embedTemplatesKey = (guildId) => `guild:${guildId}:embedtemplates`;
 const reactionRolesKey = (guildId) => `guild:${guildId}:reactionroles`;
 const shopKey = (guildId) => `guild:${guildId}:shop`;
@@ -114,6 +115,12 @@ export async function getVoiceChannelStats(env, guildId) {
 // cette meme cle KV directement pour envoyer les notifications.
 export const getPushSubscriptions = (env, guildId) => getList(env, pushSubsKey(guildId));
 export const putPushSubscriptions = (env, guildId, items) => putList(env, pushSubsKey(guildId), items);
+
+// Top salons par messages (roadmap n°324) : { [channelId]: { [date]: count } }.
+export async function getChannelMessageStats(env, guildId) {
+  const raw = await env.GUILD_KV.get(channelMsgStatsKey(guildId));
+  return raw ? JSON.parse(raw) : {};
+}
 
 export const getEmbedTemplates = (env, guildId) => getList(env, embedTemplatesKey(guildId));
 

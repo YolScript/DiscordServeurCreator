@@ -18,7 +18,11 @@ async function handleDailyCommand(interaction) {
 
   const reward = MIN_REWARD + Math.floor(Math.random() * (MAX_REWARD - MIN_REWARD + 1));
   const updated = await economyStore.claimDaily(interaction.guild.id, interaction.user.id, reward);
-  await interaction.reply(`🪙 Tu recuperes **${reward}** pieces ! Solde : **${updated.balance}**.`);
+  // Streak (roadmap n°304) : le montant reellement recu est deja bonifie
+  // dans claimDaily, on l'affiche depuis la derniere transaction loggee.
+  const gained = updated.transactions[0]?.amount ?? reward;
+  const streakLine = updated.dailyStreak > 1 ? ` (streak de **${updated.dailyStreak}** jours, bonus inclus)` : '';
+  await interaction.reply(`🪙 Tu recuperes **${gained}** pieces${streakLine} ! Solde : **${updated.balance}**.`);
 }
 
 module.exports = handleDailyCommand;

@@ -14,6 +14,7 @@ import {
   getLevelRoles, putLevelRoles,
   getVoiceChannelStats,
   getPushSubscriptions, putPushSubscriptions,
+  getChannelMessageStats,
   getReferralRoles, putReferralRoles, getReferralCounts,
   getStreamerLinks, putStreamerLinks,
   getScheduledTasks, putScheduledTasks,
@@ -482,6 +483,17 @@ async function router(request, env) {
     if (parts.length === 3) throw new HttpError(404, 'Route inconnue.');
 
     const sub = parts[3];
+
+    // Mode maintenance (roadmap n°339) : verrouille le dashboard en lecture
+    // seule pour ce serveur. Exempte les GET (lecture toujours permise) et
+    // la route config elle-meme (sinon personne ne pourrait jamais le
+    // desactiver une fois active).
+    if (method !== 'GET' && sub !== 'config') {
+      const maintenanceConfig = await getGuildConfig(env, guildId);
+      if (maintenanceConfig?.dashboardMaintenanceMode) {
+        throw new HttpError(503, 'Dashboard en mode maintenance (lecture seule). Desactive-le depuis Securite pour reprendre les modifications.');
+      }
+    }
 
     // --- Generation du serveur depuis le dashboard (equivalent web de
     // /setup) : depose une demande dans une file dediee, sondee par le bot
@@ -1111,6 +1123,12 @@ async function router(request, env) {
       const { minutes } = await readJson(request);
       const mins = Number(minutes);
       if (!Number.isFinite(mins) || mins < 0 || mins > 40320) throw new HttpError(400, 'Duree invalide (0 a 40320 minutes).');
+      // Liste blanche d'IDs proteges (roadmap n°333) : jamais sanctionnables
+      // via le dashboard, meme par erreur ou par un acces dashboard delegue.
+      const guildConfigForProtect = await getGuildConfig(env, guildId);
+      if (mins > 0 && (guildConfigForProtect?.protectedUserIds || []).includes(targetId)) {
+        throw new HttpError(403, 'Ce membre est sur la liste blanche (protege), impossible de le sanctionner depuis le dashboard.');
+      }
       const until = mins === 0 ? null : new Date(Date.now() + mins * 60000).toISOString();
       const res = await botFetch(env, `/guilds/${guildId}/members/${targetId}`, {
         method: 'PATCH',
@@ -1696,6 +1714,19 @@ async function router(request, env) {
       await requireGuildAccess(env, request, guildId);
       return json(await getTickets(env, guildId), env);
     }
+
+    // Priorite/tags poses par le staff depuis le dashboard (roadmap n°307,n°309).
+    if (sub === 'tickets' && parts.length === 5 && method === 'PATCH') {
+      await requireGuildAccess(env, request, guildId);
+      const { priority, tags } = await readJson(request);
+      const tickets = await getTickets(env, guildId);
+      const ticket = tickets.find((t) => t.id === parts[4]);
+      if (!ticket) throw new HttpError(404, 'Ticket introuvable.');
+      if (priority !== undefined) ticket.priority = priority;
+      if (tags !== undefined) ticket.tags = tags;
+      await putTickets(env, guildId, tickets);
+      return json(ticket, env);
+    }
     // Reouverture d'un ticket ferme (roadmap n°202) : recree un salon prive
     // pour le meme demandeur (l'original est supprime a la fermeture).
     if (sub === 'tickets' && parts[5] === 'reopen' && parts.length === 6 && method === 'POST') {
@@ -1972,6 +2003,11 @@ async function router(request, env) {
     if (sub === 'voicechannelstats' && parts.length === 4 && method === 'GET') {
       await requireGuildAccess(env, request, guildId);
       return json(await getVoiceChannelStats(env, guildId), env);
+    }
+
+    if (sub === 'channelmessagestats' && parts.length === 4 && method === 'GET') {
+      await requireGuildAccess(env, request, guildId);
+      return json(await getChannelMessageStats(env, guildId), env);
     }
 
     // --- Panneaux (reglement/roles/poll/ticket/embed) : depose une action

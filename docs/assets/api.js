@@ -152,6 +152,7 @@ window.Api = (function api() {
     deleteScheduled: (guildId, taskId) => request(`/api/guilds/${guildId}/scheduled/${taskId}`, { method: 'DELETE' }),
 
     tickets: (guildId) => request(`/api/guilds/${guildId}/tickets`),
+    updateTicket: (guildId, ticketId, patch) => request(`/api/guilds/${guildId}/tickets/${ticketId}`, { method: 'PATCH', body: JSON.stringify(patch) }),
     closeTicket: (guildId, ticketId) => request(`/api/guilds/${guildId}/tickets/${ticketId}/close`, { method: 'POST' }),
 
     pushVapidKey: () => request('/api/push-vapid-key'),
@@ -171,6 +172,7 @@ window.Api = (function api() {
     moderationStats: (guildId) => request(`/api/guilds/${guildId}/moderation-stats`),
     stats: (guildId) => request(`/api/guilds/${guildId}/stats`),
     voiceChannelStats: (guildId) => request(`/api/guilds/${guildId}/voicechannelstats`),
+    channelMessageStats: (guildId) => request(`/api/guilds/${guildId}/channelmessagestats`),
     setRolePositions: (guildId, positions) => request(`/api/guilds/${guildId}/roles/positions`, { method: 'PATCH', body: JSON.stringify({ positions }) }),
     setChannelPositions: (guildId, positions) => request(`/api/guilds/${guildId}/channels/positions`, { method: 'PATCH', body: JSON.stringify({ positions }) }),
     setRoleColor: (guildId, roleId, color) => request(`/api/guilds/${guildId}/roles/${roleId}`, { method: 'PATCH', body: JSON.stringify({ color }) }),
