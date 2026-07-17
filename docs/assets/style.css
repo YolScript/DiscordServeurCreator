@@ -1585,6 +1585,17 @@ button.embed-json-jump { background: none; border: none; padding: 0; font-family
 
 .dp-empty-state { text-align: center; padding: 22px 12px; }
 
+/* Popover historique des actions (n°113). */
+#dp-history-pop {
+  position: fixed; top: 54px; right: 12px; z-index: 120; width: 320px; max-width: calc(100vw - 24px);
+  max-height: 60vh; overflow-y: auto;
+  background: var(--bg-elevated); border: 1px solid var(--border-strong); border-radius: 10px;
+  padding: 12px; box-shadow: 0 14px 40px -10px rgba(0,0,0,0.6); font-size: 0.82rem;
+}
+.dp-history-row { display: flex; flex-direction: column; gap: 1px; padding: 6px 0; border-bottom: 1px solid var(--border); }
+.dp-history-row:last-of-type { border-bottom: none; }
+.dp-history-row a { color: var(--accent); }
+
 /* Barre de navigation inferieure mobile (n°123). */
 /* CAUSE RACINE du bug "visible sur PC" : display:flex (style auteur) ecrase
    le display:none que le navigateur applique a l'attribut [hidden]. Cette

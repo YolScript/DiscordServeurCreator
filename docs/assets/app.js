@@ -7877,6 +7877,53 @@ async function init() {
     }, { passive: true });
   }
 
+  // Historique des dernieres actions (roadmap n°113) : popover topbar avec
+  // les 10 dernieres entrees de l'audit log ; les suppressions pointent vers
+  // la corbeille (l'« annuler » de ces actions).
+  const historyBtn = document.getElementById('history-toggle-btn');
+  if (historyBtn && guildId) {
+    historyBtn.style.display = '';
+    historyBtn.addEventListener('click', async (e) => {
+      e.stopPropagation();
+      const existingPop = document.getElementById('dp-history-pop');
+      if (existingPop) { existingPop.remove(); return; }
+      const pop = document.createElement('div');
+      pop.id = 'dp-history-pop';
+      pop.innerHTML = '<p class="muted" style="margin:0;">Chargement...</p>';
+      document.body.appendChild(pop);
+      try {
+        // L'audit log est stocke plus recent en premier (unshift cote worker).
+        const entries = (await Api.auditLog(guildId)).slice(0, 10);
+        pop.innerHTML = `
+          <p class="dp-block-title" style="margin:0 0 8px;">🕘 Dernieres actions</p>
+          ${entries.map((entry) => `
+            <div class="dp-history-row">
+              <strong>${escapeHtml(entry.title || '')}</strong>
+              <span class="muted">${escapeHtml((entry.description || '').slice(0, 90))}</span>
+              <span class="muted" style="font-size:0.7rem;">${new Date(entry.timestamp || Date.now()).toLocaleString('fr-FR', { day: '2-digit', month: '2-digit', hour: '2-digit', minute: '2-digit' })}${/supprim/i.test(entry.title || '') ? ' · <a href="#" class="dp-history-trash">corbeille ♻️</a>' : ''}</span>
+            </div>`).join('') || '<p class="muted">Aucune action recente.</p>'}
+          <button type="button" class="btn secondary" id="dp-history-all" style="width:100%; margin-top:8px;">Tout l'historique</button>`;
+        pop.querySelector('#dp-history-all').addEventListener('click', () => {
+          pop.remove();
+          withViewTransition(() => renderSettingsPanel(guildId, 'auditlog'));
+        });
+        pop.querySelectorAll('.dp-history-trash').forEach((link) => {
+          link.addEventListener('click', (ev) => {
+            ev.preventDefault();
+            pop.remove();
+            withViewTransition(() => renderSettingsPanel(guildId, 'securite', 'sec-trash'));
+          });
+        });
+      } catch (err) {
+        pop.innerHTML = `<p class="muted" style="margin:0;">${escapeHtml(err.message)}</p>`;
+      }
+    });
+    document.addEventListener('click', (e) => {
+      const pop = document.getElementById('dp-history-pop');
+      if (pop && !pop.contains(e.target) && e.target !== historyBtn) pop.remove();
+    });
+  }
+
   // Mode compact (roadmap n°111) : densite d'affichage reduite via une
   // classe sur body, memorisee par appareil.
   const densityBtn = document.getElementById('density-toggle-btn');
