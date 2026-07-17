@@ -3998,7 +3998,10 @@ async function renderAutomationsPage(id, container = app) {
       <span>${channelName(t.channelId)} <span class="muted">(${escapeHtml(t.userId)})</span> — <span class="badge ${t.status === 'open' ? 'configured' : 'not-configured'}">${t.status === 'open' ? 'Ouvert' : 'Ferme'}</span>${t.assignedToTag ? ` <span class="muted">— pris en charge par ${escapeHtml(t.assignedToTag)}</span>` : ''}${t.rating ? ` <span class="muted">— ${'⭐'.repeat(t.rating)}</span>` : ''}</span>
       ${t.status === 'open'
     ? `<button class="btn danger close-ticket" data-id="${t.id}">Fermer</button>`
-    : `<button class="btn secondary ticket-transcript" data-id="${t.id}" title="Telecharger la transcription (HTML)" aria-label="Telecharger la transcription du ticket">📄</button>`}
+    : `<span style="display:flex; gap:6px;">
+         <button class="btn secondary ticket-transcript" data-id="${t.id}" title="Telecharger la transcription (HTML)" aria-label="Telecharger la transcription du ticket">📄</button>
+         <button class="btn secondary ticket-reopen" data-id="${t.id}" title="Rouvrir ce ticket (nouveau salon prive)" aria-label="Rouvrir le ticket">🔓</button>
+       </span>`}
     </div>
   `).join('') || '<p class="muted">Aucun ticket pour le moment.</p>';
 
@@ -5054,6 +5057,22 @@ async function renderAutomationsPage(id, container = app) {
         await renderAutomationsPage(id, container);
       } catch (err) {
         showToast(err.message, 'error');
+      }
+    });
+  });
+
+  // Reouverture d'un ticket ferme (roadmap n°202).
+  container.querySelectorAll('.ticket-reopen').forEach((btn) => {
+    btn.addEventListener('click', async () => {
+      if (!window.confirm('Rouvrir ce ticket ? Un nouveau salon prive sera cree pour le membre.')) return;
+      btn.disabled = true;
+      try {
+        await Api.reopenTicket(id, btn.dataset.id);
+        showToast('Ticket rouvert : nouveau salon cree.');
+        await renderAutomationsPage(id, container);
+      } catch (err) {
+        showToast(err.message, 'error');
+        btn.disabled = false;
       }
     });
   });
@@ -7968,6 +7987,18 @@ async function init() {
     // renderPreviewPage / navigation ailleurs : re-evaluer a chaque rendu.
     window.__updateMobileTabbar = updateTabbar;
   }
+
+  // Bandeau hors-ligne (roadmap n°207) : previent que les donnees affichees
+  // viennent du cache tant que la connexion n'est pas revenue.
+  const offlineBanner = document.createElement('div');
+  offlineBanner.id = 'dsc-offline-banner';
+  offlineBanner.textContent = '📡 Hors ligne — donnees en cache, les modifications sont impossibles.';
+  offlineBanner.style.cssText = 'display:none; position:fixed; top:0; left:0; right:0; z-index:300; background:var(--warning); color:#1a1013; font-size:0.8rem; font-weight:600; text-align:center; padding:6px;';
+  document.body.appendChild(offlineBanner);
+  const paintOnline = () => { offlineBanner.style.display = navigator.onLine ? 'none' : 'block'; };
+  window.addEventListener('online', () => { paintOnline(); showToast('Connexion retablie.'); });
+  window.addEventListener('offline', paintOnline);
+  paintOnline();
 
   // Pull-to-refresh (roadmap n°125), telephone uniquement : tirer vers le
   // bas tout en haut de la page pour recharger les donnees fraiches.

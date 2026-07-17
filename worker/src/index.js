@@ -1540,6 +1540,39 @@ async function router(request, env) {
       await requireGuildAccess(env, request, guildId);
       return json(await getTickets(env, guildId), env);
     }
+    // Reouverture d'un ticket ferme (roadmap n°202) : recree un salon prive
+    // pour le meme demandeur (l'original est supprime a la fermeture).
+    if (sub === 'tickets' && parts[5] === 'reopen' && parts.length === 6 && method === 'POST') {
+      const session = await requireGuildAccess(env, request, guildId);
+      const tickets = await getTickets(env, guildId);
+      const ticket = tickets.find((t) => t.id === parts[4]);
+      if (!ticket) throw new HttpError(404, 'Ticket introuvable.');
+      if (ticket.status === 'open') throw new HttpError(400, 'Ce ticket est deja ouvert.');
+      const config = (await getGuildConfig(env, guildId)) || {};
+      const allowedRoles = (config.ticketAllowedRoleIds || [config.moderateurRoleId, config.adminRoleId]).filter(Boolean);
+      const channel = await botFetchJson(env, `/guilds/${guildId}/channels`, {
+        method: 'POST',
+        body: JSON.stringify({
+          name: toSmallCaps(`ticket-rouvert-${ticket.id.slice(-4)}`),
+          type: 0,
+          permission_overwrites: [
+            { id: guildId, type: 0, deny: '1024', allow: '0' },
+            { id: ticket.userId, type: 1, allow: '3072', deny: '0' },
+            ...allowedRoles.map((rid) => ({ id: rid, type: 0, allow: '3072', deny: '0' })),
+          ],
+        }),
+      });
+      await botFetch(env, `/channels/${channel.id}/messages`, {
+        method: 'POST',
+        body: JSON.stringify({ content: `🔓 Ticket rouvert par le staff. <@${ticket.userId}>, tu peux reprendre la conversation ici.` }),
+      });
+      ticket.status = 'open';
+      ticket.channelId = channel.id;
+      await putTickets(env, guildId, tickets);
+      await logAudit(env, guildId, { title: 'Ticket rouvert', description: `${session.username} a rouvert le ticket ${ticket.id}.` });
+      return json({ ok: true, channelId: channel.id }, env);
+    }
+
     // Transcription d'un ticket ferme (roadmap n°158), ecrite par le bot a
     // la fermeture, conservee 30 jours.
     if (sub === 'tickets' && parts[5] === 'transcript' && parts.length === 6 && method === 'GET') {

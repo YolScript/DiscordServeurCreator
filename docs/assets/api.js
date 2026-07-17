@@ -68,6 +68,7 @@ window.Api = (function api() {
     trash: (guildId) => request(`/api/guilds/${guildId}/trash`),
     setSlowmodeAll: (guildId, seconds) => request(`/api/guilds/${guildId}/slowmode-all`, { method: 'POST', body: JSON.stringify({ seconds }) }),
     ticketTranscript: (guildId, ticketId) => request(`/api/guilds/${guildId}/tickets/${ticketId}/transcript`),
+    reopenTicket: (guildId, ticketId) => request(`/api/guilds/${guildId}/tickets/${ticketId}/reopen`, { method: 'POST' }),
     restoreTrash: (guildId, entryId) => request(`/api/guilds/${guildId}/trash/${entryId}/restore`, { method: 'POST' }),
     voiceOccupancy: (guildId) => request(`/api/guilds/${guildId}/voice-occupancy`),
     setPublicLeaderboard: (guildId, enabled) => request(`/api/guilds/${guildId}/public-leaderboard`, { method: 'POST', body: JSON.stringify({ enabled }) }),
