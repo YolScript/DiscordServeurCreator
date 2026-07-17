@@ -33,6 +33,39 @@
   --font-mono: ui-monospace, "JetBrains Mono", "SF Mono", Consolas, "Roboto Mono", monospace;
 }
 
+/* Themes predefinis (n°180) : sombre froid et AMOLED noir, en plus du
+   sombre chaud par defaut et du clair existant. Seuls les tokens changent. */
+:root[data-theme="cold"] {
+  --void: #090c12;
+  --bg: #090c12;
+  --bg-sidebar: #10141d;
+  --bg-elevated: #10141d;
+  --bg-input: #171d29;
+  --border: rgba(205, 220, 255, 0.08);
+  --border-strong: rgba(205, 220, 255, 0.17);
+  --text: #edf1f7;
+  --text-muted: #93a0b4;
+  --text-faint: #7d8a9e;
+  --accent: #4f7cc9;
+  --accent-hover: #6d97dd;
+  --accent-soft: rgba(79, 124, 201, 0.16);
+  --accent-glow: rgba(79, 124, 201, 0.38);
+  --accent-rose: #5c7ba6;
+  --glow-accent: 0 0 0 1px var(--accent-glow), 0 0 32px rgba(79, 124, 201, 0.2);
+}
+:root[data-theme="amoled"] {
+  --void: #000000;
+  --bg: #000000;
+  --bg-sidebar: #0a0a0a;
+  --bg-elevated: #0a0a0a;
+  --bg-input: #141414;
+  --border: rgba(255, 255, 255, 0.1);
+  --border-strong: rgba(255, 255, 255, 0.2);
+  --text: #f2f2f2;
+  --text-muted: #9a9a9a;
+  --text-faint: #808080;
+}
+
 * { box-sizing: border-box; }
 
 /* Anneau de focus clavier coherent partout (boutons, liens, cartes

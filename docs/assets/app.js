@@ -7587,23 +7587,66 @@ async function init() {
     location.href = 'index.html';
   });
 
+  // 4 themes predefinis (roadmap n°180) : le bouton cycle sombre chaud →
+  // sombre froid → AMOLED noir → clair.
   const themeToggleBtn = document.getElementById('theme-toggle-btn');
   if (themeToggleBtn) {
     const systemPrefersLight = window.matchMedia?.('(prefers-color-scheme: light)').matches;
+    const THEME_CYCLE = ['dark', 'cold', 'amoled', 'light'];
+    const THEME_META = {
+      dark: ['🌙', 'Sombre chaud'], cold: ['❄️', 'Sombre froid'], amoled: ['⬛', 'AMOLED noir'], light: ['☀️', 'Clair'],
+    };
+    const currentTheme = () => document.documentElement.getAttribute('data-theme') || (systemPrefersLight ? 'light' : 'dark');
     const paintTheme = () => {
-      const current = document.documentElement.getAttribute('data-theme') || (systemPrefersLight ? 'light' : 'dark');
-      themeToggleBtn.textContent = current === 'light' ? '☀️' : '🌙';
+      const [icon, label] = THEME_META[currentTheme()] || THEME_META.dark;
+      themeToggleBtn.textContent = icon;
+      themeToggleBtn.title = `Theme : ${label} (cliquer pour changer)`;
     };
     paintTheme();
     themeToggleBtn.addEventListener('click', () => {
-      const current = document.documentElement.getAttribute('data-theme') || (systemPrefersLight ? 'light' : 'dark');
-      const next = current === 'light' ? 'dark' : 'light';
+      const next = THEME_CYCLE[(THEME_CYCLE.indexOf(currentTheme()) + 1) % THEME_CYCLE.length];
       document.documentElement.setAttribute('data-theme', next);
       localStorage.setItem('theme', next);
       paintTheme();
+      showToast(`Theme : ${THEME_META[next][1]}`);
       window.UISound?.click();
     });
   }
+
+  // Couleur d'accent personnalisable (roadmap n°181) : double-clic sur le
+  // bouton theme ouvre un color picker, la couleur remplace --accent.
+  const accentPicker = document.createElement('input');
+  accentPicker.type = 'color';
+  accentPicker.style.display = 'none';
+  document.body.appendChild(accentPicker);
+  const applyCustomAccent = (hex) => {
+    if (!hex) return;
+    const r = parseInt(hex.slice(1, 3), 16);
+    const g = parseInt(hex.slice(3, 5), 16);
+    const b = parseInt(hex.slice(5, 7), 16);
+    const root = document.documentElement.style;
+    root.setProperty('--accent', hex);
+    root.setProperty('--accent-hover', hex);
+    root.setProperty('--accent-soft', `rgba(${r}, ${g}, ${b}, 0.16)`);
+    root.setProperty('--accent-glow', `rgba(${r}, ${g}, ${b}, 0.38)`);
+  };
+  if (localStorage.getItem('dsc-accent')) applyCustomAccent(localStorage.getItem('dsc-accent'));
+  themeToggleBtn?.addEventListener('dblclick', () => {
+    accentPicker.value = localStorage.getItem('dsc-accent') || '#ad5940';
+    accentPicker.click();
+  });
+  accentPicker.addEventListener('change', () => {
+    if (accentPicker.value === '#ad5940') {
+      // Couleur par defaut re-choisie = retour aux accents du theme.
+      localStorage.removeItem('dsc-accent');
+      ['--accent', '--accent-hover', '--accent-soft', '--accent-glow'].forEach((v) => document.documentElement.style.removeProperty(v));
+      showToast('Accent par defaut retabli.');
+      return;
+    }
+    localStorage.setItem('dsc-accent', accentPicker.value);
+    applyCustomAccent(accentPicker.value);
+    showToast('Couleur d\'accent personnalisee. Re-choisir la couleur par defaut pour revenir au theme.');
+  });
 
   // Echap uniforme (roadmap n°116) : ferme d'abord tout tiroir/menu ouvert,
   // sinon agit comme retour (panneau salon/categorie/role ou module de
