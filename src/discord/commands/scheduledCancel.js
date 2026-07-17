@@ -10,4 +10,20 @@ async function handleScheduledCancelCommand(interaction) {
   });
 }
 
+// Autocomplete (roadmap n°209) : propose directement les annonces/evenements
+// programmes existants au lieu de faire coller un ID a la main.
+async function autocompleteScheduledCancel(interaction) {
+  const focused = interaction.options.getFocused().toLowerCase();
+  const items = await scheduledTaskStore.list(interaction.guild.id).catch(() => []);
+  const choices = items
+    .filter((i) => i.id.toLowerCase().includes(focused) || (i.message || '').toLowerCase().includes(focused))
+    .slice(0, 25)
+    .map((i) => ({
+      name: `${i.id} — ${(i.message || i.name || 'sans titre').slice(0, 70)}`.slice(0, 100),
+      value: i.id,
+    }));
+  await interaction.respond(choices).catch(() => {});
+}
+
 module.exports = handleScheduledCancelCommand;
+module.exports.autocompleteScheduledCancel = autocompleteScheduledCancel;

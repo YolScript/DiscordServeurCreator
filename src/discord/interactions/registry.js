@@ -49,6 +49,7 @@ const handleScheduleAnnouncementCommand = require('../commands/scheduleAnnouncem
 const handleScheduleEventCommand = require('../commands/scheduleEvent');
 const handleScheduledListCommand = require('../commands/scheduledList');
 const handleScheduledCancelCommand = require('../commands/scheduledCancel');
+const { autocompleteScheduledCancel } = require('../commands/scheduledCancel');
 const handleStreamerLinkCommand = require('../commands/streamerLink');
 const handleStreamerUnlinkCommand = require('../commands/streamerUnlink');
 const handleStreamerListCommand = require('../commands/streamerList');
@@ -130,6 +131,10 @@ async function routeInteraction(interaction) {
     if (interaction.isAutocomplete()) {
       if (interaction.commandName === 'reponse') {
         await autocompleteCannedResponse(interaction);
+        return;
+      }
+      if (interaction.commandName === 'scheduled-cancel') {
+        await autocompleteScheduledCancel(interaction);
         return;
       }
       if (interaction.commandName === 'setup') {

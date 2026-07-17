@@ -139,7 +139,7 @@ const scheduledCancelCommand = new SlashCommandBuilder()
   .setName('scheduled-cancel')
   .setDescription('Annule une annonce/evenement programme.')
   .setDefaultMemberPermissions(PermissionFlagsBits.ManageGuild)
-  .addStringOption((o) => o.setName('id').setDescription('ID (voir /scheduled-list)').setRequired(true))
+  .addStringOption((o) => o.setName('id').setDescription('ID (tape pour rechercher)').setRequired(true).setAutocomplete(true))
   .toJSON();
 
 const reglementTranslationCommand = new SlashCommandBuilder()
