@@ -18,7 +18,7 @@ import {
   getReferralRoles, putReferralRoles, getReferralCounts,
   getStreamerLinks, putStreamerLinks,
   getScheduledTasks, putScheduledTasks,
-  getTickets, putTickets,
+  getTickets, putTickets, getSanctionContests, putSanctionContests,
   pushPendingPanelAction,
   getStats,
   getEmbedTemplates, putEmbedTemplates,
@@ -32,6 +32,7 @@ import {
 } from './kvStore.js';
 import {
   bulkEditPermissions, exportChannelPermissions, importChannelPermissions, resetRoleToDefault, bitmaskFromNames,
+  getPermHistory, restorePermHistory,
 } from './permissions.js';
 import { createCustomChannel, createCustomCategory } from './customChannels.js';
 import { GAME_ROLE_CATALOG, createGameRolePreset } from './gameRolePresets.js';
@@ -289,6 +290,25 @@ async function router(request, env) {
   if (method === 'GET' && url.pathname === '/api/botstatus') {
     await requireSession(env, request);
     return json(await getBotStatus(env), env);
+  }
+
+  // Partage de modeles d'embed entre serveurs (roadmap n°244) : code court
+  // independant du guildId, valable 30j, pas de restriction au serveur
+  // d'origine (l'utilisateur peut avoir acces a plusieurs serveurs).
+  if (method === 'POST' && url.pathname === '/api/embed-template-share') {
+    await requireSession(env, request);
+    const { name, embed } = await readJson(request);
+    if (!name || !embed) throw new HttpError(400, 'name et embed requis.');
+    const code = Math.random().toString(36).slice(2, 8).toUpperCase();
+    await env.GUILD_KV.put(`sharedtemplate:${code}`, JSON.stringify({ name, embed }), { expirationTtl: 30 * 86400 });
+    return json({ code }, env);
+  }
+  if (method === 'GET' && url.pathname.startsWith('/api/embed-template-share/')) {
+    await requireSession(env, request);
+    const code = url.pathname.split('/').pop().toUpperCase();
+    const data = await env.GUILD_KV.get(`sharedtemplate:${code}`, 'json');
+    if (!data) throw new HttpError(404, 'Code invalide ou expire.');
+    return json(data, env);
   }
 
   // --- Registre global de templates reutilisables (n'importe quel serveur
@@ -780,6 +800,47 @@ async function router(request, env) {
       return json({ ok: true }, env);
     }
 
+    // Fusion de deux roles (roadmap n°261) : les membres du role source
+    // recoivent le role cible, les permissions sont unionnees (jamais
+    // retirees), puis le role source est supprime (snapshot corbeille comme
+    // une suppression normale).
+    if (sub === 'roles' && parts[4] === 'merge' && method === 'POST') {
+      const session = await requireGuildAccess(env, request, guildId);
+      const { intoRoleId, fromRoleId } = await readJson(request);
+      if (!intoRoleId || !fromRoleId || intoRoleId === fromRoleId) throw new HttpError(400, 'intoRoleId et fromRoleId distincts requis.');
+      const allRoles = await botFetchJson(env, `/guilds/${guildId}/roles`);
+      const intoRole = allRoles.find((r) => r.id === intoRoleId);
+      const fromRole = allRoles.find((r) => r.id === fromRoleId);
+      if (!intoRole || !fromRole) throw new HttpError(404, 'Role introuvable.');
+
+      const members = await botFetchJson(env, `/guilds/${guildId}/members?limit=1000`);
+      const toMove = members.filter((m) => (m.roles || []).includes(fromRoleId) && !m.roles.includes(intoRoleId));
+      for (const m of toMove) {
+        // eslint-disable-next-line no-await-in-loop
+        await botFetch(env, `/guilds/${guildId}/members/${m.user.id}/roles/${intoRoleId}`, { method: 'PUT' });
+      }
+
+      const unionPerms = (BigInt(intoRole.permissions || '0') | BigInt(fromRole.permissions || '0')).toString();
+      if (unionPerms !== intoRole.permissions) {
+        await botFetchJson(env, `/guilds/${guildId}/roles/${intoRoleId}`, { method: 'PATCH', body: JSON.stringify({ permissions: unionPerms }) });
+      }
+
+      await pushTrash(env, guildId, {
+        kind: 'role',
+        name: fromRole.name,
+        data: {
+          name: fromRole.name, color: fromRole.color, permissions: fromRole.permissions, hoist: fromRole.hoist,
+        },
+      });
+      await botFetch(env, `/guilds/${guildId}/roles/${fromRoleId}`, { method: 'DELETE' });
+
+      await logAudit(env, guildId, {
+        title: 'Roles fusionnes',
+        description: `${session.username} a fusionne <@&${fromRoleId}> dans <@&${intoRoleId}> (${toMove.length} membre(s) deplace(s)).`,
+      });
+      return json({ membersMoved: toMove.length, permissionsUnioned: unionPerms !== intoRole.permissions, deletedRoleName: fromRole.name }, env);
+    }
+
     if (sub === 'members' && parts.length === 4 && method === 'GET') {
       await requireGuildAccess(env, request, guildId);
       const members = await botFetchJson(env, `/guilds/${guildId}/members?limit=1000`);
@@ -1165,6 +1226,22 @@ async function router(request, env) {
       return json({ ok: true, until }, env);
     }
 
+    // Variables d'embed etendues (roadmap n°240) : {online}, {boosts}, {owner}.
+    if (sub === 'details' && parts.length === 4 && method === 'GET') {
+      await requireGuildAccess(env, request, guildId);
+      const guild = await botFetchJson(env, `/guilds/${guildId}?with_counts=true`);
+      let ownerTag = null;
+      if (guild.owner_id) {
+        const owner = await botFetchJson(env, `/users/${guild.owner_id}`).catch(() => null);
+        ownerTag = owner?.global_name || owner?.username || null;
+      }
+      return json({
+        boosts: guild.premium_subscription_count || 0,
+        online: guild.approximate_presence_count ?? null,
+        ownerTag,
+      }, env);
+    }
+
     if (sub === 'config' && parts.length === 4) {
       await requireGuildAccess(env, request, guildId);
       if (method === 'GET') {
@@ -1333,12 +1410,32 @@ async function router(request, env) {
       const session = await requireGuildAccess(env, request, guildId);
       const { channelIds, roleId, allow, deny } = await readJson(request);
       if (!Array.isArray(channelIds) || !roleId) throw new HttpError(400, 'channelIds et roleId requis.');
-      const results = await bulkEditPermissions(env, { channelIds, roleId, allow: allow || [], deny: deny || [] });
+      const roleForHistory = (await botFetchJson(env, `/guilds/${guildId}/roles`).catch(() => [])).find((r) => r.id === roleId);
+      const results = await bulkEditPermissions(
+        env,
+        { channelIds, roleId, allow: allow || [], deny: deny || [] },
+        { guildId, username: session.username, roleName: roleForHistory?.name || roleId },
+      );
       await logAudit(env, guildId, {
         title: 'Permissions modifiees',
         description: `${session.username} a modifie les permissions du role <@&${roleId}> sur ${channelIds.length} salon(s).`,
       });
       return json(results, env);
+    }
+
+    // Historique des changements de permissions + restauration (roadmap n°268).
+    if (sub === 'permissions' && parts[4] === 'history' && parts.length === 5 && method === 'GET') {
+      await requireGuildAccess(env, request, guildId);
+      return json(await getPermHistory(env, guildId), env);
+    }
+    if (sub === 'permissions' && parts[4] === 'history' && parts[6] === 'restore' && method === 'POST') {
+      const session = await requireGuildAccess(env, request, guildId);
+      const entry = await restorePermHistory(env, guildId, Number(parts[5]));
+      await logAudit(env, guildId, {
+        title: 'Permissions restaurees',
+        description: `${session.username} a restaure les permissions de <#${entry.channelId}> pour <@&${entry.roleId}> (etat precedent).`,
+      });
+      return json({ ok: true }, env);
     }
 
     if (sub === 'permissions' && parts[4] === 'export' && method === 'GET') {
@@ -1515,18 +1612,22 @@ async function router(request, env) {
 
       if (method === 'PATCH') {
         // name = renommage ; parentId = deplacement de categorie (n°119),
-        // chaine vide/null = detacher de toute categorie.
-        const { name, parentId } = await readJson(request);
-        if (!name && parentId === undefined) throw new HttpError(400, 'name ou parentId requis.');
+        // chaine vide/null = detacher de toute categorie ; topic = sujet du
+        // salon (roadmap n°255, edition en masse avec variables).
+        const { name, parentId, topic } = await readJson(request);
+        if (!name && parentId === undefined && topic === undefined) throw new HttpError(400, 'name, parentId ou topic requis.');
         const body = {};
         if (name) body.name = name;
         if (parentId !== undefined) body.parent_id = parentId || null;
+        if (topic !== undefined) body.topic = topic;
         const channel = await botFetchJson(env, `/channels/${channelId}`, { method: 'PATCH', body: JSON.stringify(body) });
         await logAudit(env, guildId, {
-          title: name ? 'Salon renomme' : 'Salon deplace',
+          title: name ? 'Salon renomme' : topic !== undefined ? 'Sujet du salon modifie' : 'Salon deplace',
           description: name
             ? `${session.username} a renomme un salon en #${name}.`
-            : `${session.username} a deplace #${channel.name} ${parentId ? 'dans une autre categorie' : 'hors de sa categorie'}.`,
+            : topic !== undefined
+              ? `${session.username} a modifie le sujet de #${channel.name}.`
+              : `${session.username} a deplace #${channel.name} ${parentId ? 'dans une autre categorie' : 'hors de sa categorie'}.`,
         });
         return json(channel, env);
       }
@@ -1735,6 +1836,26 @@ async function router(request, env) {
     if (sub === 'tickets' && parts.length === 4 && method === 'GET') {
       await requireGuildAccess(env, request, guildId);
       return json(await getTickets(env, guildId), env);
+    }
+
+    // Contestations de sanction (roadmap n°279) : liste + resolution depuis
+    // le dashboard, remplies par le bot via le formulaire en DM du membre.
+    if (sub === 'sanction-contests' && parts.length === 4 && method === 'GET') {
+      await requireGuildAccess(env, request, guildId);
+      return json(await getSanctionContests(env, guildId), env);
+    }
+    if (sub === 'sanction-contests' && parts.length === 5 && method === 'PATCH') {
+      const session = await requireGuildAccess(env, request, guildId);
+      const contests = await getSanctionContests(env, guildId);
+      const contest = contests.find((c) => c.id === parts[4]);
+      if (!contest) throw new HttpError(404, 'Contestation introuvable.');
+      contest.status = 'resolved';
+      await putSanctionContests(env, guildId, contests);
+      await logAudit(env, guildId, {
+        title: 'Contestation traitee',
+        description: `${session.username} a marque comme traitee la contestation de <@${contest.targetId}>.`,
+      });
+      return json(contest, env);
     }
 
     // Priorite/tags poses par le staff depuis le dashboard (roadmap n°307,n°309).

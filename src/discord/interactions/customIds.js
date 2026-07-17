@@ -22,6 +22,10 @@ const CAPTCHA_IMAGE_MODAL = 'captcha_image_modal';
 const AGE_VERIFY_BUTTON = 'age_verify_button';
 const AGE_VERIFY_MODAL = 'age_verify_modal';
 
+// Contestation de sanction par formulaire (roadmap n°279).
+const SANCTION_CONTEST_PREFIX = 'sanction_contest:';
+const SANCTION_CONTEST_MODAL_PREFIX = 'sanction_contest_modal:';
+
 // Panneau de controle des vocaux temporaires (roadmap n°187).
 const VOICE_CTRL_RENAME_BUTTON = 'voicectrl_rename';
 const VOICE_CTRL_RENAME_MODAL = 'voicectrl_rename_modal';
@@ -38,6 +42,8 @@ const buildSuggestionVoteId = (suggestionId, direction) => `${SUGGESTION_VOTE_PR
 const buildSuggestionApproveId = (suggestionId) => `${SUGGESTION_APPROVE_PREFIX}${suggestionId}`;
 const buildSuggestionDenyId = (suggestionId) => `${SUGGESTION_DENY_PREFIX}${suggestionId}`;
 const buildShopBuyId = (itemId) => `${SHOP_BUY_PREFIX}${itemId}`;
+const buildSanctionContestId = (guildId, sanctionType, targetId, createdAt) => `${SANCTION_CONTEST_PREFIX}${guildId}:${sanctionType}:${targetId}:${createdAt}`;
+const buildSanctionContestModalId = (guildId, sanctionType, targetId, createdAt) => `${SANCTION_CONTEST_MODAL_PREFIX}${guildId}:${sanctionType}:${targetId}:${createdAt}`;
 
 module.exports = {
   REGLEMENT_ACCEPT,
@@ -66,6 +72,10 @@ module.exports = {
   VOICE_CTRL_RENAME_MODAL,
   VOICE_CTRL_LOCK_BUTTON,
   VOICE_CTRL_LIMIT_BUTTON,
+  SANCTION_CONTEST_PREFIX,
+  SANCTION_CONTEST_MODAL_PREFIX,
+  buildSanctionContestId,
+  buildSanctionContestModalId,
   buildGameSelectId,
   buildGamePseudoModalId,
   buildGamePseudoButtonId,

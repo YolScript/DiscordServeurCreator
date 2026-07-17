@@ -2,6 +2,7 @@ const moderationConfigStore = require('../../kv/moderationConfigStore');
 const guildConfigStore = require('../../kv/guildConfigStore');
 const warnStore = require('../../kv/warnStore');
 const { postModLog } = require('./modLog');
+const { applyEscalation } = require('./escalation');
 const logger = require('../../shared/logger');
 
 const INVITE_REGEX = /(discord\.gg|discord(?:app)?\.com\/invite)\/[a-z0-9-]+/i;
@@ -125,6 +126,11 @@ async function takeAction(message, guildConfig, reason, modConfig) {
       await message.author.send(`Tu es reduit au silence ${minutes} min sur **${message.guild.name}** (infractions repetees).`).catch(() => {});
     }
   }
+
+  // Escalade configurable (roadmap n°271) : distincte du timeout ci-dessus
+  // (limite a l'automod/1h) — celle-ci porte sur le TOTAL d'avertissements
+  // actifs, manuel + automod confondus.
+  await applyEscalation(message.guild, message.member, warns, modConfig);
 }
 
 async function handleMessageCreate(message) {

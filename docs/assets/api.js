@@ -123,6 +123,8 @@ window.Api = (function api() {
     setPermissionCell: (guildId, channelId, roleId, state) => request(`/api/guilds/${guildId}/permissions/cell`, { method: 'POST', body: JSON.stringify({ channelId, roleId, state }) }),
     exportPermissions: (guildId, channelId) => request(`/api/guilds/${guildId}/permissions/export?channelId=${channelId}`),
     importPermissions: (guildId, channelId, permissionOverwrites) => request(`/api/guilds/${guildId}/permissions/import`, { method: 'POST', body: JSON.stringify({ channelId, permissionOverwrites }) }),
+    permissionHistory: (guildId) => request(`/api/guilds/${guildId}/permissions/history`),
+    restorePermissionHistory: (guildId, index) => request(`/api/guilds/${guildId}/permissions/history/${index}/restore`, { method: 'POST' }),
     createChannel: (guildId, name, type, categoryId, isPrivate, importFromChannelId) => request(`/api/guilds/${guildId}/channels`, { method: 'POST', body: JSON.stringify({
       name, type, categoryId, isPrivate, importFromChannelId,
     }) }),
@@ -131,9 +133,13 @@ window.Api = (function api() {
     renameChannel: (guildId, channelId, name) => request(`/api/guilds/${guildId}/channels/${channelId}`, { method: 'PATCH', body: JSON.stringify({ name }) }),
     deleteChannel: (guildId, channelId) => request(`/api/guilds/${guildId}/channels/${channelId}`, { method: 'DELETE' }),
     moveChannel: (guildId, channelId, parentId) => request(`/api/guilds/${guildId}/channels/${channelId}`, { method: 'PATCH', body: JSON.stringify({ parentId }) }),
+    setChannelTopic: (guildId, channelId, topic) => request(`/api/guilds/${guildId}/channels/${channelId}`, { method: 'PATCH', body: JSON.stringify({ topic }) }),
 
     modConfig: (guildId) => request(`/api/guilds/${guildId}/modconfig`),
     updateModConfig: (guildId, patch) => request(`/api/guilds/${guildId}/modconfig`, { method: 'PATCH', body: JSON.stringify(patch) }),
+
+    sanctionContests: (guildId) => request(`/api/guilds/${guildId}/sanction-contests`),
+    resolveSanctionContest: (guildId, contestId) => request(`/api/guilds/${guildId}/sanction-contests/${contestId}`, { method: 'PATCH' }),
 
     levelRoles: (guildId) => request(`/api/guilds/${guildId}/levelroles`),
     setLevelRole: (guildId, level, payload) => request(`/api/guilds/${guildId}/levelroles`, { method: 'POST', body: JSON.stringify({ level, ...payload }) }),
@@ -180,6 +186,7 @@ window.Api = (function api() {
     renameRole: (guildId, roleId, name) => request(`/api/guilds/${guildId}/roles/${roleId}`, { method: 'PATCH', body: JSON.stringify({ name }) }),
     setRolePermissions: (guildId, roleId, permissions) => request(`/api/guilds/${guildId}/roles/${roleId}`, { method: 'PATCH', body: JSON.stringify({ permissions }) }),
     deleteRole: (guildId, roleId) => request(`/api/guilds/${guildId}/roles/${roleId}`, { method: 'DELETE' }),
+    mergeRoles: (guildId, intoRoleId, fromRoleId) => request(`/api/guilds/${guildId}/roles/merge`, { method: 'POST', body: JSON.stringify({ intoRoleId, fromRoleId }) }),
     aiConfig: (guildId) => request(`/api/guilds/${guildId}/aiconfig`),
     saveAiConfig: (guildId, provider, apiKey) => request(`/api/guilds/${guildId}/aiconfig`, { method: 'PUT', body: JSON.stringify({ provider, apiKey }) }),
     clearAiConfig: (guildId) => request(`/api/guilds/${guildId}/aiconfig`, { method: 'DELETE' }),
@@ -255,6 +262,9 @@ window.Api = (function api() {
       return body;
     },
     embedHistory: (guildId) => request(`/api/guilds/${guildId}/embed-history`),
+    guildDetails: (guildId) => request(`/api/guilds/${guildId}/details`),
+    shareEmbedTemplate: (name, embed) => request('/api/embed-template-share', { method: 'POST', body: JSON.stringify({ name, embed }) }),
+    importSharedEmbedTemplate: (code) => request(`/api/embed-template-share/${encodeURIComponent(code)}`),
     getMessage: (guildId, channelId, messageId) => request(`/api/guilds/${guildId}/messages/${channelId}/${messageId}`),
     editEmbedMessage: (guildId, channelId, messageId, embeds, content) => request(`/api/guilds/${guildId}/messages/${channelId}/${messageId}`, { method: 'PATCH', body: JSON.stringify({ embeds, content }) }),
     createMemberCountChannel: (guildId, nameTemplate) => request(`/api/guilds/${guildId}/membercount`, { method: 'POST', body: JSON.stringify({ nameTemplate }) }),

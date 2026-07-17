@@ -24,6 +24,18 @@ const DEFAULTS = {
   autoSlowmodeMsgPer10s: 20,
   autoSlowmodeSeconds: 5,
   autoSlowmodeDurationMin: 5,
+  // Escalade configurable (roadmap n°271) : sur le total d'avertissements
+  // actifs (manuel /warn ET automod confondus), 0 = palier desactive.
+  escalationTimeoutWarns: 0,
+  escalationTimeoutMinutes: 10,
+  escalationKickWarns: 0,
+  escalationBanWarns: 0,
+  // Garde-fou comptes recents (roadmap n°275) : action auto sur les
+  // membres dont le compte Discord a moins de N jours a l'arrivee.
+  newAccountGuardEnabled: false,
+  newAccountMaxAgeDays: 7,
+  newAccountAction: 'alert', // 'alert' | 'kick' | 'ban' | 'role'
+  newAccountRoleId: null,
 };
 
 async function find(guildId) {

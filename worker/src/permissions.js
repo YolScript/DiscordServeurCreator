@@ -11,7 +11,30 @@ export function bitmaskFromNames(names = []) {
   return mask.toString();
 }
 
-export async function setChannelRoleOverwrite(env, channelId, roleId, { allow = [], deny = [] }) {
+// Historique des changements de permissions (roadmap n°268) : liste unique
+// par serveur (pas par salon, plus simple a consulter), cap 30, photographie
+// l'overwrite AVANT chaque ecriture pour permettre une restauration exacte
+// (avant=null = l'overwrite n'existait pas -> restaurer = DELETE).
+const permHistoryKey = (guildId) => `guild:${guildId}:permhistory`;
+
+export async function getPermHistory(env, guildId) {
+  return (await env.GUILD_KV.get(permHistoryKey(guildId), 'json')) || [];
+}
+
+async function pushPermHistory(env, guildId, entry) {
+  const list = await getPermHistory(env, guildId);
+  list.unshift({ ...entry, at: Date.now() });
+  await env.GUILD_KV.put(permHistoryKey(guildId), JSON.stringify(list.slice(0, 30)));
+}
+
+export async function setChannelRoleOverwrite(env, channelId, roleId, { allow = [], deny = [] }, historyCtx = null) {
+  if (historyCtx) {
+    const channel = await botFetchJson(env, `/channels/${channelId}`);
+    const before = (channel.permission_overwrites || []).find((o) => o.id === roleId) || null;
+    await pushPermHistory(env, historyCtx.guildId, {
+      channelId, channelName: channel.name, roleId, roleName: historyCtx.roleName, before, changedBy: historyCtx.username,
+    });
+  }
   const res = await botFetch(env, `/channels/${channelId}/permissions/${roleId}`, {
     method: 'PUT',
     body: JSON.stringify({ type: 0, allow: bitmaskFromNames(allow), deny: bitmaskFromNames(deny) }),
@@ -19,13 +42,30 @@ export async function setChannelRoleOverwrite(env, channelId, roleId, { allow = 
   if (!res.ok) throw new Error(`Echec edition permission salon ${channelId}: ${res.status} ${await res.text()}`);
 }
 
+// Restaure une entree d'historique : avant=null -> l'overwrite n'existait
+// pas -> DELETE ; sinon on repose l'overwrite exact d'avant (allow/deny bruts).
+export async function restorePermHistory(env, guildId, index) {
+  const list = await getPermHistory(env, guildId);
+  const entry = list[index];
+  if (!entry) throw new Error('Entree d\'historique introuvable.');
+  if (entry.before) {
+    await botFetch(env, `/channels/${entry.channelId}/permissions/${entry.roleId}`, {
+      method: 'PUT',
+      body: JSON.stringify({ type: entry.before.type, allow: entry.before.allow, deny: entry.before.deny }),
+    });
+  } else {
+    await botFetch(env, `/channels/${entry.channelId}/permissions/${entry.roleId}`, { method: 'DELETE' });
+  }
+  return entry;
+}
+
 // Selectionne plusieurs salons + une modification de permissions -> applique
 // en un clic sur tous les salons choisis.
-export async function bulkEditPermissions(env, { channelIds, roleId, allow, deny }) {
+export async function bulkEditPermissions(env, { channelIds, roleId, allow, deny }, historyCtx = null) {
   const results = [];
   for (const channelId of channelIds) {
     try {
-      await setChannelRoleOverwrite(env, channelId, roleId, { allow, deny });
+      await setChannelRoleOverwrite(env, channelId, roleId, { allow, deny }, historyCtx);
       results.push({ channelId, ok: true });
     } catch (err) {
       results.push({ channelId, ok: false, error: String(err.message || err) });

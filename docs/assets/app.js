@@ -115,6 +115,34 @@ app.addEventListener('click', (e) => {
   btn.setAttribute('aria-label', `${label} : ${row.dataset.name}`);
 }, true);
 
+// Verrouillage de position (roadmap n°257) : reglage serveur, meme
+// delegation en phase de capture que les boutons voisins.
+app.addEventListener('click', async (e) => {
+  const btn = e.target.closest('.dp-channel-lock-btn');
+  if (!btn) return;
+  e.stopPropagation();
+  e.preventDefault();
+  const guildId = paletteCtx.guildId;
+  const channelId = btn.dataset.channelLock;
+  try {
+    const config = await Api.config(guildId);
+    const locked = new Set(config?.channelPositionLocked || []);
+    if (locked.has(channelId)) locked.delete(channelId); else locked.add(channelId);
+    await Api.updateConfig(guildId, { channelPositionLocked: [...locked] });
+    const row = btn.closest('.dp-channel');
+    const nowLocked = locked.has(channelId);
+    row.draggable = !nowLocked;
+    btn.classList.toggle('locked', nowLocked);
+    btn.textContent = nowLocked ? '🔒' : '🔓';
+    const label = nowLocked ? 'Deverrouiller la position' : 'Verrouiller la position (empeche le glisser-depose)';
+    btn.title = label;
+    btn.setAttribute('aria-label', `${nowLocked ? 'Deverrouiller' : 'Verrouiller'} la position de ${row.dataset.name}`);
+    showToast(nowLocked ? 'Position verrouillee.' : 'Position deverrouillee.');
+  } catch (err) {
+    showToast(err.message, 'error');
+  }
+}, true);
+
 // Icone personnalisee par salon (roadmap n°254) : meme delegation en phase
 // de capture que le bouton copier-ID ci-dessus, pour la meme raison (le
 // bouton est imbrique dans .dp-channel qui a son propre click).
@@ -140,6 +168,54 @@ app.addEventListener('click', async (e) => {
     showToast(err.message, 'error');
   }
 }, true);
+
+// Apercu du salon au survol prolonge (roadmap n°256) : topic, slowmode,
+// permissions resumees. Delegue sur #app (globalement, pas par re-render) via
+// mouseover/mouseout qui bouillonnent contrairement a mouseenter/mouseleave ;
+// paletteCtx.channels/guildId sont deja tenus a jour par renderPreviewContent.
+(function () {
+  let timer = null;
+  let bubble = null;
+  const ensureBubble = () => {
+    if (bubble) return bubble;
+    bubble = document.createElement('div');
+    bubble.className = 'dp-channel-preview-bubble';
+    bubble.hidden = true;
+    document.body.appendChild(bubble);
+    return bubble;
+  };
+  const hide = () => {
+    clearTimeout(timer);
+    if (bubble) bubble.hidden = true;
+  };
+  app.addEventListener('mouseover', (e) => {
+    const row = e.target.closest('.dp-channel');
+    if (!row || row.contains(e.relatedTarget)) return;
+    clearTimeout(timer);
+    timer = setTimeout(() => {
+      const c = paletteCtx.channels?.find((ch) => ch.id === row.dataset.channel);
+      if (!c) return;
+      const everyone = (c.permission_overwrites || []).find((o) => o.id === paletteCtx.guildId);
+      const hidden = everyone && (BigInt(everyone.deny || 0) & 1024n) === 1024n;
+      const overwriteCount = (c.permission_overwrites || []).length;
+      const b = ensureBubble();
+      b.innerHTML = `
+        <strong>#${escapeHtml(c.name)}</strong>
+        ${c.topic ? `<p>${escapeHtml(c.topic).slice(0, 180)}</p>` : '<p class="muted">Pas de sujet.</p>'}
+        <p class="muted">${c.rate_limit_per_user ? `🐌 Slowmode ${c.rate_limit_per_user}s` : 'Pas de slowmode'} · ${overwriteCount} permission(s) personnalisee(s)${hidden ? ' · 🔒 prive' : ''}</p>
+      `;
+      const rect = row.getBoundingClientRect();
+      b.style.left = `${Math.min(window.innerWidth - 280, rect.right + 8)}px`;
+      b.style.top = `${Math.max(8, rect.top)}px`;
+      b.hidden = false;
+    }, 600);
+  });
+  app.addEventListener('mouseout', (e) => {
+    const row = e.target.closest('.dp-channel');
+    if (!row || row.contains(e.relatedTarget)) return;
+    hide();
+  });
+}());
 
 // Champs d'URL (lien ou image) : accepte le glisser-deposer d'un lien ou
 // d'une image venant d'une page web, et le Ctrl+V d'une image copiee sur le
@@ -1169,6 +1245,7 @@ const AI_TOOL_LABELS = {
   delete_role: 'Suppression du role',
   get_module_config: 'Lecture de la configuration',
   set_module_config: 'Modification de la configuration',
+  generate_embed: 'Generation de l\'embed',
 };
 
 function aiConversationHtml() {
@@ -1194,6 +1271,8 @@ function aiConversationHtml() {
       html += `<div class="dp-ai-tool-note">🔧 ${escapeHtml(AI_TOOL_LABELS[m.toolCalls[0].name] || m.toolCalls[0].name)}...</div>`;
     } else if (m.role === 'tool' && m.result?.error) {
       html += `<div class="dp-ai-tool-note">⚠️ ${escapeHtml(m.result.error)}</div>`;
+    } else if (m.role === 'tool' && m.name === 'generate_embed' && m.result?.embed) {
+      html += `<div class="dp-ai-tool-note">✅ Embed genere — <button type="button" class="dp-chat-copy" data-load-ai-embed="${idx}">📨 Charger dans le generateur</button></div>`;
     }
   });
   if (aiBusy) {
@@ -1353,6 +1432,7 @@ function aiHomeHtml(guild, config) {
           </div>
           <div class="dp-action-grid" id="dp-home-modules" style="display:none;"></div>
           <div id="dp-home-create-area"></div>
+          <button type="button" class="btn secondary" id="dp-ai-analyze-btn" style="margin-top:10px;">🔍 Analyser mon serveur</button>
         </div>
       </div>
       <div id="dp-ai-tail">${aiConversationHtml()}</div>
@@ -1378,6 +1458,13 @@ function wireAiHome(guildId, channels, rolesSorted) {
     aiPendingConfirmation = null;
     Api.clearAiHistory(guildId).catch(() => {});
     withViewTransition(() => renderPreviewPage(guildId));
+  });
+
+  // Analyse du serveur par l'IA (roadmap n°251) : prompt fixe reutilisant les
+  // outils list_channels/list_roles/get_module_config deja disponibles.
+  document.getElementById('dp-ai-analyze-btn')?.addEventListener('click', () => {
+    input.value = 'Analyse la structure, les permissions et la configuration de mon serveur, puis donne-moi un rapport concis des points a ameliorer.';
+    form.requestSubmit();
   });
 
   function refreshTail() {
@@ -1408,6 +1495,17 @@ function wireAiHome(guildId, channels, rolesSorted) {
         } catch {
           showToast('Copie impossible (permission navigateur).', 'error');
         }
+      });
+    });
+    // Embed genere par l'IA (roadmap n°249) : charge dans le generateur via
+    // une variable globale consommee au chargement de renderEmbedBuilderPage.
+    document.querySelectorAll('[data-load-ai-embed]').forEach((btn) => {
+      btn.addEventListener('click', () => {
+        const msg = aiConversation[Number(btn.dataset.loadAiEmbed)];
+        if (!msg?.result?.embed) return;
+        window.__aiGeneratedEmbed = msg.result.embed;
+        renderSettingsPanel(guildId, 'embedbuilder');
+        showToast('Embed charge dans le generateur.');
       });
     });
     chatEl.scrollTop = chatEl.scrollHeight;
@@ -1607,6 +1705,15 @@ function renderPreviewContent(id, { channels, config, roles, members }) {
     // difficiles a auditer qu'une permission par role, d'ou le signalement.
     const memberOverwrites = (c.permission_overwrites || []).filter((o) => o.type === 1).length;
     if (memberOverwrites > 0) badges.push(`<span class="dp-ch-badge" title="${memberOverwrites} permission(s) ciblant un membre precis (pas un role) — a verifier">👤${memberOverwrites}</span>`);
+    // Salon mort (roadmap n°263) : 0 message depuis 30j, deduit du snowflake
+    // du dernier message (ou de la creation du salon si jamais utilise) —
+    // aucun appel reseau supplementaire necessaire.
+    if (c.type === 0) {
+      const lastActivityId = c.last_message_id || c.id;
+      const lastActivityAt = Number((BigInt(lastActivityId) >> 22n) + 1420070400000n);
+      const daysSince = Math.floor((Date.now() - lastActivityAt) / 86400000);
+      if (daysSince >= 30) badges.push(`<span class="dp-ch-badge dead" title="Aucun message depuis ${daysSince} jours — envisager l'archivage">💀 ${daysSince}j</span>`);
+    }
     return badges.join('');
   };
 
@@ -1614,18 +1721,28 @@ function renderPreviewContent(id, { channels, config, roles, members }) {
   // (localStorage, par navigateur), n'affecte jamais l'ordre reel Discord —
   // plus sur que de l'integrer au drag&drop des categories existant.
   const pinnedChannels = new Set(JSON.parse(localStorage.getItem(`dsc-pinned-channels-${id}`) || '[]'));
+  // Verrouillage de position (roadmap n°257) : reglage serveur (pas
+  // localStorage comme les favoris) — empeche le drag&drop de ce salon,
+  // visible et modifiable par tout le staff.
+  const lockedChannels = new Set(config?.channelPositionLocked || []);
+  // Groupes de salons pliables (roadmap n°253) : etat replie/deplie
+  // persiste par navigateur (localStorage, comme les favoris), pour ne
+  // pas perdre l'affichage souhaite a chaque rechargement du dashboard.
+  const collapsedCategories = new Set(JSON.parse(localStorage.getItem(`dsc-collapsed-categories-${id}`) || '[]'));
   const channelRow = (c) => `
-    <div class="dp-channel${pinnedChannels.has(c.id) ? ' pinned' : ''}" draggable="true" tabindex="0" role="button" aria-label="Salon ${escapeHtml(c.name)} (Alt+fleches pour reordonner)" data-channel="${c.id}" data-name="${escapeHtml(c.name)}" data-type="${c.type}">
+    <div class="dp-channel${pinnedChannels.has(c.id) ? ' pinned' : ''}" draggable="${lockedChannels.has(c.id) ? 'false' : 'true'}" tabindex="0" role="button" aria-label="Salon ${escapeHtml(c.name)} (Alt+fleches pour reordonner)" data-channel="${c.id}" data-name="${escapeHtml(c.name)}" data-type="${c.type}">
       <span class="hash">${channelIcon(c)}</span> <span class="dp-channel-name">${escapeHtml(c.name)}</span>${channelBadges(c)}
       <button type="button" class="dp-channel-pin-btn" data-channel-pin="${c.id}" title="${pinnedChannels.has(c.id) ? 'Retirer des favoris' : 'Ajouter aux favoris'}" aria-label="${pinnedChannels.has(c.id) ? 'Retirer des favoris' : 'Ajouter aux favoris'} : ${escapeHtml(c.name)}">${pinnedChannels.has(c.id) ? '★' : '☆'}</button>
+      <button type="button" class="dp-channel-lock-btn${lockedChannels.has(c.id) ? ' locked' : ''}" data-channel-lock="${c.id}" title="${lockedChannels.has(c.id) ? 'Deverrouiller la position' : 'Verrouiller la position (empeche le glisser-deposer)'}" aria-label="${lockedChannels.has(c.id) ? 'Deverrouiller' : 'Verrouiller'} la position de ${escapeHtml(c.name)}">${lockedChannels.has(c.id) ? '🔒' : '🔓'}</button>
       <button type="button" class="dp-channel-emoji-btn" data-channel-emoji="${c.id}" title="Definir une icone personnalisee" aria-label="Definir une icone personnalisee pour ${escapeHtml(c.name)}">🏷️</button>
       <button type="button" class="dp-copy-id-btn" data-copy-id="${c.id}" title="Copier l'ID du salon" aria-label="Copier l'ID du salon ${escapeHtml(c.name)}">📋</button>
     </div>`;
 
   const categoryBlock = (cat) => {
     const children = channels.filter((c) => c.parent_id === cat.id).sort((a, b) => a.position - b.position);
+    const isCollapsed = collapsedCategories.has(cat.id);
     return `
-      <div class="dp-category" data-cat="${cat.id}" draggable="true" tabindex="0" role="button" aria-expanded="true" aria-label="Categorie ${escapeHtml(cat.name)}" data-drag-type="category" data-drag-name="${escapeHtml(cat.name)}">
+      <div class="dp-category${isCollapsed ? ' collapsed' : ''}" data-cat="${cat.id}" draggable="true" tabindex="0" role="button" aria-expanded="${!isCollapsed}" aria-label="Categorie ${escapeHtml(cat.name)}" data-drag-type="category" data-drag-name="${escapeHtml(cat.name)}">
         <span class="chevron">▾</span>
         <span class="dp-category-name">${escapeHtml(cat.name)}</span>
         <span class="dp-category-count" title="${children.length} salon(s)">${children.length}</span>
@@ -1742,6 +1859,11 @@ function renderPreviewContent(id, { channels, config, roles, members }) {
     const toggle = () => {
       catEl.classList.toggle('collapsed');
       catEl.setAttribute('aria-expanded', String(!catEl.classList.contains('collapsed')));
+      const storageKey = `dsc-collapsed-categories-${id}`;
+      const collapsed = new Set(JSON.parse(localStorage.getItem(storageKey) || '[]'));
+      const catId = catEl.dataset.cat;
+      if (catEl.classList.contains('collapsed')) collapsed.add(catId); else collapsed.delete(catId);
+      localStorage.setItem(storageKey, JSON.stringify([...collapsed]));
     };
     catEl.addEventListener('click', toggle);
     catEl.addEventListener('keydown', (e) => {
@@ -2338,6 +2460,7 @@ function renderPreviewContent(id, { channels, config, roles, members }) {
       }
       if (!e.altKey || (e.key !== 'ArrowUp' && e.key !== 'ArrowDown')) return;
       e.preventDefault();
+      if (lockedChannels.has(chEl.dataset.channel)) { showToast('Position verrouillee (deverrouille via 🔒).', 'error'); return; }
       const list = chEl.parentElement;
       const sibling = e.key === 'ArrowUp' ? chEl.previousElementSibling : chEl.nextElementSibling;
       if (!sibling || !sibling.matches('.dp-channel[data-channel]')) return;
@@ -3036,6 +3159,15 @@ function categoryActionDetailHtml(key, ctx) {
         <button class="btn secondary" id="dp-cat-import-perms" style="margin-top:8px;">Importer</button>
       </div>`;
   }
+  if (key === 'archive') {
+    const childCount = channels.filter((c) => c.parent_id === categoryId).length;
+    return `
+      <div class="dp-block">
+        <p class="dp-block-title">📦 Archiver la categorie</p>
+        <p class="muted" style="margin:0 0 12px;">Masque la categorie et ses ${childCount} salon(s) pour @everyone (ViewChannel) et retire le droit d'ecrire (SendMessages), en un clic. Reversible via Permissions.</p>
+        <button class="btn" id="dp-cat-archive">Archiver maintenant</button>
+      </div>`;
+  }
   if (key === 'delete') {
     return `
       <div class="dp-block danger">
@@ -3055,6 +3187,7 @@ function renderCategoryPanel(guildId, categoryId, name, config, channels, roles)
     { key: 'emoji', icon: '😀', label: 'Emoji' },
     { key: 'service', icon: '🛡️', label: 'Service staff', on: (config?.onDutyHiddenCategoryIds || []).includes(categoryId) },
     { key: 'permissions', icon: '🔐', label: 'Permissions' },
+    { key: 'archive', icon: '📦', label: 'Archiver' },
     { key: 'delete', icon: '🗑️', label: 'Supprimer', danger: true },
   ];
   const ctx = {
@@ -3150,6 +3283,21 @@ function renderCategoryPanel(guildId, categoryId, name, config, channels, roles)
         }
       });
     }
+    if (key === 'archive') {
+      scope.querySelector('#dp-cat-archive').addEventListener('click', async () => {
+        if (!window.confirm(`Archiver "${name}" ? La categorie et ses salons deviendront invisibles et en lecture seule pour @everyone.`)) return;
+        try {
+          const childIds = channels.filter((c) => c.parent_id === categoryId).map((c) => c.id);
+          await Api.bulkPermissions(guildId, {
+            channelIds: [categoryId, ...childIds], roleId: guildId, allow: [], deny: ['ViewChannel', 'SendMessages'],
+          });
+          showToast('Categorie archivee.');
+          await renderPreviewPage(guildId);
+        } catch (err) {
+          showToast(err.message, 'error');
+        }
+      });
+    }
     if (key === 'delete') {
       scope.querySelector('#dp-cat-delete').addEventListener('click', () => {
         withViewTransition(() => renderPreviewPage(guildId));
@@ -3222,6 +3370,17 @@ function roleActionDetailHtml(key, ctx) {
         <p class="muted">${memberNames.length ? escapeHtml(memberNames.join(', ')) : 'Aucun membre'}</p>
       </div>`;
   }
+  if (key === 'merge') {
+    const others = (ctx.roles || []).filter((r) => r.id !== roleId && r.name !== '@everyone');
+    return `
+      <div class="dp-block">
+        <p class="dp-block-title">🔀 Fusionner avec un autre role</p>
+        <p class="muted" style="margin:0 0 10px;">Le role choisi ci-dessous sera <strong>supprime</strong> : ses membres recoivent "${escapeHtml(name)}", ses permissions s'ajoutent (jamais retirees) a "${escapeHtml(name)}".</p>
+        <label for="dp-role-merge-target">Role a fusionner dans "${escapeHtml(name)}" (sera supprime)</label>
+        <select id="dp-role-merge-target">${others.map((r) => `<option value="${r.id}">${escapeHtml(r.name)}</option>`).join('')}</select>
+        <button class="btn" id="dp-role-merge-btn" style="margin-top:10px;">Fusionner</button>
+      </div>`;
+  }
   if (key === 'delete') {
     return `
       <div class="dp-block danger">
@@ -3242,10 +3401,11 @@ function renderRolePanel(guildId, roleId, name, config, roles, members) {
     { key: 'color', icon: '🎨', label: 'Couleur' },
     { key: 'permissions', icon: '🔐', label: 'Permissions' },
     { key: 'members', icon: '👥', label: 'Membres' },
+    { key: 'merge', icon: '🔀', label: 'Fusionner' },
     { key: 'delete', icon: '🗑️', label: 'Supprimer', danger: true },
   ];
   const ctx = {
-    guildId, roleId, name, role, memberNames,
+    guildId, roleId, name, role, memberNames, roles,
   };
 
   function wireDetail(scope, key) {
@@ -3283,6 +3443,21 @@ function renderRolePanel(guildId, roleId, name, config, roles, members) {
         try {
           await Api.setRolePermissions(guildId, roleId, mask.toString());
           showToast('Permissions mises a jour.');
+          await renderPreviewPage(guildId);
+        } catch (err) {
+          showToast(err.message, 'error');
+        }
+      });
+    }
+    if (key === 'merge') {
+      scope.querySelector('#dp-role-merge-btn').addEventListener('click', async () => {
+        const fromRoleId = scope.querySelector('#dp-role-merge-target').value;
+        if (!fromRoleId) return;
+        const fromName = ctx.roles.find((r) => r.id === fromRoleId)?.name || fromRoleId;
+        if (!window.confirm(`Fusionner "${fromName}" dans "${name}" ? "${fromName}" sera supprime definitivement.`)) return;
+        try {
+          const report = await Api.mergeRoles(guildId, roleId, fromRoleId);
+          showToast(`Fusion terminee : ${report.membersMoved} membre(s) deplace(s)${report.permissionsUnioned ? ', permissions unionnees' : ''}.`);
           await renderPreviewPage(guildId);
         } catch (err) {
           showToast(err.message, 'error');
@@ -3627,11 +3802,19 @@ function dashboardAccessRows(userIds, deleteClass = 'delete-dashboard-access') {
 
 async function renderPermissionsPage(id, container = app) {
   container.innerHTML = skeletonHtml();
-  const [channels, roles, config] = await Promise.all([Api.channels(id), Api.roles(id), Api.config(id)]);
+  const [channels, roles, config, permHistory] = await Promise.all([
+    Api.channels(id), Api.roles(id), Api.config(id), Api.permissionHistory(id).catch(() => []),
+  ]);
   const editableChannels = channels.filter((c) => c.type === 0 || c.type === 2 || c.type === 4);
   const roleOptions = roles.filter((r) => r.name !== '@everyone').map((r) => `<option value="${r.id}">${escapeHtml(r.name)}</option>`).join('');
   const channelCheckboxes = editableChannels.map((c) => `
     <label><input type="checkbox" value="${c.id}" class="perm-channel" /> ${c.type === 4 ? '📁' : c.type === 2 ? '🔊' : '#'} ${escapeHtml(c.name)}</label>
+  `).join('');
+  // Edition en masse des topics (roadmap n°255) : salons textuels
+  // uniquement, un sujet ne s'appliquant qu'a eux.
+  const textChannelsForTopics = channels.filter((c) => c.type === 0);
+  const topicChannelCheckboxes = textChannelsForTopics.map((c) => `
+    <label><input type="checkbox" value="${c.id}" class="topic-channel" /> # ${escapeHtml(c.name)}</label>
   `).join('');
   // Presets personnalises nommes (roadmap n°264), en plus des presets fixes
   // ci-dessus : l'admin compose sa propre combinaison de permissions et la
@@ -3669,8 +3852,8 @@ async function renderPermissionsPage(id, container = app) {
   container.innerHTML = `
     <div class="inner">
       ${quickJumpBarHtml([
-    ['perm-bulk', 'Edition en masse'], ['perm-matrix', 'Matrice'], ['perm-viewas', 'Voir comme'],
-    ['perm-whocansee', 'Qui voit ce salon'], ['perm-io', 'Export/Import'], ['perm-default', 'Par defaut'], ['perm-dashboard', 'Acces dashboard'],
+    ['perm-bulk', 'Edition en masse'], ['perm-topics', 'Topics en masse'], ['perm-matrix', 'Matrice'], ['perm-viewas', 'Voir comme'],
+    ['perm-whocansee', 'Qui voit ce salon'], ['perm-io', 'Export/Import'], ['perm-history', 'Historique'], ['perm-default', 'Par defaut'], ['perm-dashboard', 'Acces dashboard'],
   ])}
       ${sectionHtml('Edition en masse', `
         <p class="muted">Choisis les salons, le role, et une action rapide a appliquer partout en un clic.</p>
@@ -3699,6 +3882,16 @@ async function renderPermissionsPage(id, container = app) {
             <button type="button" class="btn danger delete-custom-preset" data-index="${i}">Supprimer</button>
           </div>`).join('')}</div>` : ''}
       `, { id: 'perm-bulk' })}
+
+      ${sectionHtml('Edition en masse des topics', `
+        <p class="muted">Applique un meme sujet a plusieurs salons textuels d'un coup. Variables disponibles : {server}, {membercount}, {category}, {channel}.</p>
+        <label>Salons</label>
+        <div class="channel-picker">${topicChannelCheckboxes || '<p class="muted">Aucun salon textuel.</p>'}</div>
+        <label for="topic-bulk-template">Sujet</label>
+        <textarea id="topic-bulk-template" placeholder="Discussion #{channel} — {membercount} membres sur {server}" maxlength="1024"></textarea>
+        <button class="btn" id="apply-bulk-topics" style="margin-top:12px;">Appliquer</button>
+        <div id="topic-bulk-result" class="muted" style="margin-top:8px; font-size:0.82rem;"></div>
+      `, { id: 'perm-topics' })}
 
       ${permIssues.length ? sectionHtml('Incoherences detectees', `
         <p class="muted">${permIssues.length} probleme(s) de permissions repere(s) automatiquement :</p>
@@ -3752,6 +3945,18 @@ async function renderPermissionsPage(id, container = app) {
         <select id="import-channel">${channelOptionsSimple}</select>
         <button class="btn secondary" id="import-btn" style="margin-top:8px;">Importer</button>
       `, { id: 'perm-io' })}
+
+      ${sectionHtml('Historique des permissions', `
+        <p class="muted">${permHistory.length ? `Les ${permHistory.length} derniers changements (edition en masse). "Restaurer" reapplique l'etat exact d'avant.` : 'Aucun changement enregistre pour le moment.'}</p>
+        <div id="perm-history-list">
+          ${permHistory.map((h, i) => `
+            <div class="embed-template-row">
+              <span class="embed-template-name" title="${new Date(h.at).toLocaleString('fr-FR')}">#${escapeHtml(h.channelName || h.channelId)} — ${escapeHtml(h.roleName || h.roleId)} <span class="muted">(${h.changedBy}, ${new Date(h.at).toLocaleDateString('fr-FR')})</span></span>
+              <button type="button" class="btn secondary perm-history-restore" data-history-index="${i}">↩️ Restaurer</button>
+            </div>
+          `).join('') || ''}
+        </div>
+      `, { id: 'perm-history' })}
 
       ${sectionHtml('Permissions par defaut', `
         <p class="muted">Reinitialise les permissions du role au preset recommande (utile si elles ont ete modifiees par erreur).</p>
@@ -3941,6 +4146,38 @@ async function renderPermissionsPage(id, container = app) {
     }
   });
 
+  document.getElementById('apply-bulk-topics')?.addEventListener('click', async () => {
+    const channelIds = [...container.querySelectorAll('.topic-channel:checked')].map((el) => el.value);
+    const template = document.getElementById('topic-bulk-template').value.trim();
+    if (channelIds.length === 0 || !template) {
+      showToast('Choisis au moins un salon et un sujet.', 'error');
+      return;
+    }
+    const guildInfo = allGuilds.find((g) => g.guildId === id);
+    const resultEl = document.getElementById('topic-bulk-result');
+    resultEl.textContent = 'Application en cours...';
+    let ok = 0;
+    let failed = 0;
+    for (const channelId of channelIds) {
+      const channel = channels.find((c) => c.id === channelId);
+      const category = channels.find((c) => c.id === channel?.parent_id);
+      const topic = template
+        .replaceAll('{server}', guildInfo?.name || '')
+        .replaceAll('{membercount}', String(guildInfo?.memberCount ?? ''))
+        .replaceAll('{category}', category?.name || '')
+        .replaceAll('{channel}', channel?.name || '')
+        .slice(0, 1024);
+      try {
+        await Api.setChannelTopic(id, channelId, topic);
+        ok += 1;
+      } catch {
+        failed += 1;
+      }
+    }
+    resultEl.textContent = `${ok} salon(s) mis a jour.${failed ? ` ${failed} en erreur.` : ''}`;
+    showToast(failed ? `${failed} salon(s) en erreur.` : 'Topics appliques.', failed ? 'error' : 'success');
+  });
+
   document.getElementById('clean-orphan-perms')?.addEventListener('click', async () => {
     if (!window.confirm('Supprimer definitivement toutes les permissions ciblant un role supprime ? Action irreversible.')) return;
     try {
@@ -4018,6 +4255,20 @@ async function renderPermissionsPage(id, container = app) {
     } catch (err) {
       showToast(err.message || 'JSON invalide.', 'error');
     }
+  });
+
+  // Historique des permissions + restauration (roadmap n°268).
+  document.querySelectorAll('.perm-history-restore').forEach((btn) => {
+    btn.addEventListener('click', async () => {
+      if (!window.confirm('Restaurer les permissions de ce salon a leur etat precedent ?')) return;
+      try {
+        await Api.restorePermissionHistory(id, btn.dataset.historyIndex);
+        showToast('Permissions restaurees.');
+        btn.closest('.embed-template-row').remove();
+      } catch (err) {
+        showToast(err.message, 'error');
+      }
+    });
   });
 
   document.getElementById('reset-admin').addEventListener('click', async () => {
@@ -4384,11 +4635,12 @@ async function renderAutomationsPage(id, container = app) {
   container.innerHTML = skeletonHtml();
   const [
     modConfig, roles, channels, levelRoles, referralRoles, referralCounts, streamers, scheduled, tickets, config,
-    shopItems, economyAccounts,
+    shopItems, economyAccounts, sanctionContests,
   ] = await Promise.all([
     Api.modConfig(id), Api.roles(id), Api.channels(id), Api.levelRoles(id), Api.referralRoles(id),
     Api.referrals(id), Api.streamers(id), Api.scheduled(id), Api.tickets(id), Api.config(id),
     Api.shopItems(id).catch(() => []), Api.economyAccounts(id).catch(() => ({})),
+    Api.sanctionContests(id).catch(() => []),
   ]);
 
   const roleOptions = (selected) => roles.filter((r) => r.name !== '@everyone')
@@ -4503,7 +4755,7 @@ async function renderAutomationsPage(id, container = app) {
     <div class="inner">
       ${quickJumpBarHtml([
     ['streamers', 'Streamers'], ['annonces', 'Annonces'], ['regles', 'Regles'], ['cooldowns', 'Cooldowns'],
-    ['automod', 'Auto-mod'], ['service', 'Service staff'], ['tickets', 'Tickets'], ['suggestions', 'Suggestions'],
+    ['automod', 'Auto-mod'], ['contestations', 'Contestations'], ['service', 'Service staff'], ['tickets', 'Tickets'], ['suggestions', 'Suggestions'],
     ['signalements', 'Signalements'], ['economie', 'Economie'], ['niveaux', 'Niveaux'], ['parrainage', 'Parrainage'],
     ['bots', 'Bots'], ['webhooks', 'Webhooks'], ['rss', 'RSS'], ['arrivee', 'Bot & role auto'],
     ['autoreact', 'Reactions auto'], ['notifications', 'Notifications push'],
@@ -4701,9 +4953,36 @@ async function renderAutomationsPage(id, container = app) {
         <input type="number" id="am-auto-timeout" value="${modConfig.autoTimeoutAfterWarns ?? 3}" min="0" />
         <label for="am-auto-timeout-min">Duree du timeout automatique (minutes)</label>
         <input type="number" id="am-auto-timeout-min" value="${modConfig.autoTimeoutMinutes ?? 10}" min="1" />
+        <div class="dp-subsection-divider"></div>
+        <p class="dp-block-title">📶 Escalade configurable (roadmap n°271)</p>
+        <p class="muted" style="font-size:0.76rem;">Sur le total d'avertissements actifs (/warn + automod). Distinct du timeout ci-dessus (limite a l'automod sur 1h). 0 = palier desactive.</p>
+        <label for="am-escalation-timeout">Timeout a partir de N avertissements</label>
+        <input type="number" id="am-escalation-timeout" value="${modConfig.escalationTimeoutWarns ?? 0}" min="0" />
+        <label for="am-escalation-timeout-min">Duree de ce timeout (minutes)</label>
+        <input type="number" id="am-escalation-timeout-min" value="${modConfig.escalationTimeoutMinutes ?? 10}" min="1" />
+        <label for="am-escalation-kick">Exclusion (kick) a partir de N avertissements</label>
+        <input type="number" id="am-escalation-kick" value="${modConfig.escalationKickWarns ?? 0}" min="0" />
+        <label for="am-escalation-ban">Bannissement a partir de N avertissements</label>
+        <input type="number" id="am-escalation-ban" value="${modConfig.escalationBanWarns ?? 0}" min="0" />
+        <div class="dp-subsection-divider"></div>
         <label class="dp-toggle-row" style="margin-top:6px;"><span>Slowmode automatique en cas de pic de messages</span><input type="checkbox" id="am-auto-slowmode" ${modConfig.autoSlowmodeEnabled ? 'checked' : ''} /></label>
         <label for="am-slowmode-threshold">Seuil du slowmode (messages par 10 s dans un salon)</label>
         <input type="number" id="am-slowmode-threshold" value="${modConfig.autoSlowmodeMsgPer10s ?? 20}" min="5" />
+        <div class="dp-subsection-divider"></div>
+        <p class="dp-block-title">🆕 Comptes recents (roadmap n°275)</p>
+        <p class="muted" style="font-size:0.76rem;">Action automatique a l'arrivee quand le compte Discord du membre a moins de N jours — utile contre les vagues de faux comptes.</p>
+        <label class="dp-toggle-row"><span>Garde-fou comptes recents actif</span><input type="checkbox" id="am-newaccount-enabled" ${modConfig.newAccountGuardEnabled ? 'checked' : ''} /></label>
+        <label for="am-newaccount-age">Age maximum du compte (jours)</label>
+        <input type="number" id="am-newaccount-age" value="${modConfig.newAccountMaxAgeDays ?? 7}" min="1" />
+        <label for="am-newaccount-action">Action</label>
+        <select id="am-newaccount-action">
+          <option value="alert" ${modConfig.newAccountAction === 'alert' ? 'selected' : ''}>Alerter le staff en modlog</option>
+          <option value="role" ${modConfig.newAccountAction === 'role' ? 'selected' : ''}>Attribuer un role de quarantaine</option>
+          <option value="kick" ${modConfig.newAccountAction === 'kick' ? 'selected' : ''}>Exclure (kick)</option>
+          <option value="ban" ${modConfig.newAccountAction === 'ban' ? 'selected' : ''}>Bannir</option>
+        </select>
+        <label for="am-newaccount-role">Role de quarantaine (si action = role)</label>
+        <select id="am-newaccount-role"><option value="">Aucun</option>${roleOptions(modConfig.newAccountRoleId)}</select>
         <button class="btn" id="save-modconfig" style="margin-top:12px;">Enregistrer</button>
 
         <div class="dp-subsection-divider"></div>
@@ -4712,6 +4991,25 @@ async function renderAutomationsPage(id, container = app) {
         <textarea id="am-sanction-reasons" placeholder="Spam&#10;Propos injurieux ou insultants&#10;Contenu NSFW hors salon dedie">${escapeHtml((config?.sanctionReasonPresets || []).join('\n'))}</textarea>
         <button class="btn secondary" id="save-sanction-reasons" style="margin-top:8px;">Enregistrer les motifs et l'expiration</button>
       `, { id: 'automod' })}
+
+      ${sectionHtml('Contestations de sanction', `
+        <p class="muted">Formulaire rempli par un membre sanctionne depuis le bouton "⚖️ Contester cette sanction" dans son DM (roadmap n°279).</p>
+        <div id="sanction-contests-list">
+          ${(() => {
+    const pending = sanctionContests.filter((c) => c.status !== 'resolved');
+    if (!pending.length) return '<p class="muted">Aucune contestation en attente.</p>';
+    const typeLabels = { warn: 'Avertissement', timeout: 'Timeout', kick: 'Exclusion', ban: 'Bannissement', tempban: 'Bannissement temporaire' };
+    return pending.map((c) => `
+              <div class="row" data-contest="${c.id}" style="justify-content:space-between; align-items:flex-start; gap:10px; padding:8px 0; border-bottom:1px solid var(--border);">
+                <div style="flex:1;">
+                  <p style="margin:0; font-size:0.84rem;"><strong>${escapeHtml(c.targetTag || c.targetId)}</strong> — ${escapeHtml(typeLabels[c.sanctionType] || c.sanctionType)} <span class="muted">(${new Date(c.createdAt).toLocaleString('fr-FR')})</span></p>
+                  <p class="muted" style="margin:4px 0 0; font-size:0.82rem; white-space:pre-wrap;">${escapeHtml(c.message || '')}</p>
+                </div>
+                <button type="button" class="btn secondary resolve-contest" data-contest-id="${c.id}">Marquer traitee</button>
+              </div>`).join('');
+  })()}
+        </div>
+      `, { id: 'contestations' })}
 
       ${sectionHtml('Roles de niveau (XP)', `
         <div id="level-roles-list">${levelRoleRows}</div>
@@ -5279,11 +5577,31 @@ async function renderAutomationsPage(id, container = app) {
         autoTimeoutMinutes: Math.max(1, Number(document.getElementById('am-auto-timeout-min').value) || 10),
         autoSlowmodeEnabled: document.getElementById('am-auto-slowmode').checked,
         autoSlowmodeMsgPer10s: Math.max(5, Number(document.getElementById('am-slowmode-threshold').value) || 20),
+        escalationTimeoutWarns: Math.max(0, Number(document.getElementById('am-escalation-timeout').value) || 0),
+        escalationTimeoutMinutes: Math.max(1, Number(document.getElementById('am-escalation-timeout-min').value) || 10),
+        escalationKickWarns: Math.max(0, Number(document.getElementById('am-escalation-kick').value) || 0),
+        escalationBanWarns: Math.max(0, Number(document.getElementById('am-escalation-ban').value) || 0),
+        newAccountGuardEnabled: document.getElementById('am-newaccount-enabled').checked,
+        newAccountMaxAgeDays: Math.max(1, Number(document.getElementById('am-newaccount-age').value) || 7),
+        newAccountAction: document.getElementById('am-newaccount-action').value,
+        newAccountRoleId: document.getElementById('am-newaccount-role').value || null,
       });
       showToast('Auto-moderation enregistree.');
     } catch (err) {
       showToast(err.message, 'error');
     }
+  });
+
+  container.querySelectorAll('.resolve-contest').forEach((btn) => {
+    btn.addEventListener('click', async () => {
+      try {
+        await Api.resolveSanctionContest(id, btn.dataset.contestId);
+        btn.closest('[data-contest]').remove();
+        showToast('Contestation marquee comme traitee.');
+      } catch (err) {
+        showToast(err.message, 'error');
+      }
+    });
   });
 
   document.getElementById('save-sanction-reasons').addEventListener('click', async () => {
@@ -7796,6 +8114,11 @@ function resolveEmbedVars(text) {
   let out = text.replaceAll('{date}', new Date().toLocaleDateString('fr-FR'));
   if (embedVarContext?.server) out = out.replaceAll('{server}', embedVarContext.server);
   if (embedVarContext?.memberCount != null) out = out.replaceAll('{memberCount}', String(embedVarContext.memberCount));
+  // Variables etendues (roadmap n°240).
+  if (embedVarContext?.online != null) out = out.replaceAll('{online}', String(embedVarContext.online));
+  if (embedVarContext?.boosts != null) out = out.replaceAll('{boosts}', String(embedVarContext.boosts));
+  if (embedVarContext?.owner) out = out.replaceAll('{owner}', embedVarContext.owner);
+  if (embedVarContext?.ageServeur != null) out = out.replaceAll('{age_serveur}', `${embedVarContext.ageServeur} j`);
   return out;
 }
 
@@ -8099,7 +8422,13 @@ async function renderEmbedBuilderPage(id, container = app) {
   embedVarContext = {
     server: allGuilds.find((g) => g.guildId === id)?.name || null,
     memberCount: Array.isArray(members) ? members.length : null,
+    // Age du serveur (n°240) : calcule cote client depuis le snowflake de
+    // l'ID, aucun appel reseau necessaire (meme trick que threadAutoClose).
+    ageServeur: Math.floor((Date.now() - Number((BigInt(id) >> 22n) + 1420070400000n)) / 86400000),
   };
+  Api.guildDetails(id).then((d) => {
+    if (embedVarContext) Object.assign(embedVarContext, { online: d.online, boosts: d.boosts, owner: d.ownerTag });
+  }).catch(() => {});
 
   // Recherche dans les modeles sauvegardes (roadmap n°243) : filtre cote
   // client sur le nom, la liste grandissant vite des qu'on en enregistre
@@ -8111,6 +8440,7 @@ async function renderEmbedBuilderPage(id, container = app) {
     <div class="embed-template-row" data-id="${t.id}">
       <span class="embed-template-name" title="${escapeHtml(t.name)}">${escapeHtml(t.name)}</span>
       <button class="btn secondary embed-load-template" data-id="${t.id}">Charger</button>
+      <button class="btn secondary embed-share-template" data-id="${t.id}" title="Partager vers un autre serveur (code court)" aria-label="Partager le modele ${escapeHtml(t.name)}">📤</button>
       <button class="btn danger embed-delete-template" data-id="${t.id}" title="Supprimer le modele" aria-label="Supprimer le modele ${escapeHtml(t.name)}">✕</button>
     </div>
   `).join('') || `<p class="muted">${q ? 'Aucun modele ne correspond a la recherche.' : 'Aucun modele enregistre.'}</p>`;
@@ -8165,6 +8495,10 @@ async function renderEmbedBuilderPage(id, container = app) {
               <button type="button" class="embed-var-chip" data-var="{server}" title="Nom du serveur">{server}</button>
               <button type="button" class="embed-var-chip" data-var="{memberCount}" title="Nombre de membres">{memberCount}</button>
               <button type="button" class="embed-var-chip" data-var="{date}" title="Date du jour">{date}</button>
+              <button type="button" class="embed-var-chip" data-var="{online}" title="Membres en ligne (approx.)">{online}</button>
+              <button type="button" class="embed-var-chip" data-var="{boosts}" title="Nombre de boosts">{boosts}</button>
+              <button type="button" class="embed-var-chip" data-var="{owner}" title="Pseudo du proprietaire">{owner}</button>
+              <button type="button" class="embed-var-chip" data-var="{age_serveur}" title="Age du serveur en jours">{age_serveur}</button>
               <button type="button" class="embed-var-chip" id="embed-ts-btn" aria-expanded="false" title="Inserer un timestamp Discord dynamique">🕒 Timestamp</button>
             </div>
             <div class="row" id="embed-ts-row" style="display:none; gap:6px; align-items:center; flex-wrap:wrap;">
@@ -8232,6 +8566,13 @@ async function renderEmbedBuilderPage(id, container = app) {
                 <input type="text" id="embed-footer-icon" placeholder="Icone : https://..." />
               </div>
             </div>
+            <div class="row" style="gap:8px; align-items:center; margin-top:6px; flex-wrap:wrap;">
+              <button type="button" class="btn secondary" id="embed-save-signature">💾 Enregistrer comme signature d'equipe</button>
+              <label class="dp-toggle-row" style="margin:0;">
+                <span>Signature d'equipe automatique</span>
+                <input type="checkbox" id="embed-team-signature" />
+              </label>
+            </div>
             <label class="dp-toggle-row" style="margin-top:8px;">
               <span>Inclure la date/heure actuelles</span>
               <input type="checkbox" id="embed-timestamp" />
@@ -8250,6 +8591,7 @@ async function renderEmbedBuilderPage(id, container = app) {
             </div>
             <div id="embed-draft-row"></div>
             ${templates.length > 5 ? '<input type="text" id="embed-template-search" placeholder="Rechercher un modele..." aria-label="Rechercher un modele" style="margin-bottom:8px;" />' : ''}
+            <button type="button" class="btn secondary" id="embed-import-shared" style="margin-bottom:8px;">📥 Importer via un code</button>
             <div id="embed-templates-list">${templateRows()}</div>
 
             <div class="dp-subsection-divider"></div>
@@ -8338,6 +8680,13 @@ async function renderEmbedBuilderPage(id, container = app) {
     if (!window.confirm("Vider l'embed affiche ? Le texte du message et les autres embeds sont conserves.")) return;
     populateEmbedForm(container, {}, container.querySelector('#embed-content').value);
   });
+
+  // Embed genere par l'IA (roadmap n°249) : consomme-et-efface, sinon il se
+  // rechargerait a chaque navigation vers ce module.
+  if (window.__aiGeneratedEmbed) {
+    populateEmbedForm(container, window.__aiGeneratedEmbed, container.querySelector('#embed-content').value);
+    window.__aiGeneratedEmbed = null;
+  }
 
   // Brouillon auto (n°007) : propose de restaurer le travail en cours.
   container.__draftKey = `embedDraft:${id}`;
@@ -8511,6 +8860,24 @@ async function renderEmbedBuilderPage(id, container = app) {
     container.querySelector('#embed-post-btn').textContent = e.target.value.trim()
       ? '✏️ Mettre a jour le message'
       : '🚀 Poster dans Discord';
+  });
+
+  // Signature d'equipe (roadmap n°242) : sauvegarde le pied de page courant
+  // en localStorage par serveur, reapplicable en un clic sur d'autres embeds.
+  const teamSigKey = `dsc-team-signature-${id}`;
+  container.querySelector('#embed-save-signature').addEventListener('click', () => {
+    const text = container.querySelector('#embed-footer-text').value.trim();
+    const iconUrl = container.querySelector('#embed-footer-icon').value.trim();
+    if (!text && !iconUrl) { showToast('Renseigne un texte ou une icone de pied de page a sauvegarder.', 'error'); return; }
+    localStorage.setItem(teamSigKey, JSON.stringify({ text, iconUrl }));
+    showToast('Signature d\'equipe enregistree.');
+  });
+  container.querySelector('#embed-team-signature').addEventListener('change', (e) => {
+    if (!e.target.checked) return;
+    const saved = JSON.parse(localStorage.getItem(teamSigKey) || 'null');
+    if (!saved) { showToast('Aucune signature d\'equipe enregistree pour ce serveur.', 'error'); e.target.checked = false; return; }
+    container.querySelector('#embed-footer-text').value = saved.text || '';
+    container.querySelector('#embed-footer-icon').value = saved.iconUrl || '';
   });
 
   container.querySelector('#embed-add-field').addEventListener('click', () => {
@@ -8711,11 +9078,40 @@ async function renderEmbedBuilderPage(id, container = app) {
         undoableDelete(btn, 'Modele supprime.', () => Api.deleteEmbedTemplate(id, btn.dataset.id));
       };
     });
+    // Partage entre serveurs (roadmap n°244) : code court a 6 caracteres,
+    // valable 30 jours, independant du serveur d'origine.
+    container.querySelectorAll('.embed-share-template').forEach((btn) => {
+      btn.onclick = async () => {
+        const template = templates.find((t) => t.id === btn.dataset.id);
+        if (!template) return;
+        try {
+          const { code } = await Api.shareEmbedTemplate(template.name, template.embed);
+          await navigator.clipboard?.writeText(code).catch(() => {});
+          window.prompt('Code de partage (copie, valable 30 jours) — a coller sur l\'autre serveur via "Importer via un code" :', code);
+        } catch (err) {
+          showToast(err.message, 'error');
+        }
+      };
+    });
   }
   wireTemplateButtons();
   container.querySelector('#embed-template-search')?.addEventListener('input', (e) => {
     container.querySelector('#embed-templates-list').innerHTML = templateRows(e.target.value);
     wireTemplateButtons();
+  });
+  container.querySelector('#embed-import-shared').addEventListener('click', async () => {
+    const code = window.prompt('Colle le code de partage (6 caracteres) :');
+    if (!code) return;
+    try {
+      const data = await Api.importSharedEmbedTemplate(code.trim());
+      const entry = await Api.saveEmbedTemplate(id, data.name, data.embed);
+      templates.push(entry);
+      container.querySelector('#embed-templates-list').innerHTML = templateRows(container.querySelector('#embed-template-search')?.value || '');
+      wireTemplateButtons();
+      showToast(`Modele « ${data.name} » importe.`);
+    } catch (err) {
+      showToast(err.message, 'error');
+    }
   });
 
   // Historique des envois (roadmap n°130) : recharger une copie, ou editer

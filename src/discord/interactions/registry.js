@@ -8,6 +8,7 @@ const {
   SUGGESTION_VOTE_PREFIX, SUGGESTION_APPROVE_PREFIX, SUGGESTION_DENY_PREFIX, SHOP_BUY_PREFIX,
   CAPTCHA_IMAGE_VERIFY, CAPTCHA_IMAGE_MODAL, AGE_VERIFY_BUTTON, AGE_VERIFY_MODAL,
   VOICE_CTRL_RENAME_BUTTON, VOICE_CTRL_RENAME_MODAL, VOICE_CTRL_LOCK_BUTTON, VOICE_CTRL_LIMIT_BUTTON,
+  SANCTION_CONTEST_PREFIX, SANCTION_CONTEST_MODAL_PREFIX, buildSanctionContestModalId,
 } = require('./customIds');
 const pollManager = require('../engagement/pollManager');
 const giveawayManager = require('../engagement/giveawayManager');
@@ -16,6 +17,9 @@ const {
   createTicket, closeTicket, claimTicket, rateTicket, TICKET_CLOSE_ID, TICKET_CLAIM_ID,
 } = require('../support/ticketManager');
 const { handleReportCommand } = require('../moderation/reportMessage');
+const { postModLog } = require('../moderation/modLog');
+const sanctionContestStore = require('../../kv/sanctionContestStore');
+const client = require('../client');
 const {
   handleVoiceCtrlRename, handleVoiceCtrlRenameModal, handleVoiceCtrlLock, handleVoiceCtrlLimit,
 } = require('./buttons/voiceControlPanel');
@@ -272,6 +276,22 @@ async function routeInteraction(interaction) {
         await handleCaptchaImageVerifyButton(interaction);
       } else if (interaction.customId === AGE_VERIFY_BUTTON) {
         await handleAgeVerifyButton(interaction);
+      } else if (interaction.customId.startsWith(SANCTION_CONTEST_PREFIX)) {
+        // Contestation de sanction (roadmap n°279) : bouton pose dans le DM
+        // de sanction, clique depuis le DM donc interaction.guild est null —
+        // le guildId est encode dans le customId.
+        const [guildId, sanctionType, targetId, createdAt] = interaction.customId.slice(SANCTION_CONTEST_PREFIX.length).split(':');
+        const modal = new ModalBuilder()
+          .setCustomId(buildSanctionContestModalId(guildId, sanctionType, targetId, createdAt))
+          .setTitle('Contester la sanction')
+          .addComponents(
+            new ActionRowBuilder().addComponents(
+              new TextInputBuilder().setCustomId('contest_message').setLabel('Pourquoi contestes-tu cette sanction ?')
+                .setStyle(TextInputStyle.Paragraph).setMaxLength(1000).setRequired(true)
+                .setPlaceholder('Explique ton point de vue, le staff sera notifie.'),
+            ),
+          );
+        await interaction.showModal(modal);
       } else if (interaction.customId.startsWith('selfrole:')) {
         // Bouton de role auto-attribue (generateur d'embed du dashboard,
         // roadmap n°003) : donne le role au clic, le retire au clic suivant.
@@ -320,6 +340,27 @@ async function routeInteraction(interaction) {
     }
     if (interaction.isModalSubmit() && interaction.customId === VOICE_CTRL_RENAME_MODAL) {
       await handleVoiceCtrlRenameModal(interaction);
+    }
+    if (interaction.isModalSubmit() && interaction.customId.startsWith(SANCTION_CONTEST_MODAL_PREFIX)) {
+      await interaction.deferReply({ flags: MessageFlags.Ephemeral });
+      const [guildId, sanctionType, targetId] = interaction.customId.slice(SANCTION_CONTEST_MODAL_PREFIX.length).split(':');
+      const message = interaction.fields.getTextInputValue('contest_message').trim();
+      const guild = await client.guilds.fetch(guildId).catch(() => null);
+      if (!guild) {
+        await interaction.editReply('Ce serveur est introuvable (le bot n\'y est peut-etre plus).');
+        return;
+      }
+      await sanctionContestStore.add(guildId, {
+        sanctionType, targetId, targetTag: interaction.user.tag, message,
+      });
+      await postModLog(guild, {
+        title: 'Contestation de sanction',
+        description: `<@${targetId}> conteste une sanction (${sanctionType}). Voir la page Auto-moderation du dashboard.`,
+        color: 0x5865f2,
+        fields: [{ name: 'Message', value: message.slice(0, 1024) }],
+      });
+      await interaction.editReply('Ta contestation a ete envoyee au staff, merci.');
+      return;
     }
     if (interaction.isModalSubmit() && interaction.customId === TICKET_FORM_MODAL) {
       await interaction.deferReply({ flags: MessageFlags.Ephemeral });

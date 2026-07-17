@@ -135,6 +135,33 @@ export const AI_TOOLS = [
       required: ['key', 'value'],
     },
   },
+  {
+    name: 'generate_embed',
+    destructive: false,
+    description: "Genere un embed Discord (titre, description, couleur hex, champs) pre-rempli dans le generateur du dashboard. Ne poste rien directement : l'utilisateur relit et publie lui-meme.",
+    parameters: {
+      type: 'object',
+      properties: {
+        title: { type: 'string' },
+        description: { type: 'string' },
+        color: { type: 'string', description: 'Couleur hex, ex: #5865f2 (optionnel)' },
+        fields: {
+          type: 'array',
+          description: 'Champs optionnels (max 25)',
+          items: {
+            type: 'object',
+            properties: {
+              name: { type: 'string' },
+              value: { type: 'string' },
+              inline: { type: 'boolean' },
+            },
+            required: ['name', 'value'],
+          },
+        },
+      },
+      required: ['title'],
+    },
+  },
 ];
 
 export function findTool(name) {
@@ -267,6 +294,19 @@ export async function executeAiTool(env, guildId, session, name, args) {
       await putGuildConfig(env, guildId, { ...fresh, [args.key]: value });
       await logAudit(env, guildId, { title: 'Config modifiee (IA)', description: `${session.username} a change ${args.key} via l'assistant IA.` });
       return { key: args.key, value, saved: true };
+    }
+    case 'generate_embed': {
+      const embed = {
+        title: String(args.title || '').slice(0, 256),
+        description: args.description ? String(args.description).slice(0, 4096) : undefined,
+        color: hexToInt(args.color) || 0x5865f2,
+        fields: Array.isArray(args.fields)
+          ? args.fields.slice(0, 25).map((f) => ({
+            name: String(f.name || '').slice(0, 256), value: String(f.value || '').slice(0, 1024), inline: Boolean(f.inline),
+          }))
+          : [],
+      };
+      return { embed };
     }
     default:
       throw new Error(`Outil inconnu : ${name}`);

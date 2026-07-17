@@ -7,6 +7,7 @@ const referralsKey = (guildId) => `guild:${guildId}:referrals`;
 const streamersKey = (guildId) => `guild:${guildId}:streamers`;
 const scheduledKey = (guildId) => `guild:${guildId}:scheduled`;
 const ticketsKey = (guildId) => `guild:${guildId}:tickets`;
+const sanctionContestsKey = (guildId) => `guild:${guildId}:sanctioncontests`;
 const pendingPanelActionsKey = (guildId) => `guild:${guildId}:pendingpanelactions`;
 const statsKey = (guildId) => `guild:${guildId}:stats`;
 const voiceChannelStatsKey = (guildId) => `guild:${guildId}:voicechannelstats`;
@@ -94,6 +95,8 @@ export const putScheduledTasks = (env, guildId, items) => putList(env, scheduled
 
 export const getTickets = (env, guildId) => getList(env, ticketsKey(guildId));
 export const putTickets = (env, guildId, items) => putList(env, ticketsKey(guildId), items);
+export const getSanctionContests = (env, guildId) => getList(env, sanctionContestsKey(guildId));
+export const putSanctionContests = (env, guildId, items) => putList(env, sanctionContestsKey(guildId), items);
 
 export async function pushPendingPanelAction(env, guildId, action) {
   const items = await getList(env, pendingPanelActionsKey(guildId));

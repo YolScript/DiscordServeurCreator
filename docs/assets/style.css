@@ -852,6 +852,24 @@ input::placeholder, textarea::placeholder { color: var(--text-faint); }
 .dp-channel.pinned { background: color-mix(in srgb, var(--warning) 8%, transparent); border-radius: 4px; }
 .dp-channel.pinned ~ .dp-channel-emoji-btn { margin-left: 0; }
 .dp-channel-pin-btn ~ .dp-channel-emoji-btn { margin-left: 0; }
+.dp-channel-lock-btn {
+  flex: none; background: none; border: none; color: var(--text-faint);
+  cursor: pointer; font-size: 0.82rem; padding: 2px 4px; border-radius: 4px;
+  opacity: 0; transition: opacity 0.12s ease, color 0.12s ease, background 0.12s ease;
+}
+.dp-channel:hover .dp-channel-lock-btn, .dp-channel-lock-btn:focus-visible { opacity: 1; }
+.dp-channel-lock-btn:hover { color: var(--accent); background: var(--bg-input); }
+.dp-channel-lock-btn.locked { opacity: 1; color: var(--accent); }
+
+/* Apercu de salon au survol prolonge (roadmap n°256). */
+.dp-channel-preview-bubble {
+  position: fixed; z-index: 500; max-width: 260px; padding: 10px 12px; border-radius: 8px;
+  background: var(--bg-card); border: 1px solid var(--border); box-shadow: 0 8px 24px rgba(0,0,0,0.35);
+  font-size: 0.78rem; line-height: 1.4; pointer-events: none;
+}
+.dp-channel-preview-bubble strong { display: block; margin-bottom: 4px; }
+.dp-channel-preview-bubble p { margin: 2px 0 0; word-break: break-word; }
+
 .dp-copy-id-btn.copied { color: var(--success); opacity: 1; }
 .dp-copy-id-inline {
   display: inline-flex; align-items: center; gap: 5px; margin-bottom: 10px;
@@ -1680,6 +1698,7 @@ button.embed-json-jump { background: none; border: none; padding: 0; font-family
   border-radius: 4px; background: var(--bg-input); color: var(--text-faint);
 }
 .dp-ch-badge.nsfw { color: var(--danger); font-weight: 700; }
+.dp-ch-badge.dead { color: var(--text-faint); font-style: italic; }
 
 .dp-empty-state { text-align: center; padding: 22px 12px; }
 

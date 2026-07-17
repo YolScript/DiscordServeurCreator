@@ -2,6 +2,7 @@ const { Events, EmbedBuilder } = require('discord.js');
 const client = require('../client');
 const guildConfigStore = require('../../kv/guildConfigStore');
 const antiRaid = require('../moderation/antiRaid');
+const newAccountGuard = require('../moderation/newAccountGuard');
 const statsTracker = require('../automation/statsTracker');
 const autoRules = require('../automation/autoRules');
 const inviteTracker = require('../engagement/inviteTracker');
@@ -13,6 +14,7 @@ const logger = require('../../shared/logger');
 
 client.on(Events.GuildMemberAdd, async (member) => {
   antiRaid.handleGuildMemberAdd(member);
+  newAccountGuard.handleGuildMemberAdd(member).catch((err) => logger.error('newAccountGuard.join', err));
   statsTracker.recordJoin(member.guild.id);
   autoRules.handleMemberAdd(member).catch((err) => logger.error('autoRules.join', err));
   inviteTracker.resolveInviterOnJoin(member).catch((err) => logger.error('resolveInviterOnJoin', err));
