@@ -23,6 +23,12 @@ const configSummaryCommand = new SlashCommandBuilder()
   .setDefaultMemberPermissions(PermissionFlagsBits.Administrator)
   .toJSON();
 
+// Aide interactive (roadmap n°182).
+const helpCommand = new SlashCommandBuilder()
+  .setName('help')
+  .setDescription('Liste les commandes du bot par categorie.')
+  .toJSON();
+
 const setupCommand = new SlashCommandBuilder()
   .setName('setup')
   .setDescription('Configure ce serveur avec un template (salons, roles, permissions).')
@@ -341,6 +347,7 @@ module.exports = [
   reportMessageCommand,
   cannedResponseCommand,
   configSummaryCommand,
+  helpCommand,
   remindCommand,
   setupCommand, warnCommand, warningsCommand, clearwarnsCommand, timeoutCommand, tempbanCommand, unlockCommand, automodCommand,
   scheduleAnnouncementCommand, scheduleEventCommand, scheduledListCommand, scheduledCancelCommand,

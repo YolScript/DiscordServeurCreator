@@ -21,6 +21,7 @@ const {
 } = require('./buttons/voiceControlPanel');
 const { handleCannedResponseCommand, autocompleteCannedResponse } = require('../commands/cannedResponse');
 const handleConfigSummaryCommand = require('../commands/configSummary');
+const { handleHelpCommand, handleHelpCategorySelect } = require('../commands/help');
 const handlePollCreateButton = require('./buttons/pollCreateButton');
 const handlePollCreateModal = require('./modals/pollCreateModal');
 const {
@@ -82,6 +83,7 @@ const commandHandlers = {
   setup: handleSetupCommand,
   reponse: handleCannedResponseCommand,
   config: handleConfigSummaryCommand,
+  help: handleHelpCommand,
   warn: handleWarnCommand,
   warnings: handleWarningsCommand,
   clearwarns: handleClearwarnsCommand,
@@ -259,6 +261,10 @@ async function routeInteraction(interaction) {
     }
     if (interaction.isStringSelectMenu() && interaction.customId.startsWith(REACTION_ROLE_SELECT_PREFIX)) {
       await handleReactionRoleSelect(interaction);
+      return;
+    }
+    if (interaction.isStringSelectMenu() && interaction.customId === 'help_category_select') {
+      await handleHelpCategorySelect(interaction);
       return;
     }
     if (interaction.isModalSubmit() && interaction.customId.startsWith(GAME_PSEUDO_MODAL_PREFIX)) {

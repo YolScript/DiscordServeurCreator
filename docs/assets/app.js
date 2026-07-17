@@ -1573,6 +1573,21 @@ function renderPreviewContent(id, { channels, config, roles, members }) {
     });
   });
 
+  // Reorganisation des categories par glisser-deposer (roadmap n°140) : une
+  // categorie deplacee entraine avec elle son bloc de salons (.dp-channels,
+  // toujours le frere DOM juste apres son en-tete .dp-category).
+  async function persistCategoryOrder(list) {
+    const orderedIds = [...list.querySelectorAll('.dp-category[data-cat]')].map((el) => el.dataset.cat);
+    const positions = orderedIds.map((cid, idx) => ({ id: cid, position: idx }));
+    try {
+      await Api.setChannelPositions(id, positions);
+      showToast('Ordre des categories mis a jour.');
+    } catch (err) {
+      showToast(err.message, 'error');
+      await renderPreviewPage(id);
+    }
+  }
+
   app.querySelectorAll('.dp-category[draggable="true"]').forEach((catEl) => {
     catEl.addEventListener('dragstart', (e) => {
       catEl.classList.add('dragging');
@@ -1580,7 +1595,27 @@ function renderPreviewContent(id, { channels, config, roles, members }) {
       e.dataTransfer.effectAllowed = 'move';
       e.stopPropagation();
     });
-    catEl.addEventListener('dragend', () => catEl.classList.remove('dragging'));
+    catEl.addEventListener('dragover', (e) => {
+      const draggingCat = app.querySelector('.dp-category.dragging');
+      if (!draggingCat || draggingCat === catEl) return;
+      const list = catEl.parentElement;
+      if (draggingCat.parentElement !== list) return;
+      e.preventDefault();
+      e.stopPropagation();
+      const rect = catEl.getBoundingClientRect();
+      const before = (e.clientY - rect.top) < rect.height / 2;
+      const insertBeforeNode = before ? catEl : catEl.nextElementSibling?.nextElementSibling || null;
+      if (insertBeforeNode === draggingCat || insertBeforeNode === draggingCat.nextElementSibling) return;
+      animateReorder(list, '.dp-category[data-cat]', () => {
+        const draggingChannels = draggingCat.nextElementSibling;
+        list.insertBefore(draggingCat, insertBeforeNode);
+        list.insertBefore(draggingChannels, draggingCat.nextSibling);
+      });
+    });
+    catEl.addEventListener('dragend', async () => {
+      catEl.classList.remove('dragging');
+      await persistCategoryOrder(catEl.parentElement);
+    });
   });
 
   // Drag&drop d'un salon ou d'une categorie depuis la barre laterale
