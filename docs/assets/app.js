@@ -847,6 +847,14 @@ const SETTINGS_PANELS = [
 // defaut), pendant que les 4 autres categories n'en avaient que 3-4 chacune.
 // Securite et Integrations extraites en categories a part entiere plutot
 // que noyees dans Creation/Administration.
+// Commandes eligibles a un cooldown (roadmap n°184) — miroir manuel de
+// commandCooldowns.js EXEMPT_COMMANDS cote bot (les commandes staff/config
+// y sont exclues, un cooldown dessus genant plus qu'autre chose).
+const COOLDOWN_COMMANDS = [
+  'reponse', 'poll', 'giveaway', 'giveaway-reroll', 'suggest', 'remind',
+  'pay', 'ticket', 'rank', 'leaderboard', 'invites', 'shop',
+];
+
 const HOME_CATEGORIES = [
   { id: 'administration', icon: '🛠️', label: 'Administration' },
   { id: 'securite', icon: '🔒', label: 'Securite' },
@@ -871,6 +879,7 @@ const HOME_MODULES = [
   { parent: 'securite', section: 'sec-snapshots', icon: '📸', label: 'Snapshots automatiques', category: 'securite' },
   { parent: 'securite', section: 'sec-lockdown', icon: '🔒', label: 'Lockdown', category: 'securite' },
   // Moderation : surveillance et gestion du comportement des membres.
+  { parent: 'automatisations', section: 'cooldowns', icon: '⏳', label: 'Cooldowns commandes', category: 'moderation' },
   { parent: 'automatisations', section: 'automod', icon: '🚫', label: 'Auto-moderation', category: 'moderation' },
   { parent: 'automatisations', section: 'tickets', icon: '🎫', label: 'Tickets', category: 'moderation' },
   { parent: 'auditlog', icon: '📋', label: "Logs d'audit", category: 'moderation' },
@@ -4159,6 +4168,18 @@ async function renderAutomationsPage(id, container = app) {
         <div id="economy-leaderboard">${economyLeaderboardRows}</div>
       `, { id: 'economie' })}
 
+      ${sectionHtml('Cooldowns par commande', `
+        <p class="muted">Delai minimum (en secondes) entre deux utilisations de la meme commande par un membre. 0 = pas de limite. Les commandes de moderation/configuration (staff uniquement) ne sont pas concernees.</p>
+        <div class="dp-form-grid">
+          ${COOLDOWN_COMMANDS.map((cmd) => `
+            <div>
+              <label for="cooldown-${cmd}">/${cmd}</label>
+              <input type="number" id="cooldown-${cmd}" min="0" max="86400" value="${config?.commandCooldowns?.[cmd] || 0}" />
+            </div>`).join('')}
+        </div>
+        <button class="btn secondary" id="save-cooldowns" style="margin-top:8px;">Enregistrer les cooldowns</button>
+      `, { id: 'cooldowns' })}
+
       ${sectionHtml('Auto-moderation', `
         <label class="dp-toggle-row"><span>Auto-moderation active</span><input type="checkbox" id="am-enabled" ${modConfig.autoModEnabled ? 'checked' : ''} /></label>
         <label class="dp-toggle-row" style="margin-top:6px;"><span>Bloquer les liens d'invitation Discord</span><input type="checkbox" id="am-invites" ${modConfig.blockInvites ? 'checked' : ''} /></label>
@@ -4889,6 +4910,21 @@ async function renderAutomationsPage(id, container = app) {
       showToast('Lien d\'invitation copie : partage-le pour installer le bot ailleurs.');
     } catch {
       showToast('Copie impossible (permission navigateur).', 'error');
+    }
+  });
+
+  // Cooldowns par commande (roadmap n°184).
+  document.getElementById('save-cooldowns')?.addEventListener('click', async () => {
+    const commandCooldowns = {};
+    COOLDOWN_COMMANDS.forEach((cmd) => {
+      const val = Number(document.getElementById(`cooldown-${cmd}`).value) || 0;
+      if (val > 0) commandCooldowns[cmd] = val;
+    });
+    try {
+      await Api.updateConfig(id, { commandCooldowns });
+      showToast('Cooldowns enregistres.');
+    } catch (err) {
+      showToast(err.message, 'error');
     }
   });
 

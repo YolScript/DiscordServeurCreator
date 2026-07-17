@@ -22,6 +22,7 @@ const {
 const { handleCannedResponseCommand, autocompleteCannedResponse } = require('../commands/cannedResponse');
 const handleConfigSummaryCommand = require('../commands/configSummary');
 const { handleHelpCommand, handleHelpCategorySelect } = require('../commands/help');
+const { checkCommandCooldown, replyOnCooldown } = require('../moderation/commandCooldowns');
 const handlePollCreateButton = require('./buttons/pollCreateButton');
 const handlePollCreateModal = require('./modals/pollCreateModal');
 const {
@@ -154,6 +155,12 @@ async function routeInteraction(interaction) {
       return;
     }
     if (interaction.isChatInputCommand()) {
+      // Cooldowns par commande (roadmap n°184), configurables au dashboard.
+      const cooldownRemaining = await checkCommandCooldown(interaction);
+      if (cooldownRemaining !== null) {
+        await replyOnCooldown(interaction, cooldownRemaining);
+        return;
+      }
       const handler = commandHandlers[interaction.commandName];
       if (handler) {
         await handler(interaction);
