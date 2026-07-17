@@ -1488,7 +1488,6 @@ function renderPreviewContent(id, { channels, config, roles, members }) {
           <div class="dp-roles-list">${rolesSorted.map((r) => roleRowHtml(r, members)).join('')}</div>
         </div>
         <button type="button" class="dp-drawer-btn left" id="dp-drawer-left" aria-label="Ouvrir le panneau des salons">☰</button>
-        <button type="button" class="dp-drawer-btn fab-create" id="dp-fab-create" aria-label="Creer un salon rapidement">➕</button>
         <button type="button" class="dp-drawer-btn right" id="dp-drawer-right" aria-label="Ouvrir le panneau des roles">🏷️</button>
       </div>
     </div>
@@ -1899,20 +1898,6 @@ function renderPreviewContent(id, { channels, config, roles, members }) {
   wireDrawer('dp-drawer-right', '.dp-roles-panel');
   document.getElementById('dp-main')?.addEventListener('click', () => {
     app.querySelectorAll('.touch-open').forEach((p) => p.classList.remove('touch-open'));
-  });
-
-  // Bouton flottant de creation rapide (roadmap n°122) : ouvre le tiroir
-  // salons et met en evidence le premier « + Ajouter un salon ».
-  document.getElementById('dp-fab-create')?.addEventListener('click', (e) => {
-    e.stopPropagation();
-    app.querySelector('.dp-roles-panel')?.classList.remove('touch-open');
-    app.querySelector('.dp-sidebar')?.classList.add('touch-open');
-    const addBtn = app.querySelector('.dp-add-channel');
-    if (addBtn) {
-      addBtn.scrollIntoView({ behavior: 'smooth', block: 'center' });
-      addBtn.classList.add('flash-highlight');
-      setTimeout(() => addBtn.classList.remove('flash-highlight'), 2400);
-    }
   });
 
   // Gestes swipe (roadmap n°121) : glisser depuis le bord gauche ouvre le
