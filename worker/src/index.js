@@ -12,6 +12,8 @@ import {
   getGuildConfig, putGuildConfig, getGameRoles, putGameRoles,
   getModConfig, putModConfig,
   getLevelRoles, putLevelRoles,
+  getVoiceChannelStats,
+  getPushSubscriptions, putPushSubscriptions,
   getReferralRoles, putReferralRoles, getReferralCounts,
   getStreamerLinks, putStreamerLinks,
   getScheduledTasks, putScheduledTasks,
@@ -264,6 +266,12 @@ async function router(request, env) {
 
   if (method === 'GET' && url.pathname === '/api/game-role-catalog') {
     return json(GAME_ROLE_CATALOG, env);
+  }
+
+  // Cle publique VAPID (roadmap n°178) : necessaire cote navigateur pour
+  // pushManager.subscribe(), aucune donnee sensible, pas de session requise.
+  if (method === 'GET' && url.pathname === '/api/push-vapid-key') {
+    return json({ publicKey: env.VAPID_PUBLIC_KEY || null }, env);
   }
 
   if (method === 'GET' && url.pathname === '/api/botstatus') {
@@ -1073,6 +1081,69 @@ async function router(request, env) {
       }
     }
 
+    // Import/export de la configuration complete (roadmap n°210) : distinct
+    // de security/export (qui sauvegarde la STRUCTURE — roles/salons/perms).
+    // Ici c'est le COMPORTEMENT du bot pour ce serveur : reglages, paliers de
+    // niveau, parrainage, boutique, commandes perso, modeles d'embed,
+    // reaction-roles et roles de jeu. Verrouille a la version courante :
+    // l'import refuse un JSON d'une version future (n°210, champ "version").
+    const CONFIG_EXPORT_VERSION = 1;
+    if (sub === 'config-export' && parts.length === 4 && method === 'GET') {
+      const session = await requireGuildAccess(env, request, guildId);
+      const [config, modConfig, levelRoles, referralRoles, shopItems, customCommands, embedTemplates, reactionRoleGroups, gameRoles] = await Promise.all([
+        getGuildConfig(env, guildId), getModConfig(env, guildId), getLevelRoles(env, guildId),
+        getReferralRoles(env, guildId), getShopItems(env, guildId), getCustomCommands(env, guildId),
+        getEmbedTemplates(env, guildId), getReactionRoleGroups(env, guildId), getGameRoles(env, guildId),
+      ]);
+      await logAudit(env, guildId, { title: 'Configuration exportee', description: `${session.username} a exporte la configuration complete (JSON).` });
+      return json({
+        version: CONFIG_EXPORT_VERSION,
+        exportedAt: Date.now(),
+        config, modConfig, levelRoles, referralRoles, shopItems, customCommands, embedTemplates, reactionRoleGroups, gameRoles,
+      }, env);
+    }
+    if (sub === 'config-import' && parts.length === 4 && method === 'POST') {
+      const session = await requireGuildAccess(env, request, guildId);
+      const bundle = await readJson(request);
+      if (!bundle || typeof bundle !== 'object' || bundle.version > CONFIG_EXPORT_VERSION) {
+        throw new HttpError(400, 'Fichier invalide ou exporte par une version plus recente du dashboard.');
+      }
+      const writes = [];
+      if (bundle.config && typeof bundle.config === 'object') writes.push(putGuildConfig(env, guildId, { ...(await getGuildConfig(env, guildId)), ...bundle.config }));
+      if (bundle.modConfig && typeof bundle.modConfig === 'object') writes.push(putModConfig(env, guildId, bundle.modConfig));
+      if (Array.isArray(bundle.levelRoles)) writes.push(putLevelRoles(env, guildId, bundle.levelRoles));
+      if (Array.isArray(bundle.referralRoles)) writes.push(putReferralRoles(env, guildId, bundle.referralRoles));
+      if (Array.isArray(bundle.shopItems)) writes.push(putShopItems(env, guildId, bundle.shopItems));
+      if (Array.isArray(bundle.customCommands)) writes.push(putCustomCommands(env, guildId, bundle.customCommands));
+      if (Array.isArray(bundle.embedTemplates)) writes.push(putEmbedTemplates(env, guildId, bundle.embedTemplates));
+      if (Array.isArray(bundle.reactionRoleGroups)) writes.push(putReactionRoleGroups(env, guildId, bundle.reactionRoleGroups));
+      if (Array.isArray(bundle.gameRoles)) writes.push(putGameRoles(env, guildId, bundle.gameRoles));
+      await Promise.all(writes);
+      await logAudit(env, guildId, { title: 'Configuration importee', description: `${session.username} a importe une configuration complete (${writes.length} section(s)).` });
+      return json({ ok: true, sectionsImported: writes.length }, env);
+    }
+
+    // Souscriptions Web Push (roadmap n°178) : dedupe par endpoint (un meme
+    // navigateur qui se re-abonne remplace son ancienne souscription).
+    if (sub === 'push-subscribe' && parts.length === 4 && method === 'POST') {
+      const session = await requireGuildAccess(env, request, guildId);
+      const subscription = await readJson(request);
+      if (!subscription?.endpoint || !subscription?.keys?.p256dh || !subscription?.keys?.auth) {
+        throw new HttpError(400, 'Souscription push invalide.');
+      }
+      const items = (await getPushSubscriptions(env, guildId)).filter((s) => s.endpoint !== subscription.endpoint);
+      items.push({ endpoint: subscription.endpoint, keys: subscription.keys, userId: session.userId, subscribedAt: Date.now() });
+      await putPushSubscriptions(env, guildId, items);
+      return json({ ok: true }, env);
+    }
+    if (sub === 'push-subscribe' && parts.length === 4 && method === 'DELETE') {
+      const session = await requireGuildAccess(env, request, guildId);
+      const { endpoint } = await readJson(request);
+      const items = (await getPushSubscriptions(env, guildId)).filter((s) => s.endpoint !== endpoint || s.userId !== session.userId);
+      await putPushSubscriptions(env, guildId, items);
+      return json({ ok: true }, env);
+    }
+
     if (sub === 'gameroles' && method === 'GET' && parts.length === 4) {
       await requireGuildAccess(env, request, guildId);
       return json(await getGameRoles(env, guildId), env);
@@ -1434,10 +1505,19 @@ async function router(request, env) {
       await requireGuildAccess(env, request, guildId);
       if (method === 'GET') return json(await getLevelRoles(env, guildId), env);
       if (method === 'POST') {
-        const { level, roleId } = await readJson(request);
-        if (!Number.isInteger(level) || !roleId) throw new HttpError(400, 'level et roleId requis.');
+        const { level, roleId, bonus, announce } = await readJson(request);
+        const cleanBonus = Number.isFinite(Number(bonus)) && Number(bonus) > 0 ? Math.round(Number(bonus)) : undefined;
+        const cleanAnnounce = typeof announce === 'string' && announce.trim() ? announce.trim().slice(0, 200) : undefined;
+        if (!Number.isInteger(level) || (!roleId && !cleanBonus && !cleanAnnounce)) {
+          throw new HttpError(400, 'level requis, avec au moins role, bonus ou annonce.');
+        }
         const items = (await getLevelRoles(env, guildId)).filter((i) => i.level !== level);
-        items.push({ level, roleId });
+        items.push({
+          level,
+          ...(roleId ? { roleId } : {}),
+          ...(cleanBonus ? { bonus: cleanBonus } : {}),
+          ...(cleanAnnounce ? { announce: cleanAnnounce } : {}),
+        });
         items.sort((a, b) => a.level - b.level);
         await putLevelRoles(env, guildId, items);
         return json(items, env);
@@ -1813,6 +1893,11 @@ async function router(request, env) {
       return json(await getStats(env, guildId), env);
     }
 
+    if (sub === 'voicechannelstats' && parts.length === 4 && method === 'GET') {
+      await requireGuildAccess(env, request, guildId);
+      return json(await getVoiceChannelStats(env, guildId), env);
+    }
+
     // --- Panneaux (reglement/roles/poll/ticket/embed) : depose une action
     // que le bot (process separe) sonde et execute (cf panelActionsSync
     // cote bot).
@@ -2103,6 +2188,47 @@ async function router(request, env) {
   throw new HttpError(404, 'Route inconnue.');
 }
 
+// Alerte "bot hors ligne" (roadmap n°178). Le declencheur ideal serait une
+// vraie notification Web Push, mais la lib web-push (chiffrement RFC 8291 +
+// signature VAPID) s'appuie sur des modules Node (node:os notamment)
+// absents du runtime Workers, meme avec nodejs_compat active (teste et
+// confirme non fonctionnel) — donc SEUL le bot (Node.js sur Render) peut
+// envoyer des push, et il ne peut evidemment pas s'auto-alerter s'il est
+// hors ligne. Ce cron (deja reveille toutes les 10 min pour le keepalive)
+// est le seul point qui tourne independamment du bot : il lit le heartbeat
+// KV (meme seuil de 25 min que /health) et, s'il devient perime, previent
+// chaque proprietaire de serveur configure par MP Discord (notifyGuildOwner
+// passe par l'API REST Discord avec le token du bot, ce qui fonctionne
+// meme process bot arrete). Un flag KV evite de spammer un MP toutes les
+// 10 min pendant une panne prolongee, et confirme le retour en ligne.
+async function checkBotOfflineAlert(env) {
+  const OFFLINE_THRESHOLD_MS = 25 * 60_000;
+  const botStatus = await env.GUILD_KV.get('bot:status', 'json').catch(() => null);
+  const isOnline = !!botStatus?.updatedAt && (Date.now() - botStatus.updatedAt) < OFFLINE_THRESHOLD_MS;
+  const alreadyAlerted = await env.GUILD_KV.get('bot:offlinealerted');
+
+  if (!isOnline && !alreadyAlerted) {
+    const guildIds = new Set();
+    let cursor;
+    do {
+      // eslint-disable-next-line no-await-in-loop
+      const page = await env.GUILD_KV.list({ prefix: 'guild:', cursor });
+      for (const { name } of page.keys) {
+        const match = name.match(/^guild:([^:]+):config$/);
+        if (match) guildIds.add(match[1]);
+      }
+      cursor = page.list_complete ? undefined : page.cursor;
+    } while (cursor);
+    for (const gid of guildIds) {
+      // eslint-disable-next-line no-await-in-loop
+      await notifyGuildOwner(env, gid, '⚠️ **Le bot Discord Serveur Creator semble hors ligne** (aucun signe de vie depuis plus de 25 min). Les commandes et automatisations sont indisponibles en attendant son redemarrage.').catch(() => {});
+    }
+    await env.GUILD_KV.put('bot:offlinealerted', '1', { expirationTtl: 6 * 3600 });
+  } else if (isOnline && alreadyAlerted) {
+    await env.GUILD_KV.delete('bot:offlinealerted');
+  }
+}
+
 async function snapshotAllGuilds(env) {
   const guildIds = new Set();
   let cursor;
@@ -2147,12 +2273,14 @@ export default {
     // Cron rapproche : simple ping pour garder le bot Render eveille
     // (free tier suspendu apres 15 min sans trafic entrant).
     if (event.cron === '*/10 * * * *') {
-      if (!env.BOT_KEEPALIVE_URL) return;
-      try {
-        await fetch(env.BOT_KEEPALIVE_URL, { signal: AbortSignal.timeout(30000) });
-      } catch (err) {
-        console.error('keepalive bot echoue', err);
+      if (env.BOT_KEEPALIVE_URL) {
+        try {
+          await fetch(env.BOT_KEEPALIVE_URL, { signal: AbortSignal.timeout(30000) });
+        } catch (err) {
+          console.error('keepalive bot echoue', err);
+        }
       }
+      await checkBotOfflineAlert(env);
       return;
     }
     // Sauvegarde hebdomadaire complete du KV (roadmap n°106).

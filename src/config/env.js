@@ -23,4 +23,13 @@ module.exports = {
   youtube: {
     apiKey: process.env.YOUTUBE_API_KEY || null,
   },
+  // Notifications Web Push (roadmap n°178) : sans ces cles, envoyerPush()
+  // (src/shared/webPush.js) ne fait rien silencieusement — generer une paire
+  // avec `npx web-push generate-vapid-keys`, la cle publique doit correspondre
+  // a VAPID_PUBLIC_KEY dans worker/wrangler.toml (cote navigateur).
+  vapid: {
+    publicKey: process.env.VAPID_PUBLIC_KEY || null,
+    privateKey: process.env.VAPID_PRIVATE_KEY || null,
+    subject: process.env.VAPID_SUBJECT || 'mailto:contact@example.com',
+  },
 };

@@ -6,9 +6,15 @@ async function list(guildId) {
   return (await kvGet(key(guildId))) ?? [];
 }
 
-async function set(guildId, level, roleId) {
+async function set(guildId, level, data) {
   const items = (await list(guildId)).filter((lr) => lr.level !== level);
-  items.push({ level, roleId });
+  const { roleId, bonus, announce } = typeof data === 'string' ? { roleId: data } : (data || {});
+  items.push({
+    level,
+    ...(roleId ? { roleId } : {}),
+    ...(bonus ? { bonus } : {}),
+    ...(announce ? { announce } : {}),
+  });
   items.sort((a, b) => a.level - b.level);
   await kvPut(key(guildId), items);
 }

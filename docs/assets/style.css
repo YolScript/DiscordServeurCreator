@@ -417,6 +417,22 @@ html, body { height: 100%; }
 }
 .inline-banner .retry-btn:hover { background: currentColor; color: var(--bg); }
 
+/* ---------- Bandeau mode demo (roadmap n°171) ---------- */
+
+.demo-banner {
+  position: sticky; top: 0; z-index: 500;
+  display: flex; align-items: center; justify-content: center; gap: 14px;
+  flex-wrap: wrap; padding: 8px 16px; text-align: center;
+  background: var(--warning); color: #1a1013; font-size: 0.82rem; font-weight: 600;
+}
+.demo-banner[hidden] { display: none !important; }
+.demo-banner #demo-exit-btn {
+  flex: none; border: 1px solid rgba(0,0,0,0.35); background: rgba(0,0,0,0.12); color: inherit;
+  border-radius: var(--radius-sm); padding: 4px 12px; font-size: 0.8rem; font-family: inherit;
+  font-weight: 600; cursor: pointer;
+}
+.demo-banner #demo-exit-btn:hover { background: rgba(0,0,0,0.22); }
+
 /* ---------- Guild list ---------- */
 
 .guild-list { display: flex; flex-direction: column; gap: 1px; background: rgba(0,0,0,0.3); border-radius: var(--radius); overflow: hidden; }

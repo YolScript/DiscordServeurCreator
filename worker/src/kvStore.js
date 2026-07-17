@@ -9,6 +9,8 @@ const scheduledKey = (guildId) => `guild:${guildId}:scheduled`;
 const ticketsKey = (guildId) => `guild:${guildId}:tickets`;
 const pendingPanelActionsKey = (guildId) => `guild:${guildId}:pendingpanelactions`;
 const statsKey = (guildId) => `guild:${guildId}:stats`;
+const voiceChannelStatsKey = (guildId) => `guild:${guildId}:voicechannelstats`;
+const pushSubsKey = (guildId) => `guild:${guildId}:pushsubs`;
 const embedTemplatesKey = (guildId) => `guild:${guildId}:embedtemplates`;
 const reactionRolesKey = (guildId) => `guild:${guildId}:reactionroles`;
 const shopKey = (guildId) => `guild:${guildId}:shop`;
@@ -99,6 +101,19 @@ export async function pushPendingPanelAction(env, guildId, action) {
 }
 
 export const getStats = (env, guildId) => getList(env, statsKey(guildId));
+
+export async function getVoiceChannelStats(env, guildId) {
+  const raw = await env.GUILD_KV.get(voiceChannelStatsKey(guildId));
+  return raw ? JSON.parse(raw) : {};
+}
+
+// Abonnements Web Push (roadmap n°178) : le WORKER stocke les souscriptions
+// (il est le seul que le navigateur peut contacter), mais c'est le BOT
+// (Node.js, seul environnement compatible avec la lib web-push — testee et
+// non fonctionnelle sous le runtime Workers meme avec nodejs_compat) qui lit
+// cette meme cle KV directement pour envoyer les notifications.
+export const getPushSubscriptions = (env, guildId) => getList(env, pushSubsKey(guildId));
+export const putPushSubscriptions = (env, guildId, items) => putList(env, pushSubsKey(guildId), items);
 
 export const getEmbedTemplates = (env, guildId) => getList(env, embedTemplatesKey(guildId));
 

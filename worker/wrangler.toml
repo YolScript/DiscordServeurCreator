@@ -22,6 +22,11 @@ DISCORD_CLIENT_ID = "1526237674355036401"
 OAUTH_REDIRECT_URI = "https://discord-serveur-creator-worker.energiecraft-online.workers.dev/auth/callback"
 FRONTEND_ORIGIN = "https://yolscript.github.io"
 FRONTEND_REDIRECT_URL = "https://yolscript.github.io/DiscordServeurCreator/app.html"
+# Cle PUBLIQUE VAPID (roadmap n°178) : safe a committer, sert uniquement a la
+# souscription navigateur cote dashboard. La cle PRIVEE ne vit que cote bot
+# (Render, cf. .env) qui est le seul a envoyer les notifications — le worker
+# ne fait qu'exposer cette cle publique et stocker les abonnements.
+VAPID_PUBLIC_KEY = "BPsiLg2QloB0NdBL-Yy5k7eY1DcJXg8CECeW9pGudvH6gHNNh-sHjHXrQUa2IklUY19rYbXPkJI_s-uTfkKVaVE"
 
 # Secrets a definir via `wrangler secret put <NOM>` (jamais dans ce fichier) :
 #   DISCORD_CLIENT_SECRET

@@ -5,12 +5,15 @@
   "type": "module",
   "scripts": {
     "dev": "wrangler dev",
-    "deploy": "wrangler deploy"
+    "deploy": "wrangler deploy",
+    "test": "node --test test/routes.test.js"
   },
   "dependencies": {
     "discord-api-types": "^0.38.49"
   },
   "devDependencies": {
+    "esbuild": "^0.28.1",
+    "miniflare": "^4.20260710.0",
     "wrangler": "^4.0.0"
   }
 }

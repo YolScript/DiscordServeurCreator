@@ -1,6 +1,8 @@
 const xpStore = require('../../kv/xpStore');
 const levelRoleStore = require('../../kv/levelRoleStore');
 const guildConfigStore = require('../../kv/guildConfigStore');
+const economyStore = require('../../kv/economyStore');
+const voiceChannelStatsStore = require('../../kv/voiceChannelStatsStore');
 const { checkAndAwardBadges } = require('./badgeManager');
 const logger = require('../../shared/logger');
 
@@ -62,6 +64,31 @@ async function flushMemberNow(guildId, userId) {
   await xpStore.setMember(guildId, userId, entry.data).catch((err) => logger.error('xpManager.flushMember', err));
 }
 
+// Minutes cumulees par salon vocal (roadmap n°188) : meme logique de tampon
+// que l'XP (quota KV gratuit = 1000 put()/jour), un salon occupe par au
+// moins un humain non-sourd compte 5 min a chaque tick.
+const pendingVoiceChannelMinutes = new Map(); // guildId -> Map(channelId -> minutes)
+
+function queueChannelMinutes(guildId, channelId, minutes) {
+  if (!pendingVoiceChannelMinutes.has(guildId)) pendingVoiceChannelMinutes.set(guildId, new Map());
+  const perChannel = pendingVoiceChannelMinutes.get(guildId);
+  perChannel.set(channelId, (perChannel.get(channelId) || 0) + minutes);
+}
+
+async function flushVoiceChannelStats() {
+  const entries = [...pendingVoiceChannelMinutes.entries()];
+  pendingVoiceChannelMinutes.clear();
+  for (const [guildId, perChannel] of entries) {
+    // eslint-disable-next-line no-await-in-loop
+    const existing = await voiceChannelStatsStore.get(guildId).catch(() => ({}));
+    for (const [channelId, minutes] of perChannel) {
+      existing[channelId] = (existing[channelId] || 0) + minutes;
+    }
+    // eslint-disable-next-line no-await-in-loop
+    await voiceChannelStatsStore.put(guildId, existing).catch((err) => logger.error('xpManager.flushVoiceChannelStats', err));
+  }
+}
+
 function xpForLevel(level) {
   return 50 * level * (level + 1);
 }
@@ -72,11 +99,29 @@ function levelFromXp(xp) {
   return level;
 }
 
-async function applyLevelRoles(member, newLevel) {
+// Applique les roles de tous les paliers atteints (rattrapage inclus si un
+// ajout precedent avait echoue) mais ne renvoie que les paliers FRANCHIS par
+// ce gain d'XP (oldLevel < lr.level <= newLevel), pour ne verser le bonus
+// economie et l'annonce qu'une seule fois par palier.
+async function applyLevelRewards(member, oldLevel, newLevel) {
   const levelRoles = await levelRoleStore.list(member.guild.id);
-  const toApply = levelRoles.filter((lr) => lr.level <= newLevel && !member.roles.cache.has(lr.roleId));
-  for (const lr of toApply) {
+  const rolesToApply = levelRoles.filter((lr) => lr.roleId && lr.level <= newLevel && !member.roles.cache.has(lr.roleId));
+  for (const lr of rolesToApply) {
     await member.roles.add(lr.roleId).catch(() => {});
+  }
+  return levelRoles.filter((lr) => lr.level > oldLevel && lr.level <= newLevel);
+}
+
+function formatAnnounce(template, userId, level) {
+  return template.replace(/\{user\}/g, `<@${userId}>`).replace(/\{level\}/g, String(level));
+}
+
+async function awardLevelRewards(guildId, userId, triggered) {
+  for (const lr of triggered) {
+    if (lr.bonus) {
+      // eslint-disable-next-line no-await-in-loop
+      await economyStore.addBalance(guildId, userId, lr.bonus).catch(() => {});
+    }
   }
 }
 
@@ -91,6 +136,7 @@ async function awardMessageXp(message) {
     const { rate, boosts } = await getXpConfig(message.guild.id);
     const boost = Math.min(5, Math.max(0.5, Number(boosts[message.channel.id]) || 1));
     const data = await getMemberBuffered(message.guild.id, message.author.id);
+    const oldLevel = data.level;
     data.xp += Math.round(XP_PER_MESSAGE * rate * boost);
     data.messageCount += 1;
     const newLevel = levelFromXp(data.xp);
@@ -100,8 +146,11 @@ async function awardMessageXp(message) {
 
     if (leveledUp) {
       await flushMemberNow(message.guild.id, message.author.id);
-      await applyLevelRoles(message.member, newLevel);
-      await message.channel.send(`🎉 <@${message.author.id}> passe niveau **${newLevel}** !`).catch(() => {});
+      const triggered = await applyLevelRewards(message.member, oldLevel, newLevel);
+      await awardLevelRewards(message.guild.id, message.author.id, triggered);
+      const customAnnounces = triggered.filter((lr) => lr.announce).map((lr) => formatAnnounce(lr.announce, message.author.id, lr.level));
+      const text = customAnnounces.length ? customAnnounces.join('\n') : `🎉 <@${message.author.id}> passe niveau **${newLevel}** !`;
+      await message.channel.send(text).catch(() => {});
     }
     await checkAndAwardBadges(message.guild, message.author.id);
   } catch (err) {
@@ -113,12 +162,13 @@ async function tickVoiceXp(client) {
   for (const guild of client.guilds.cache.values()) {
     for (const channel of guild.channels.cache.values()) {
       if (channel.type !== 2 || !channel.members) continue; // 2 = GuildVoice
-      for (const member of channel.members.values()) {
-        if (member.user.bot) continue;
-        if (member.voice.selfDeaf || member.voice.deaf) continue;
+      const activeMembers = [...channel.members.values()].filter((m) => !m.user.bot && !m.voice.selfDeaf && !m.voice.deaf);
+      if (activeMembers.length) queueChannelMinutes(guild.id, channel.id, 5);
+      for (const member of activeMembers) {
         try {
           const { rate } = await getXpConfig(guild.id);
           const data = await getMemberBuffered(guild.id, member.id);
+          const oldLevel = data.level;
           data.xp += Math.round(XP_PER_VOICE_TICK * rate);
           data.voiceMinutes += 5;
           const newLevel = levelFromXp(data.xp);
@@ -127,7 +177,8 @@ async function tickVoiceXp(client) {
           queueXpWrite(guild.id, member.id, data);
           if (leveledUp) {
             await flushMemberNow(guild.id, member.id);
-            await applyLevelRoles(member, newLevel);
+            const triggered = await applyLevelRewards(member, oldLevel, newLevel);
+            await awardLevelRewards(guild.id, member.id, triggered);
           }
           await checkAndAwardBadges(guild, member.id);
         } catch (err) {
@@ -143,6 +194,7 @@ const VOICE_TICK_MS = 5 * 60_000;
 function start(client) {
   setInterval(() => { tickVoiceXp(client).catch((err) => logger.error('xpManager.tick', err)); }, VOICE_TICK_MS);
   setInterval(() => { flushXpWrites().catch((err) => logger.error('xpManager.flushTimer', err)); }, XP_FLUSH_MS);
+  setInterval(() => { flushVoiceChannelStats().catch((err) => logger.error('xpManager.flushVoiceChannelStatsTimer', err)); }, XP_FLUSH_MS);
 }
 
 module.exports = {

@@ -8,6 +8,7 @@ const { TICKET_OPEN, buildTicketRateId } = require('../interactions/customIds');
 const { ensureStaffCategory, toggleOnlyOverwrites } = require('../roles/staffCategory');
 const { ensureModLogChannel } = require('../moderation/modLog');
 const { kvPut } = require('../../kv/cloudflareKv');
+const { sendPushToGuild } = require('../../shared/webPush');
 const logger = require('../../shared/logger');
 
 const TICKET_CLOSE_ID = 'ticket_close';
@@ -86,6 +87,12 @@ async function createTicket(guild, member, form = null) {
   await ticketStore.add(guild.id, {
     channelId: channel.id, userId: member.id, status: 'open', createdAt: Date.now(),
   });
+  sendPushToGuild(guild.id, {
+    title: '🎫 Nouveau ticket',
+    body: `${member.user.username} a ouvert un ticket.`,
+    url: `app.html?guild=${guild.id}&shortcut=tickets`,
+    tag: 'ticket',
+  }).catch((err) => logger.error('ticketManager.pushNewTicket', err));
 
   const embed = new EmbedBuilder()
     .setTitle('🎫 Ticket support')

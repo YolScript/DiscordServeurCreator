@@ -26,3 +26,19 @@ jobs:
 
       - name: Syntaxe worker (ESM via worker/package.json)
         run: find worker/src -name '*.js' -print0 | xargs -0 -n 1 node --check
+
+  worker-tests:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 20
+
+      - name: Installer les dependances du worker
+        working-directory: worker
+        run: npm ci
+
+      - name: Tests des routes critiques (miniflare)
+        working-directory: worker
+        run: npm test

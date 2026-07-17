@@ -4000,6 +4000,85 @@ async function renderGameRolesPage(id, container = app) {
 
 /* ---------- Pages: automatisations ---------- */
 
+// Base64 URL-safe -> Uint8Array (roadmap n°178) : format standard dans
+// lequel le worker sert la cle publique VAPID, format attendu par
+// pushManager.subscribe({ applicationServerKey }).
+function urlBase64ToUint8Array(base64String) {
+  const padding = '='.repeat((4 - (base64String.length % 4)) % 4);
+  const base64 = (base64String + padding).replace(/-/g, '+').replace(/_/g, '/');
+  const rawData = window.atob(base64);
+  return Uint8Array.from([...rawData].map((c) => c.charCodeAt(0)));
+}
+
+// Active/desactive les notifications push pour ce serveur, sur CET appareil
+// (roadmap n°178) : nouveau ticket, giveaway termine, bot hors ligne.
+async function wirePushToggle(id, container) {
+  const btn = container.querySelector('#push-toggle-btn');
+  const status = container.querySelector('#push-status');
+  if (!btn) return;
+
+  if (!('serviceWorker' in navigator) || !('PushManager' in window)) {
+    btn.textContent = 'Non supporte par ce navigateur';
+    status.textContent = "Les notifications push necessitent un navigateur compatible (Chrome, Firefox, Edge...).";
+    return;
+  }
+
+  let vapidPublicKey = null;
+  try {
+    ({ publicKey: vapidPublicKey } = await Api.pushVapidKey());
+  } catch { /* worker inaccessible, on retente au clic */ }
+  if (!vapidPublicKey) {
+    btn.textContent = 'Indisponible pour le moment';
+    status.textContent = window.DEMO_MODE
+      ? 'Non disponible en mode demo.'
+      : "Le serveur n'a pas encore de cle de notification configuree.";
+    return;
+  }
+
+  const registration = await navigator.serviceWorker.ready;
+  const paintState = async () => {
+    const sub = await registration.pushManager.getSubscription();
+    btn.disabled = false;
+    if (sub) {
+      btn.textContent = '🔕 Desactiver les notifications';
+      status.textContent = 'Notifications activees sur cet appareil.';
+    } else {
+      btn.textContent = '🔔 Activer les notifications';
+      status.textContent = '';
+    }
+    return sub;
+  };
+  await paintState();
+
+  btn.addEventListener('click', async () => {
+    btn.disabled = true;
+    try {
+      const existing = await registration.pushManager.getSubscription();
+      if (existing) {
+        await Api.pushUnsubscribe(id, existing.endpoint).catch(() => {});
+        await existing.unsubscribe();
+        showToast('Notifications desactivees.');
+      } else {
+        const permission = await Notification.requestPermission();
+        if (permission !== 'granted') {
+          showToast('Permission refusee par le navigateur.', 'error');
+          return;
+        }
+        const sub = await registration.pushManager.subscribe({
+          userVisibleOnly: true,
+          applicationServerKey: urlBase64ToUint8Array(vapidPublicKey),
+        });
+        await Api.pushSubscribe(id, sub.toJSON());
+        showToast('Notifications activees.');
+      }
+    } catch (err) {
+      showToast(err.message || 'Impossible de modifier les notifications.', 'error');
+    } finally {
+      await paintState();
+    }
+  });
+}
+
 async function renderAutomationsPage(id, container = app) {
   container.innerHTML = skeletonHtml();
   const [
@@ -4021,12 +4100,18 @@ async function renderAutomationsPage(id, container = app) {
   };
   const roleName = (rid) => roles.find((r) => r.id === rid)?.name || rid;
 
-  const levelRoleRows = levelRoles.map((lr) => `
+  const levelRoleRows = levelRoles.map((lr) => {
+    const bits = [];
+    if (lr.roleId) bits.push(escapeHtml(roleName(lr.roleId)));
+    if (lr.bonus) bits.push(`🪙 ${lr.bonus}`);
+    if (lr.announce) bits.push(`💬 "${escapeHtml(lr.announce)}"`);
+    return `
     <div class="row" data-level="${lr.level}" style="justify-content:space-between; margin-bottom:6px;">
-      <span>Niveau ${lr.level} → ${escapeHtml(roleName(lr.roleId))}</span>
+      <span>Niveau ${lr.level} → ${bits.join(' · ') || '—'}</span>
       <button class="btn danger delete-level-role" data-level="${lr.level}">Supprimer</button>
     </div>
-  `).join('') || '<p class="muted">Aucun role de niveau configure.</p>';
+  `;
+  }).join('') || '<p class="muted">Aucun role de niveau configure.</p>';
 
   const referralRoleRows = referralRoles.map((rr) => `
     <div class="row" data-count="${rr.count}" style="justify-content:space-between; margin-bottom:6px;">
@@ -4090,6 +4175,7 @@ async function renderAutomationsPage(id, container = app) {
     ['automod', 'Auto-mod'], ['service', 'Service staff'], ['tickets', 'Tickets'], ['suggestions', 'Suggestions'],
     ['signalements', 'Signalements'], ['economie', 'Economie'], ['niveaux', 'Niveaux'], ['parrainage', 'Parrainage'],
     ['bots', 'Bots'], ['webhooks', 'Webhooks'], ['rss', 'RSS'], ['arrivee', 'Bot & role auto'],
+    ['notifications', 'Notifications push'],
   ])}
       ${sectionHtml('Bots complementaires', `
         <p class="muted">Ajoute des modules complementaires a ce serveur en invitant ces bots.</p>
@@ -4134,6 +4220,12 @@ async function renderAutomationsPage(id, container = app) {
           <button class="btn secondary" id="create-membercount-channel" style="margin-top:8px;">Creer le salon compteur</button>
         `}
       `, { id: 'arrivee' })}
+
+      ${sectionHtml('Notifications push', `
+        <p class="muted">Recois une notification directement sur cet appareil (navigateur) pour : nouveau ticket, giveaway termine, bot hors ligne. Rien n'est envoye si tu ne l'actives pas.</p>
+        <button class="btn secondary" id="push-toggle-btn" disabled>Verification du support du navigateur...</button>
+        <p class="muted" id="push-status" style="font-size:0.78rem; margin-top:8px;"></p>
+      `, { id: 'notifications' })}
 
       ${sectionHtml('Webhooks sortants', `
         <p class="muted">Envoie une requete POST JSON vers une URL externe a chaque evenement choisi (arrivee, depart, action de moderation).</p>
@@ -4237,11 +4329,13 @@ async function renderAutomationsPage(id, container = app) {
 
       ${sectionHtml('Roles de niveau (XP)', `
         <div id="level-roles-list">${levelRoleRows}</div>
-        <div class="row" style="margin-top:10px;">
-          <input type="number" id="new-level" placeholder="Niveau" aria-label="Niveau" min="1" style="width:100px;" />
-          <select id="new-level-role" aria-label="Role attribue a ce niveau">${roleOptions()}</select>
-          <button class="btn secondary" id="add-level-role">Ajouter</button>
+        <div class="row" style="margin-top:10px; flex-wrap:wrap; gap:8px;">
+          <input type="number" id="new-level" placeholder="Niveau" aria-label="Niveau" min="1" style="width:100px; margin:0;" />
+          <select id="new-level-role" aria-label="Role attribue a ce niveau" style="margin:0;"><option value="">Aucun role</option>${roleOptions()}</select>
+          <input type="number" id="new-level-bonus" placeholder="Bonus 🪙 (optionnel)" aria-label="Bonus economie" min="1" style="width:150px; margin:0;" />
         </div>
+        <input type="text" id="new-level-announce" placeholder="Annonce custom (optionnel) — {user} et {level} remplaces" aria-label="Annonce personnalisee" maxlength="200" style="margin-top:8px;" />
+        <button class="btn secondary" id="add-level-role" style="margin-top:8px;">Ajouter le palier</button>
         <h2 style="margin-top:18px; font-size:0.85rem;">⚡ Vitesse de progression</h2>
         <label for="xp-rate">Taux d'XP global (s'applique aux messages et au vocal)</label>
         <select id="xp-rate">
@@ -4601,6 +4695,8 @@ async function renderAutomationsPage(id, container = app) {
     }
   });
 
+  wirePushToggle(id, container);
+
   document.getElementById('save-suggestions-channel').addEventListener('click', async () => {
     try {
       await Api.updateConfig(id, { suggestionsChannelId: document.getElementById('suggestions-channel-select').value || null });
@@ -4849,10 +4945,12 @@ async function renderAutomationsPage(id, container = app) {
   document.getElementById('add-level-role').addEventListener('click', async () => {
     const level = Number(document.getElementById('new-level').value);
     const roleId = document.getElementById('new-level-role').value;
-    if (!level || !roleId) { showToast('Niveau et role requis.', 'error'); return; }
+    const bonus = Number(document.getElementById('new-level-bonus').value) || undefined;
+    const announce = document.getElementById('new-level-announce').value.trim() || undefined;
+    if (!level || (!roleId && !bonus && !announce)) { showToast('Niveau requis, avec au moins role, bonus ou annonce.', 'error'); return; }
     try {
-      await Api.setLevelRole(id, level, roleId);
-      showToast('Role de niveau ajoute.');
+      await Api.setLevelRole(id, level, { roleId: roleId || undefined, bonus, announce });
+      showToast('Palier de niveau ajoute.');
       await renderAutomationsPage(id, container);
     } catch (err) {
       showToast(err.message, 'error');
@@ -5500,6 +5598,19 @@ async function renderSecurityPage(id, container = app) {
         <button class="btn secondary" id="restore-structure" style="margin-top:10px;" disabled>Restaurer depuis ce fichier</button>
       `, { id: 'sec-export' })}
 
+      ${sectionHtml('Configuration complete (JSON versionne)', `
+        <p class="muted">Exporte TOUS les reglages du bot pour ce serveur (niveaux, paliers, parrainage, boutique, commandes perso, modeles d'embed, reaction-roles, roles de jeu) — pas la structure (roles/salons), voir ci-dessus. Utile pour dupliquer une config sur un autre serveur ou revenir en arriere.</p>
+        <button class="btn secondary" id="export-config">⬇️ Telecharger la configuration (.json)</button>
+        <label for="config-file-input" style="margin-top:14px;">Importer depuis un fichier</label>
+        <div class="dp-dropzone" id="config-dropzone" tabindex="0">
+          <span class="dp-dropzone-icon">⚙️</span>
+          <span class="dp-dropzone-text" id="config-dropzone-text">Glisse un fichier .json ici, ou clique pour parcourir</span>
+          <input type="file" id="config-file-input" accept="application/json" class="dp-dropzone-input" />
+        </div>
+        <p class="muted" style="font-size:0.76rem; margin-top:6px;">L'import REMPLACE les paliers/boutique/commandes/modeles/reaction-roles/roles de jeu existants (les reglages generaux sont fusionnes, rien d'autre n'est efface).</p>
+        <button class="btn danger" id="import-config" style="margin-top:10px;" disabled>Importer ce fichier</button>
+      `, { id: 'sec-config-export' })}
+
       ${sectionHtml('Snapshots automatiques', `
         <p class="muted">Un snapshot de la structure est pris automatiquement chaque jour (5 derniers conserves).</p>
         <button class="btn secondary" id="snapshot-now" style="margin-bottom:10px;">Creer un snapshot maintenant</button>
@@ -5634,6 +5745,68 @@ async function renderSecurityPage(id, container = app) {
       const snapshot = JSON.parse(await file.text());
       const result = await Api.securityRestore(id, snapshot);
       showToast(`Restaure : ${result.roles} role(s), ${result.categories} categorie(s), ${result.channels} salon(s) crees.`);
+    } catch (err) {
+      showToast(err.message || 'Fichier JSON invalide.', 'error');
+    }
+  });
+
+  // Export/import de la configuration complete, JSON versionne (roadmap n°210).
+  document.getElementById('export-config').addEventListener('click', async () => {
+    try {
+      const bundle = await Api.configExport(id);
+      const blob = new Blob([JSON.stringify(bundle, null, 2)], { type: 'application/json' });
+      const url = URL.createObjectURL(blob);
+      const a = document.createElement('a');
+      a.href = url;
+      a.download = `configuration-${id}-${Date.now()}.json`;
+      document.body.appendChild(a);
+      a.click();
+      a.remove();
+      URL.revokeObjectURL(url);
+      showToast('Fichier telecharge.');
+    } catch (err) {
+      showToast(err.message, 'error');
+    }
+  });
+
+  const configDropzone = document.getElementById('config-dropzone');
+  const configFileInput = document.getElementById('config-file-input');
+  const configDropzoneText = document.getElementById('config-dropzone-text');
+  const importConfigBtn = document.getElementById('import-config');
+
+  function setConfigFile(file) {
+    if (!file) return;
+    if (!file.name.endsWith('.json')) { showToast('Choisis un fichier .json.', 'error'); return; }
+    const dt = new DataTransfer();
+    dt.items.add(file);
+    configFileInput.files = dt.files;
+    configDropzoneText.textContent = `📄 ${file.name}`;
+    configDropzone.classList.add('has-file');
+    importConfigBtn.disabled = false;
+  }
+
+  configDropzone.addEventListener('click', () => configFileInput.click());
+  configDropzone.addEventListener('keydown', (e) => {
+    if (e.key === 'Enter' || e.key === ' ') { e.preventDefault(); configFileInput.click(); }
+  });
+  configFileInput.addEventListener('change', () => setConfigFile(configFileInput.files[0]));
+  configDropzone.addEventListener('dragover', (e) => { e.preventDefault(); configDropzone.classList.add('drag-over'); });
+  configDropzone.addEventListener('dragleave', () => configDropzone.classList.remove('drag-over'));
+  configDropzone.addEventListener('drop', (e) => {
+    e.preventDefault();
+    configDropzone.classList.remove('drag-over');
+    setConfigFile(e.dataTransfer.files[0]);
+  });
+
+  importConfigBtn.addEventListener('click', async () => {
+    const file = configFileInput.files[0];
+    if (!file) { showToast('Choisis un fichier.', 'error'); return; }
+    if (!window.confirm('Importer cette configuration ? Les paliers, boutique, commandes perso, modeles d\'embed, reaction-roles et roles de jeu existants seront remplaces.')) return;
+    try {
+      const bundle = JSON.parse(await file.text());
+      const result = await Api.configImport(id, bundle);
+      showToast(`Configuration importee (${result.sectionsImported} section(s)).`);
+      await renderSecurityPage(id, container);
     } catch (err) {
       showToast(err.message || 'Fichier JSON invalide.', 'error');
     }
@@ -6307,13 +6480,46 @@ function lineChartSvg(points, { width = 560, height = 140, color = 'var(--accent
     </svg>`;
 }
 
+// Decalage horaire (en heures, arrondi) d'un fuseau IANA par rapport a l'UTC
+// a l'instant present (roadmap n°203) : pas de librairie de dates dans ce
+// projet, Intl suffit pour une approximation correcte au jour pres (DST
+// inclus pour la date du jour, ce qui est suffisant pour une heatmap sur
+// 28 jours glissants).
+function tzOffsetHours(timeZone) {
+  try {
+    const now = new Date();
+    const utc = new Date(now.toLocaleString('en-US', { timeZone: 'UTC' }));
+    const local = new Date(now.toLocaleString('en-US', { timeZone }));
+    return Math.round((local - utc) / 3600000);
+  } catch {
+    return 0;
+  }
+}
+
+const TIMEZONE_OPTIONS = [
+  ['Europe/Paris', 'Europe/Paris (UTC+1/+2)'],
+  ['Europe/London', 'Europe/Londres (UTC+0/+1)'],
+  ['America/Montreal', 'Amerique/Montreal (UTC-5/-4)'],
+  ['America/New_York', 'Amerique/New York (UTC-5/-4)'],
+  ['America/Los_Angeles', 'Amerique/Los Angeles (UTC-8/-7)'],
+  ['America/Guadeloupe', 'Amerique/Guadeloupe (UTC-4)'],
+  ['Indian/Reunion', 'Ocean Indien/Reunion (UTC+4)'],
+  ['Pacific/Noumea', 'Pacifique/Noumea (UTC+11)'],
+  ['Asia/Dubai', 'Asie/Dubai (UTC+4)'],
+  ['Australia/Sydney', 'Australie/Sydney (UTC+10/+11)'],
+  ['UTC', 'UTC'],
+];
+
 async function renderStatsPage(id, container = app) {
   container.innerHTML = skeletonHtml('chart');
-  const [stats, xpData, statMembers, ecoAccounts] = await Promise.all([
+  const [stats, xpData, statMembers, ecoAccounts, statChannels, voiceChannelStats, statConfig] = await Promise.all([
     Api.stats(id),
     Api.xp(id).catch(() => ({})),
     Api.members(id).catch(() => []),
     Api.economyAccounts(id).catch(() => ({})),
+    Api.channels(id).catch(() => []),
+    Api.voiceChannelStats(id).catch(() => ({})),
+    Api.config(id).catch(() => ({})),
   ]);
 
   const memberPoints = stats.map((s) => s.memberCount);
@@ -6333,25 +6539,30 @@ async function renderStatsPage(id, container = app) {
     })()
     : '';
 
-  // Heatmap heure x jour (roadmap n°030) : repartition des messages sur les
-  // 28 derniers jours, heures converties du UTC vers l'heure locale.
-  const tzShift = -Math.round(new Date().getTimezoneOffset() / 60);
-  const grid = Array.from({ length: 7 }, () => Array(24).fill(0));
-  let hasHours = false;
-  stats.slice(-28).forEach((s) => {
-    if (!Array.isArray(s.hours)) return;
-    hasHours = true;
-    const day = new Date(`${s.date}T12:00:00Z`).getDay();
-    s.hours.forEach((count, utcHour) => {
-      if (!count) return;
-      grid[day][(utcHour + tzShift + 24) % 24] += count;
-    });
-  });
-  const maxCell = Math.max(1, ...grid.flat());
+  // Heatmap heure x jour (roadmap n°030, double fuseau n°203) : repartition
+  // des messages sur les 28 derniers jours. Deux vues au choix : heure locale
+  // du navigateur (par defaut) ou fuseau configure pour le serveur — utile
+  // quand le staff n'est pas dans le meme fuseau que la communaute.
+  const localTzShift = -Math.round(new Date().getTimezoneOffset() / 60);
+  const serverTimezone = statConfig?.serverTimezone || 'Europe/Paris';
+  const serverTzShift = tzOffsetHours(serverTimezone);
   const dayNames = ['Dim', 'Lun', 'Mar', 'Mer', 'Jeu', 'Ven', 'Sam'];
   const dayOrder = [1, 2, 3, 4, 5, 6, 0];
-  const heatmapHtml = hasHours
-    ? `<div class="stats-heatmap" role="img" aria-label="Repartition des messages par heure et jour de la semaine">
+  let hasHours = false;
+  const buildHeatmapHtml = (shift) => {
+    const grid = Array.from({ length: 7 }, () => Array(24).fill(0));
+    stats.slice(-28).forEach((s) => {
+      if (!Array.isArray(s.hours)) return;
+      hasHours = true;
+      const day = new Date(`${s.date}T12:00:00Z`).getDay();
+      s.hours.forEach((count, utcHour) => {
+        if (!count) return;
+        grid[day][(utcHour + shift + 24) % 24] += count;
+      });
+    });
+    const maxCell = Math.max(1, ...grid.flat());
+    if (!hasHours) return '<p class="muted">La repartition horaire se remplit a partir de maintenant (donnees collectees depuis la mise a jour du bot).</p>';
+    return `<div class="stats-heatmap" role="img" aria-label="Repartition des messages par heure et jour de la semaine">
         ${dayOrder.map((d) => `
           <div class="stats-heatmap-row">
             <span class="stats-heatmap-day">${dayNames[d]}</span>
@@ -6361,8 +6572,9 @@ async function renderStatsPage(id, container = app) {
           <span class="stats-heatmap-day"></span>
           ${Array.from({ length: 24 }, (_, h) => `<span class="stats-heatmap-hour">${h % 6 === 0 ? h : ''}</span>`).join('')}
         </div>
-      </div>`
-    : '<p class="muted">La repartition horaire se remplit a partir de maintenant (donnees collectees depuis la mise a jour du bot).</p>';
+      </div>`;
+  };
+  const heatmapHtml = buildHeatmapHtml(localTzShift);
 
   // Retention (roadmap n°163) : parmi les arrivees brutes d'une fenetre
   // passee (collectees par le bot depuis cette mise a jour), combien de
@@ -6406,6 +6618,30 @@ async function renderStatsPage(id, container = app) {
     .sort((a, b) => b[1].voiceMinutes - a[1].voiceMinutes).slice(0, 10)
     .map(([uid, d]) => topRow(uid, Math.round(d.voiceMinutes / 60 * 10) / 10, 'h vocal')).join('') || '<p class="muted">Pas encore de donnees vocales.</p>';
 
+  // Vocal cumule par salon (roadmap n°188) : minutes accumulees par le bot
+  // (tick toutes les 5 min, un salon occupe par au moins un humain compte)
+  // converties en heures, classees par popularite.
+  const voiceChannelRows = (() => {
+    const nameById = new Map(statChannels.map((c) => [c.id, c.name]));
+    const maxMinutes = Math.max(1, ...Object.values(voiceChannelStats));
+    const entries = Object.entries(voiceChannelStats)
+      .filter(([, minutes]) => minutes > 0)
+      .sort((a, b) => b[1] - a[1]).slice(0, 12);
+    if (!entries.length) return '<p class="muted">Pas encore de donnees vocales par salon (collecte depuis la mise a jour du bot).</p>';
+    return `<div class="stats-voice-channels">${entries.map(([channelId, minutes]) => {
+      const hours = Math.round((minutes / 60) * 10) / 10;
+      const pct = Math.round((minutes / maxMinutes) * 100);
+      return `
+        <div class="stats-top-row" style="flex-direction:column; align-items:stretch; gap:4px;">
+          <span class="row" style="justify-content:space-between;">
+            <span class="stats-top-name">🔊 ${escapeHtml(nameById.get(channelId) || 'Salon supprime')}</span>
+            <span class="stats-top-value">${hours.toLocaleString('fr-FR')} h</span>
+          </span>
+          <span class="progress-gauge"><span class="progress-gauge-fill" style="width:${pct}%"></span></span>
+        </div>`;
+    }).join('')}</div>`;
+  })();
+
   // Classement richesse (roadmap n°157) depuis les comptes economie du bot.
   const topWealth = Object.entries(ecoAccounts)
     .filter(([, acc]) => (acc?.balance || 0) > 0)
@@ -6436,7 +6672,18 @@ async function renderStatsPage(id, container = app) {
         ${lineChartSvg(messagePoints, { color: 'var(--success)' })}
         <button type="button" class="btn secondary chart-export-png" data-chart="messages" style="margin-top:6px;">🖼️ Exporter en PNG</button>
         <h2 style="margin-top:18px; font-size:0.85rem;">🕐 Heures d'activite (28 derniers jours)</h2>
-        ${heatmapHtml}
+        <div class="row" role="group" aria-label="Fuseau horaire affiche" style="gap:8px; flex-wrap:wrap; align-items:center; margin-bottom:8px;">
+          <button type="button" class="btn heatmap-tz-btn" data-shift="${localTzShift}">🕐 Mon heure (navigateur)</button>
+          <button type="button" class="btn secondary heatmap-tz-btn" data-shift="${serverTzShift}">🌍 Heure serveur (${escapeHtml(serverTimezone)})</button>
+        </div>
+        <div id="stats-heatmap-container">${heatmapHtml}</div>
+        <div class="row" style="gap:8px; flex-wrap:wrap; align-items:center; margin-top:10px;">
+          <label for="stats-server-tz" style="margin:0;">Fuseau du serveur :</label>
+          <select id="stats-server-tz" style="margin:0; max-width:220px;">
+            ${TIMEZONE_OPTIONS.map(([tz, label]) => `<option value="${tz}" ${tz === serverTimezone ? 'selected' : ''}>${label}</option>`).join('')}
+          </select>
+          <button type="button" class="btn secondary" id="stats-server-tz-save">💾 Enregistrer</button>
+        </div>
         <div class="stats-top-grid">
           <div>
             <h2 style="font-size:0.85rem;">💬 Top membres (messages)</h2>
@@ -6456,8 +6703,30 @@ async function renderStatsPage(id, container = app) {
         ${retentionHtml}
         <button type="button" class="btn secondary" id="stats-export-csv" style="margin-top:14px;">⬇️ Exporter en CSV</button>
       `, { id: 'stats-activity' })}
+      ${sectionHtml('Vocal par salon', `
+        <p class="muted">Temps cumule d'occupation de chaque salon vocal (heures totales, tous membres confondus).</p>
+        ${voiceChannelRows}
+      `, { id: 'stats-voice-channels' })}
     </div>
   `;
+
+  // Bascule heure locale / heure serveur sur la heatmap (roadmap n°203).
+  container.querySelectorAll('.heatmap-tz-btn').forEach((btn) => {
+    btn.addEventListener('click', () => {
+      container.querySelectorAll('.heatmap-tz-btn').forEach((b) => b.classList.add('secondary'));
+      btn.classList.remove('secondary');
+      container.querySelector('#stats-heatmap-container').innerHTML = buildHeatmapHtml(Number(btn.dataset.shift));
+    });
+  });
+  container.querySelector('#stats-server-tz-save').addEventListener('click', async () => {
+    try {
+      await Api.updateConfig(id, { serverTimezone: container.querySelector('#stats-server-tz').value });
+      showToast('Fuseau du serveur enregistre.');
+      await renderStatsPage(id, container);
+    } catch (err) {
+      showToast(err.message, 'error');
+    }
+  });
 
   // Export PNG d'un graphique SVG (roadmap n°164) : les couleurs en
   // var(--...) ne se resolvent pas hors du document, on copie donc les
@@ -6960,6 +7229,31 @@ function wireEmbedFieldRows(root) {
   });
 }
 
+// Navigation clavier par fleches (pattern ARIA toolbar/grid, roadmap n°173) :
+// un seul element du groupe reste dans l'ordre de tabulation (tabindex 0),
+// les autres passent a -1 ; les fleches deplacent le focus a l'interieur du
+// groupe sans le quitter au Tab. Utilise sur la barre markdown et les
+// swatches de couleur du generateur d'embed.
+function wireRovingKeyboardGroup(container, itemSelector) {
+  const items = [...container.querySelectorAll(itemSelector)];
+  if (!items.length) return;
+  items.forEach((el, i) => { el.tabIndex = i === 0 ? 0 : -1; });
+  items.forEach((el, i) => {
+    el.addEventListener('keydown', (e) => {
+      let target = null;
+      if (e.key === 'ArrowRight' || e.key === 'ArrowDown') target = items[(i + 1) % items.length];
+      else if (e.key === 'ArrowLeft' || e.key === 'ArrowUp') target = items[(i - 1 + items.length) % items.length];
+      else if (e.key === 'Home') target = items[0];
+      else if (e.key === 'End') target = items[items.length - 1];
+      if (!target) return;
+      e.preventDefault();
+      items.forEach((x) => { x.tabIndex = -1; });
+      target.tabIndex = 0;
+      target.focus();
+    });
+  });
+}
+
 async function renderEmbedBuilderPage(id, container = app) {
   container.innerHTML = skeletonHtml();
   const [channels, templates, members, embedRoles, embedHistory] = await Promise.all([
@@ -7197,6 +7491,8 @@ async function renderEmbedBuilderPage(id, container = app) {
       updateEmbedPreview(container);
     });
   });
+  wireRovingKeyboardGroup(container, '.dp-color-swatches .embed-color-swatch-btn');
+  wireRovingKeyboardGroup(container, '.embed-md-toolbar .embed-md-btn');
 
   container.querySelector('#embed-clear-btn').addEventListener('click', () => {
     if (!window.confirm("Vider l'embed affiche ? Le texte du message et les autres embeds sont conserves.")) return;
@@ -7366,6 +7662,9 @@ async function renderEmbedBuilderPage(id, container = app) {
     container.querySelector('#embed-fields-list').insertAdjacentHTML('beforeend', embedFieldRowHtml());
     wireEmbedFieldRows(container);
     updateEmbedPreview(container);
+    // Focus direct sur le nouveau champ (roadmap n°173) : un clavieriste qui
+    // vient d'activer "+ Ajouter un champ" n'a pas a re-tabuler depuis le haut.
+    container.querySelector('#embed-fields-list .embed-field-row:last-child .embed-field-name')?.focus();
   });
 
   // Boutons sous le message (roadmap n°003) : lien ou role auto-attribue.
@@ -7402,6 +7701,8 @@ async function renderEmbedBuilderPage(id, container = app) {
     container.querySelector('#embed-buttons-list').insertAdjacentHTML('beforeend', embedButtonRowHtml());
     wireButtonRows();
     updateEmbedPreview(container);
+    // Meme logique que pour les champs (n°173) : focus direct sur le nouveau bouton.
+    container.querySelector('#embed-buttons-list .embed-btn-row:last-child .embed-btn-label')?.focus();
   });
   container.querySelector('#embed-buttons-list').addEventListener('input', () => updateEmbedPreview(container));
   container.querySelector('#embed-buttons-list').addEventListener('change', () => updateEmbedPreview(container));
@@ -8149,6 +8450,16 @@ async function renderGuildDetail(id) {
 }
 
 async function init() {
+  // Mode demo (roadmap n°171) : bandeau visible + bouton de sortie qui
+  // nettoie le flag et revient a l'ecran de connexion.
+  if (window.DEMO_MODE) {
+    const banner = document.getElementById('demo-banner');
+    if (banner) {
+      banner.hidden = false;
+      document.getElementById('demo-exit-btn')?.addEventListener('click', () => window.exitDemoMode());
+    }
+  }
+
   try {
     const me = await Api.me();
     currentUser = me;
@@ -8162,6 +8473,7 @@ async function init() {
   }
 
   document.getElementById('logout-btn').addEventListener('click', async () => {
+    if (window.DEMO_MODE) { window.exitDemoMode(); return; }
     await Api.logout();
     location.href = 'index.html';
   });

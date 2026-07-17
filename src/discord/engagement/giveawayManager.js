@@ -4,6 +4,7 @@ const {
 const client = require('../client');
 const giveawayStore = require('../../kv/giveawayStore');
 const { buildGiveawayEnterId } = require('../interactions/customIds');
+const { sendPushToGuild } = require('../../shared/webPush');
 const logger = require('../../shared/logger');
 
 function buildGiveawayEmbed(giveaway) {
@@ -103,6 +104,12 @@ async function tick() {
           await channel.send(`🎉 Felicitations ${giveaway.winners.map((id) => `<@${id}>`).join(', ')} ! Tu remportes **${giveaway.prize}**.`).catch(() => {});
         }
       }
+      sendPushToGuild(guild.id, {
+        title: '🎉 Giveaway termine',
+        body: giveaway.winners.length ? `${giveaway.prize} — ${giveaway.winners.length} gagnant(s) tire(s) au sort.` : `${giveaway.prize} — aucun participant, pas de gagnant.`,
+        url: `app.html?guild=${guild.id}`,
+        tag: 'giveaway',
+      }).catch((err) => logger.error('giveawayManager.pushEnded', err));
     }
     if (changed) await giveawayStore.replaceAll(guild.id, giveaways);
   }

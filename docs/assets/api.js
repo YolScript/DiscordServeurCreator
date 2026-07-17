@@ -7,6 +7,9 @@ window.Api = (function api() {
   // deux fois avec un delai croissant. Jamais les mutations (POST/PATCH/
   // DELETE) : retenter une creation peut la dupliquer.
   async function request(path, options = {}, attempt = 0) {
+    // Mode demo (roadmap n°171) : aucun appel reseau, tout est simule par
+    // window.__demoRequest (voir demoData.js, charge avant ce fichier).
+    if (window.DEMO_MODE) return window.__demoRequest(path, options);
     const method = (options.method || 'GET').toUpperCase();
     const canRetry = method === 'GET' && attempt < 2;
     const retry = async () => {
@@ -130,7 +133,7 @@ window.Api = (function api() {
     updateModConfig: (guildId, patch) => request(`/api/guilds/${guildId}/modconfig`, { method: 'PATCH', body: JSON.stringify(patch) }),
 
     levelRoles: (guildId) => request(`/api/guilds/${guildId}/levelroles`),
-    setLevelRole: (guildId, level, roleId) => request(`/api/guilds/${guildId}/levelroles`, { method: 'POST', body: JSON.stringify({ level, roleId }) }),
+    setLevelRole: (guildId, level, payload) => request(`/api/guilds/${guildId}/levelroles`, { method: 'POST', body: JSON.stringify({ level, ...payload }) }),
     deleteLevelRole: (guildId, level) => request(`/api/guilds/${guildId}/levelroles/${level}`, { method: 'DELETE' }),
 
     referrals: (guildId) => request(`/api/guilds/${guildId}/referrals`),
@@ -149,6 +152,11 @@ window.Api = (function api() {
     tickets: (guildId) => request(`/api/guilds/${guildId}/tickets`),
     closeTicket: (guildId, ticketId) => request(`/api/guilds/${guildId}/tickets/${ticketId}/close`, { method: 'POST' }),
 
+    pushVapidKey: () => request('/api/push-vapid-key'),
+    pushSubscribe: (guildId, subscription) => request(`/api/guilds/${guildId}/push-subscribe`, { method: 'POST', body: JSON.stringify(subscription) }),
+    pushUnsubscribe: (guildId, endpoint) => request(`/api/guilds/${guildId}/push-subscribe`, { method: 'DELETE', body: JSON.stringify({ endpoint }) }),
+    configExport: (guildId) => request(`/api/guilds/${guildId}/config-export`),
+    configImport: (guildId, bundle) => request(`/api/guilds/${guildId}/config-import`, { method: 'POST', body: JSON.stringify(bundle) }),
     securityExport: (guildId) => request(`/api/guilds/${guildId}/security/export`),
     securityRestore: (guildId, snapshot) => request(`/api/guilds/${guildId}/security/restore`, { method: 'POST', body: JSON.stringify(snapshot) }),
     securitySnapshots: (guildId) => request(`/api/guilds/${guildId}/security/snapshots`),
@@ -159,6 +167,7 @@ window.Api = (function api() {
     applyServiceVisibility: (guildId) => request(`/api/guilds/${guildId}/service/apply`, { method: 'POST' }),
     auditLog: (guildId) => request(`/api/guilds/${guildId}/auditlog`),
     stats: (guildId) => request(`/api/guilds/${guildId}/stats`),
+    voiceChannelStats: (guildId) => request(`/api/guilds/${guildId}/voicechannelstats`),
     setRolePositions: (guildId, positions) => request(`/api/guilds/${guildId}/roles/positions`, { method: 'PATCH', body: JSON.stringify({ positions }) }),
     setChannelPositions: (guildId, positions) => request(`/api/guilds/${guildId}/channels/positions`, { method: 'PATCH', body: JSON.stringify({ positions }) }),
     setRoleColor: (guildId, roleId, color) => request(`/api/guilds/${guildId}/roles/${roleId}`, { method: 'PATCH', body: JSON.stringify({ color }) }),

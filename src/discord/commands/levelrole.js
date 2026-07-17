@@ -6,9 +6,19 @@ async function handleLevelroleCommand(interaction) {
 
   if (sub === 'set') {
     const level = interaction.options.getInteger('niveau', true);
-    const role = interaction.options.getRole('role', true);
-    await levelRoleStore.set(interaction.guild.id, level, role.id);
-    await interaction.reply({ content: `Role <@&${role.id}> attribue automatiquement des le niveau ${level}.`, flags: MessageFlags.Ephemeral });
+    const role = interaction.options.getRole('role');
+    const bonus = interaction.options.getInteger('bonus');
+    const announce = interaction.options.getString('annonce');
+    if (!role && !bonus && !announce) {
+      await interaction.reply({ content: 'Renseigne au moins un role, un bonus ou une annonce.', flags: MessageFlags.Ephemeral });
+      return;
+    }
+    await levelRoleStore.set(interaction.guild.id, level, { roleId: role?.id, bonus, announce });
+    const parts = [];
+    if (role) parts.push(`role <@&${role.id}>`);
+    if (bonus) parts.push(`bonus 🪙${bonus}`);
+    if (announce) parts.push('annonce personnalisee');
+    await interaction.reply({ content: `Palier niveau ${level} configure : ${parts.join(', ')}.`, flags: MessageFlags.Ephemeral });
     return;
   }
   if (sub === 'remove') {

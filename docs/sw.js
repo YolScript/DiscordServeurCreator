@@ -19,6 +19,32 @@ self.addEventListener('activate', (event) => {
   })());
 });
 
+// Notifications Web Push (roadmap n°178) : nouveau ticket, giveaway
+// termine, bot hors ligne (voir src/shared/webPush.js cote bot et le cron
+// worker pour le hors-ligne). Le payload JSON est { title, body, url, tag }.
+self.addEventListener('push', (event) => {
+  let data = { title: 'Discord Serveur Creator', body: 'Nouvelle notification.' };
+  try { if (event.data) data = { ...data, ...event.data.json() }; } catch { /* payload non JSON, on garde le defaut */ }
+  event.waitUntil(self.registration.showNotification(data.title, {
+    body: data.body,
+    icon: 'assets/logo-512.png',
+    badge: 'assets/favicon-64.png',
+    tag: data.tag || 'default',
+    data: { url: data.url || 'app.html' },
+  }));
+});
+
+self.addEventListener('notificationclick', (event) => {
+  event.notification.close();
+  const targetUrl = new URL(event.notification.data?.url || 'app.html', self.location.origin).href;
+  event.waitUntil((async () => {
+    const clientsList = await self.clients.matchAll({ type: 'window', includeUncontrolled: true });
+    const existing = clientsList.find((c) => c.url.startsWith(new URL('app.html', self.location.origin).href));
+    if (existing) { await existing.focus(); existing.navigate?.(targetUrl); return; }
+    await self.clients.openWindow(targetUrl);
+  })());
+});
+
 self.addEventListener('fetch', (event) => {
   const url = new URL(event.request.url);
   if (event.request.method !== 'GET' || url.origin !== self.location.origin) return;
