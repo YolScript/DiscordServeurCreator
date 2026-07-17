@@ -291,6 +291,9 @@ window.showToast = function showToast(message, type = 'success', action = null) 
   toast.setAttribute('role', 'status');
   document.body.appendChild(toast);
   window.UISound?.[type === 'error' ? 'error' : 'success']?.();
+  // Vibration haptique legere (roadmap n°227) : simple confirmation tactile
+  // sur mobile, no-op silencieux si l'API n'existe pas (iOS Safari, desktop).
+  navigator.vibrate?.(type === 'error' ? [15, 40, 15] : 12);
 
   // Plusieurs toasts a la suite ne doivent pas se superposer a la meme
   // position fixe : on empile par-dessus les toasts encore visibles.
@@ -321,6 +324,7 @@ window.showUndoToast = function showUndoToast(message, { onUndo, onExpire, secon
     <button type="button" class="toast-undo-btn">Annuler</button>`;
   toast.setAttribute('role', 'status');
   document.body.appendChild(toast);
+  navigator.vibrate?.(12);
 
   const reflow = () => {
     let offset = 90;

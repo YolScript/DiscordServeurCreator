@@ -8,7 +8,7 @@
   <link rel="icon" type="image/png" href="assets/favicon-64.png?v=3" />
   <link rel="manifest" href="manifest.webmanifest" />
   <meta name="theme-color" content="#1a1013" />
-  <link rel="stylesheet" href="assets/style.css?v=106" />
+  <link rel="stylesheet" href="assets/style.css?v=107" />
   <script>
     (function () {
       var t = localStorage.getItem('theme');
@@ -40,7 +40,7 @@
         <div class="topbar-guilds" id="topbar-guilds"></div>
         <div class="topbar-right">
           <div class="search-box" id="search-box" style="display:none;">
-            <button class="search-box-toggle" id="search-box-toggle" aria-label="Ouvrir la recherche">⌕</button>
+            <button class="search-box-toggle" id="search-box-toggle" title="Rechercher un serveur" aria-label="Ouvrir la recherche">⌕</button>
             <input type="text" id="search-input" placeholder="Rechercher un serveur..." aria-label="Rechercher un serveur" />
           </div>
           <button class="video-toggle" id="pwa-install-btn" title="Installer l'application" aria-label="Installer l'application" style="display:none;">📲</button>
@@ -64,6 +64,8 @@
     </main>
   </div>
 
+  <button type="button" class="dp-scrolltop-btn" id="scrolltop-btn" hidden title="Remonter en haut" aria-label="Remonter en haut de la page">↑</button>
+
   <nav class="mobile-tabbar" id="mobile-tabbar" hidden aria-label="Navigation principale">
     <button type="button" data-tab="home" class="active" aria-label="Accueil"><span>🏠</span>Accueil</button>
     <button type="button" data-tab="embedbuilder" aria-label="Embeds"><span>✉️</span>Embeds</button>
@@ -75,8 +77,8 @@
   <script src="assets/config.js?v=5" defer></script>
   <script src="assets/sounds.js?v=1" defer></script>
   <script src="assets/demoData.js?v=2" defer></script>
-  <script src="assets/api.js?v=51" defer></script>
-  <script src="assets/app.js?v=165" defer></script>
+  <script src="assets/api.js?v=52" defer></script>
+  <script src="assets/app.js?v=166" defer></script>
   <script src="assets/microinteractions.js?v=1" defer></script>
   <script src="assets/bgvideo.js?v=4"></script>
   <script>

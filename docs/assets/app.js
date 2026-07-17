@@ -3,6 +3,38 @@ const railEl = document.getElementById('topbar-guilds');
 const searchBox = document.getElementById('search-box');
 const searchInput = document.getElementById('search-input');
 
+// Bouton "remonter en haut" (roadmap n°233) : coin bas-droit, jamais bas-
+// centre (lecon retenue plus haut sur les FAB qui masquent le chat IA).
+// Ecoute en phase de capture sur window : les VRAIS conteneurs de scroll de
+// l'app (#app pour la liste de serveurs, #dp-settings-body pour les pages de
+// reglages) sont recrees a chaque navigation, capturer au niveau window evite
+// de re-cabler l'ecouteur a chaque re-rendu. Filtre explicite sur ces deux
+// ids pour ignorer les petites listes internes qui scrollent (ex. liste de
+// membres) sans que ce soit "la page" qui defile.
+(function initScrollTopButton() {
+  const btn = document.getElementById('scrolltop-btn');
+  if (!btn) return;
+  btn.hidden = false; // la visibilite reelle passe uniquement par .visible (opacite)
+  const SCROLL_THRESHOLD = 400;
+  let activeContainer = null;
+
+  window.addEventListener('scroll', (e) => {
+    const target = e.target;
+    if (!target || (target.id !== 'app' && target.id !== 'dp-settings-body')) return;
+    if (target.scrollTop > SCROLL_THRESHOLD) {
+      activeContainer = target;
+      btn.classList.add('visible');
+    } else if (target === activeContainer) {
+      btn.classList.remove('visible');
+    }
+  }, true);
+
+  btn.addEventListener('click', () => {
+    activeContainer?.scrollTo({ top: 0, behavior: 'smooth' });
+    btn.classList.remove('visible');
+  });
+}());
+
 // Compteur de caracteres generique pour les champs a limite Discord
 // (data-charcount). L'app re-rend #app.innerHTML en continu (pas de
 // framework), donc un seul MutationObserver + une seule delegation
@@ -307,7 +339,7 @@ function showShortcutHelp() {
     <div class="cmdk-box" role="dialog" aria-modal="true" aria-label="Raccourcis clavier" style="padding:18px 20px;">
       <h2 style="margin:0 0 12px; font-size:1rem;">⌨️ Raccourcis clavier</h2>
       <div class="shortcut-help-rows">
-        <div><kbd>Ctrl</kbd>+<kbd>K</kbd><span>Recherche globale (modules, salons, roles)</span></div>
+        <div><kbd>Ctrl</kbd>+<kbd>K</kbd> ou <kbd>/</kbd><span>Recherche globale (modules, salons, roles)</span></div>
         <div><kbd>g</kbd> puis <kbd>h</kbd><span>Accueil du serveur</span></div>
         <div><kbd>g</kbd> puis <kbd>s</kbd><span>Reveler le panneau des salons</span></div>
         <div><kbd>g</kbd> puis <kbd>r</kbd><span>Reveler le panneau des roles</span></div>
@@ -349,12 +381,22 @@ document.addEventListener('keydown', (e) => {
     return;
   }
   if (e.key === '?') { e.preventDefault(); showShortcutHelp(); }
+  // Raccourci "/" comme Discord (roadmap n°225) : dans une guilde -> recherche
+  // globale (Ctrl+K), sur la liste des serveurs -> barre de recherche topbar.
+  if (e.key === '/') {
+    e.preventDefault();
+    if (paletteCtx.guildId) openCommandPalette();
+    else document.getElementById('search-box-toggle')?.click();
+  }
 });
 
 // Pile de navigation entre modules (roadmap n°028) : "Retour" ramene au
 // module precedent (utile apres un saut via Ctrl+K), sinon a l'accueil.
 let currentPanelRef = null;
 const panelNavStack = [];
+// Position de scroll par panneau (roadmap n°217), restauree uniquement au
+// retour (fromBack) : une navigation "en avant" doit toujours partir du haut.
+const scrollPositions = new Map();
 
 // ---------- Visite guidee au premier lancement (roadmap n°027) ----------
 function showOnboarding() {
@@ -900,7 +942,7 @@ const HOME_MODULES = [
   { parent: 'securite', section: 'sec-snapshots', icon: '📸', label: 'Snapshots automatiques', category: 'securite' },
   { parent: 'securite', section: 'sec-lockdown', icon: '🔒', label: 'Lockdown', category: 'securite' },
   // Moderation : surveillance et gestion du comportement des membres.
-  { parent: 'automatisations', section: 'cooldowns', icon: '⏳', label: 'Cooldowns commandes', category: 'moderation' },
+  { parent: 'automatisations', section: 'cooldowns', icon: '⏳', label: 'Cooldowns commandes', category: 'moderation', since: '2026-07-17' },
   { parent: 'automatisations', section: 'automod', icon: '🚫', label: 'Auto-moderation', category: 'moderation' },
   { parent: 'automatisations', section: 'tickets', icon: '🎫', label: 'Tickets', category: 'moderation' },
   { parent: 'auditlog', icon: '📋', label: "Logs d'audit", category: 'moderation' },
@@ -909,6 +951,7 @@ const HOME_MODULES = [
   // Integrations : connecter des services/bots externes.
   { parent: 'automatisations', section: 'bots', icon: '🧩', label: 'Bots complementaires', category: 'integrations' },
   { parent: 'automatisations', section: 'webhooks', icon: '🔗', label: 'Webhooks sortants', category: 'integrations' },
+  { parent: 'automatisations', section: 'notifications', icon: '🔔', label: 'Notifications push', category: 'integrations', since: '2026-07-17' },
   { parent: 'automatisations', section: 'rss', icon: '📰', label: 'Flux RSS', category: 'integrations' },
   // Creation : construire du contenu (salons, textes, structure).
   { parent: 'creator', icon: '🏗️', label: 'Createur salons & roles', category: 'creation' },
@@ -1095,12 +1138,22 @@ function getFavModuleKeys() {
 }
 function favModuleKey(m) { return `${m.parent}|${m.section || ''}`; }
 
+// Badge "Nouveau" (roadmap n°221) : un module reste marque recent 21 jours
+// apres son ajout (champ `since`, format YYYY-MM-DD), puis redevient un
+// module normal sans intervention manuelle.
+const NEW_MODULE_DAYS = 21;
+function isRecentModule(m) {
+  if (!m.since) return false;
+  return (Date.now() - new Date(`${m.since}T00:00:00Z`).getTime()) < NEW_MODULE_DAYS * 86400000;
+}
+
 function homeModuleCardHtml(m) {
   const key = favModuleKey(m);
   const isFav = getFavModuleKeys().includes(key);
   return `
     <button type="button" class="dp-action-card" data-goto-settings="${m.parent}"${m.section ? ` data-goto-settings-section="${m.section}"` : ''}>
       <span class="dp-fav-star${isFav ? ' active' : ''}" role="button" tabindex="0" data-fav-key="${key}" title="${isFav ? 'Retirer des favoris' : 'Ajouter aux favoris'}" aria-label="${isFav ? 'Retirer des favoris' : 'Ajouter aux favoris'} : ${escapeHtml(m.label)}">${isFav ? '★' : '☆'}</span>
+      ${isRecentModule(m) ? '<span class="dp-new-badge" title="Ajoute recemment">Nouveau</span>' : ''}
       <span class="icon">${m.icon}</span>
       <span class="label">${escapeHtml(m.label)}</span>
     </button>`;
@@ -2359,6 +2412,8 @@ const SETTINGS_PANEL_INTROS = {
 
 async function renderSettingsPanel(guildId, key, preselectSectionId, { fromBack = false } = {}) {
   const main = document.getElementById('dp-main');
+  const prevBody = document.getElementById('dp-settings-body');
+  if (prevBody && currentPanelRef) scrollPositions.set(currentPanelRef.key, prevBody.scrollTop);
   const panel = SETTINGS_PANELS.find((p) => p.key === key);
   const intro = SETTINGS_PANEL_INTROS[key] || `Voici ${panel?.label || key}.`;
   // Pile de navigation (n°028) : on empile le module quitte, sauf en retour.
@@ -2425,6 +2480,11 @@ async function renderSettingsPanel(guildId, key, preselectSectionId, { fromBack 
     ? body.querySelector(`#section-${preselectSectionId}`)
     : body.querySelector('.section-panel');
   target?.classList.add('active');
+
+  if (fromBack && scrollPositions.has(key)) {
+    const savedTop = scrollPositions.get(key);
+    requestAnimationFrame(() => { body.scrollTop = savedTop; });
+  }
 }
 
 function contextualChannelSettingsHtml(channelId, config) {
@@ -4158,7 +4218,7 @@ async function renderAutomationsPage(id, container = app) {
 
   const ticketRows = tickets.map((t) => `
     <div class="row" data-id="${t.id}" style="justify-content:space-between; margin-bottom:6px;">
-      <span>${channelName(t.channelId)} <span class="muted">(${escapeHtml(t.userId)})</span> — <span class="badge ${t.status === 'open' ? 'configured' : 'not-configured'}">${t.status === 'open' ? 'Ouvert' : 'Ferme'}</span>${t.assignedToTag ? ` <span class="muted">— pris en charge par ${escapeHtml(t.assignedToTag)}</span>` : ''}${t.rating ? ` <span class="muted">— ${'⭐'.repeat(t.rating)}</span>` : ''}</span>
+      <span>${channelName(t.channelId)} <span class="muted">(${escapeHtml(t.userId)})</span><button type="button" class="dp-copy-id-btn" data-copy-id="${t.userId}" title="Copier l'ID" aria-label="Copier l'ID de l'auteur du ticket">📋</button> — <span class="badge ${t.status === 'open' ? 'configured' : 'not-configured'}">${t.status === 'open' ? 'Ouvert' : 'Ferme'}</span>${t.assignedToTag ? ` <span class="muted">— pris en charge par ${escapeHtml(t.assignedToTag)}</span>` : ''}${t.rating ? ` <span class="muted">— ${'⭐'.repeat(t.rating)}</span>` : ''}</span>
       ${t.status === 'open'
     ? `<button class="btn danger close-ticket" data-id="${t.id}">Fermer</button>`
     : `<span style="display:flex; gap:6px;">
@@ -5964,12 +6024,23 @@ async function renderMemberLookupPage(id, container = app) {
     Api.members(id).catch(() => []), Api.roles(id).catch(() => []),
   ]);
   const roleById = new Map(roles.map((r) => [r.id, r]));
-  const sorted = [...members].sort((a, b) => (a.displayName || '').localeCompare(b.displayName || ''));
   // Bots masques par defaut (demande utilisateur) : flag bot renvoye par le
   // worker, avec repli sur le role nomme "Bot" pour les donnees en cache.
   const isBot = (m) => m.bot || (m.roles || []).some((rid) => roleById.get(rid)?.name === 'Bot');
-  const botCount = sorted.filter(isBot).length;
+  const botCount = members.filter(isBot).length;
   let showBots = false;
+
+  // Tri memorise entre sessions (roadmap n°213), par navigateur (localStorage,
+  // pas cote serveur : c'est une preference d'affichage, pas une donnee).
+  const MEMBER_SORTS = {
+    name_asc: { label: 'Nom (A-Z)', cmp: (a, b) => (a.displayName || '').localeCompare(b.displayName || '') },
+    name_desc: { label: 'Nom (Z-A)', cmp: (a, b) => (b.displayName || '').localeCompare(a.displayName || '') },
+    joined_recent: { label: "Arrivee (recent d'abord)", cmp: (a, b) => (b.joinedAt || 0) - (a.joinedAt || 0) },
+    joined_old: { label: "Arrivee (ancien d'abord)", cmp: (a, b) => (a.joinedAt || 0) - (b.joinedAt || 0) },
+  };
+  let currentSort = localStorage.getItem('dsc-member-sort') || 'name_asc';
+  if (!MEMBER_SORTS[currentSort]) currentSort = 'name_asc';
+  let sorted = [...members].sort(MEMBER_SORTS[currentSort].cmp);
 
   const rowHtml = (m, q) => {
     const roleChips = (m.roles || [])
@@ -6002,6 +6073,9 @@ async function renderMemberLookupPage(id, container = app) {
         <p class="muted">${members.length - botCount} membre(s)${botCount ? ` + ${botCount} bot(s) masques` : ''}. Recherche par pseudo ou par ID.</p>
         <div class="row" style="gap:8px; flex-wrap:wrap; margin-bottom:10px; align-items:center;">
           <input type="text" id="member-search" placeholder="Rechercher un membre..." aria-label="Rechercher un membre" style="flex:1; min-width:180px; margin:0;" />
+          <select id="member-sort" aria-label="Trier les membres" style="margin:0; max-width:200px;">
+            ${Object.entries(MEMBER_SORTS).map(([k, s]) => `<option value="${k}" ${k === currentSort ? 'selected' : ''}>${s.label}</option>`).join('')}
+          </select>
           ${botCount ? `<label class="dp-toggle-row" style="margin:0; padding:8px 12px; flex:none;"><span style="font-size:0.82rem;">Afficher les bots (${botCount})</span><input type="checkbox" id="member-show-bots" /></label>` : ''}
         </div>
         <div class="member-lookup-list" id="member-lookup-list"></div>
@@ -6036,6 +6110,13 @@ async function renderMemberLookupPage(id, container = app) {
   });
   document.getElementById('member-show-bots')?.addEventListener('change', (e) => {
     showBots = e.target.checked;
+    repaintMembers();
+  });
+  document.getElementById('member-sort').addEventListener('change', (e) => {
+    currentSort = MEMBER_SORTS[e.target.value] ? e.target.value : 'name_asc';
+    localStorage.setItem('dsc-member-sort', currentSort);
+    sorted = [...members].sort(MEMBER_SORTS[currentSort].cmp);
+    memberDisplayLimit = 100;
     repaintMembers();
   });
 
@@ -8449,7 +8530,48 @@ async function renderGuildDetail(id) {
   }
 }
 
+// Tooltips stylises sur les icones de la topbar (roadmap n°211) : les
+// boutons ont deja un attribut title (tooltip natif du navigateur, lent et
+// non stylable) — on le remplace par une bulle CSS a l'affichage immediat,
+// sans dupliquer le texte (data-tooltip prend le relais de title pour ne
+// pas avoir les deux bulles superposees).
+function wireTopbarTooltips() {
+  const topbar = document.getElementById('content-topbar');
+  if (!topbar) return;
+  const bubble = document.createElement('div');
+  bubble.className = 'dp-tooltip';
+  bubble.hidden = true;
+  document.body.appendChild(bubble);
+
+  let hideTimer = null;
+  const show = (el) => {
+    clearTimeout(hideTimer);
+    bubble.textContent = el.dataset.tooltip;
+    bubble.hidden = false;
+    const rect = el.getBoundingClientRect();
+    const bubbleRect = bubble.getBoundingClientRect();
+    bubble.style.left = `${Math.min(window.innerWidth - bubbleRect.width - 8, Math.max(8, rect.left + rect.width / 2 - bubbleRect.width / 2))}px`;
+    bubble.style.top = `${rect.bottom + 8}px`;
+    bubble.classList.add('visible');
+  };
+  const hide = () => {
+    bubble.classList.remove('visible');
+    hideTimer = setTimeout(() => { bubble.hidden = true; }, 150);
+  };
+
+  topbar.querySelectorAll('[title]').forEach((el) => {
+    el.dataset.tooltip = el.getAttribute('title');
+    el.removeAttribute('title');
+    el.addEventListener('mouseenter', () => show(el));
+    el.addEventListener('mouseleave', hide);
+    el.addEventListener('focus', () => show(el));
+    el.addEventListener('blur', hide);
+  });
+}
+
 async function init() {
+  wireTopbarTooltips();
+
   // Mode demo (roadmap n°171) : bandeau visible + bouton de sortie qui
   // nettoie le flag et revient a l'ecran de connexion.
   if (window.DEMO_MODE) {
