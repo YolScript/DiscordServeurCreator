@@ -839,6 +839,19 @@ input::placeholder, textarea::placeholder { color: var(--text-faint); }
 .dp-channel:hover .dp-channel-emoji-btn, .dp-channel-emoji-btn:focus-visible { opacity: 1; }
 .dp-channel-emoji-btn:hover { color: var(--text); background: var(--bg-input); }
 .dp-channel-emoji-btn ~ .dp-copy-id-btn { margin-left: 0; }
+/* Salon favori (roadmap n°581) : etoile visible en permanence si epinglee,
+   sinon au survol comme les autres boutons d'icone du salon. */
+.dp-channel-pin-btn {
+  flex: none; margin-left: auto; background: none; border: none; color: var(--text-faint);
+  cursor: pointer; font-size: 0.82rem; padding: 2px 4px; border-radius: 4px;
+  opacity: 0; transition: opacity 0.12s ease, color 0.12s ease, background 0.12s ease;
+}
+.dp-channel:hover .dp-channel-pin-btn, .dp-channel-pin-btn:focus-visible { opacity: 1; }
+.dp-channel-pin-btn:hover { color: var(--warning); background: var(--bg-input); }
+.dp-channel.pinned .dp-channel-pin-btn { opacity: 1; color: var(--warning); }
+.dp-channel.pinned { background: color-mix(in srgb, var(--warning) 8%, transparent); border-radius: 4px; }
+.dp-channel.pinned ~ .dp-channel-emoji-btn { margin-left: 0; }
+.dp-channel-pin-btn ~ .dp-channel-emoji-btn { margin-left: 0; }
 .dp-copy-id-btn.copied { color: var(--success); opacity: 1; }
 .dp-copy-id-inline {
   display: inline-flex; align-items: center; gap: 5px; margin-bottom: 10px;

@@ -94,6 +94,27 @@ app.addEventListener('click', async (e) => {
   }
 }, true);
 
+// Salon favori (roadmap n°581) : meme delegation en phase de capture que
+// les boutons voisins (copie-ID, icone).
+app.addEventListener('click', (e) => {
+  const btn = e.target.closest('.dp-channel-pin-btn');
+  if (!btn) return;
+  e.stopPropagation();
+  e.preventDefault();
+  const gid = paletteCtx.guildId;
+  const storageKey = `dsc-pinned-channels-${gid}`;
+  const pinned = new Set(JSON.parse(localStorage.getItem(storageKey) || '[]'));
+  const channelId = btn.dataset.channelPin;
+  if (pinned.has(channelId)) pinned.delete(channelId); else pinned.add(channelId);
+  localStorage.setItem(storageKey, JSON.stringify([...pinned]));
+  const row = btn.closest('.dp-channel');
+  row.classList.toggle('pinned', pinned.has(channelId));
+  btn.textContent = pinned.has(channelId) ? '★' : '☆';
+  const label = pinned.has(channelId) ? 'Retirer des favoris' : 'Ajouter aux favoris';
+  btn.title = label;
+  btn.setAttribute('aria-label', `${label} : ${row.dataset.name}`);
+}, true);
+
 // Icone personnalisee par salon (roadmap n°254) : meme delegation en phase
 // de capture que le bouton copier-ID ci-dessus, pour la meme raison (le
 // bouton est imbrique dans .dp-channel qui a son propre click).
@@ -1589,9 +1610,14 @@ function renderPreviewContent(id, { channels, config, roles, members }) {
     return badges.join('');
   };
 
+  // Salon favori personnel (roadmap n°581) : mise en avant visuelle locale
+  // (localStorage, par navigateur), n'affecte jamais l'ordre reel Discord —
+  // plus sur que de l'integrer au drag&drop des categories existant.
+  const pinnedChannels = new Set(JSON.parse(localStorage.getItem(`dsc-pinned-channels-${id}`) || '[]'));
   const channelRow = (c) => `
-    <div class="dp-channel" draggable="true" tabindex="0" role="button" aria-label="Salon ${escapeHtml(c.name)} (Alt+fleches pour reordonner)" data-channel="${c.id}" data-name="${escapeHtml(c.name)}" data-type="${c.type}">
+    <div class="dp-channel${pinnedChannels.has(c.id) ? ' pinned' : ''}" draggable="true" tabindex="0" role="button" aria-label="Salon ${escapeHtml(c.name)} (Alt+fleches pour reordonner)" data-channel="${c.id}" data-name="${escapeHtml(c.name)}" data-type="${c.type}">
       <span class="hash">${channelIcon(c)}</span> <span class="dp-channel-name">${escapeHtml(c.name)}</span>${channelBadges(c)}
+      <button type="button" class="dp-channel-pin-btn" data-channel-pin="${c.id}" title="${pinnedChannels.has(c.id) ? 'Retirer des favoris' : 'Ajouter aux favoris'}" aria-label="${pinnedChannels.has(c.id) ? 'Retirer des favoris' : 'Ajouter aux favoris'} : ${escapeHtml(c.name)}">${pinnedChannels.has(c.id) ? '★' : '☆'}</button>
       <button type="button" class="dp-channel-emoji-btn" data-channel-emoji="${c.id}" title="Definir une icone personnalisee" aria-label="Definir une icone personnalisee pour ${escapeHtml(c.name)}">🏷️</button>
       <button type="button" class="dp-copy-id-btn" data-copy-id="${c.id}" title="Copier l'ID du salon" aria-label="Copier l'ID du salon ${escapeHtml(c.name)}">📋</button>
     </div>`;
@@ -4612,6 +4638,31 @@ async function renderAutomationsPage(id, container = app) {
           </select>
           <button class="btn secondary" id="save-pay-tax">Enregistrer</button>
         </div>
+
+        <h2 style="margin-top:18px; font-size:0.85rem;">🎨 Personnalisation de la monnaie (roadmap n°425)</h2>
+        <div class="row" style="gap:8px;">
+          <input type="text" id="currency-name" placeholder="pieces" value="${escapeHtml(config?.currencyName || '')}" style="flex:1; margin:0;" />
+          <input type="text" id="currency-emoji" placeholder="🪙" value="${escapeHtml(config?.currencyEmoji || '')}" style="width:70px; margin:0;" />
+          <button class="btn secondary" id="save-currency">Enregistrer</button>
+        </div>
+
+        <h2 style="margin-top:18px; font-size:0.85rem;">👋 Bonus de bienvenue (roadmap n°427)</h2>
+        <label for="welcome-bonus">Montant offert a l'arrivee d'un nouveau membre (0 = desactive)</label>
+        <input type="number" id="welcome-bonus" value="${config?.welcomeBonusAmount || 0}" min="0" />
+        <button class="btn secondary" id="save-welcome-bonus" style="margin-top:8px;">Enregistrer</button>
+
+        <h2 style="margin-top:18px; font-size:0.85rem;">📈 Plafond de richesse (roadmap n°686)</h2>
+        <label for="wealth-cap">Solde maximum par membre (0 = illimite)</label>
+        <input type="number" id="wealth-cap" value="${config?.wealthCap || 0}" min="0" />
+        <button class="btn secondary" id="save-wealth-cap" style="margin-top:8px;">Enregistrer</button>
+
+        <h2 style="margin-top:18px; font-size:0.85rem;">🎟️ Loterie hebdomadaire (roadmap n°496)</h2>
+        <p class="muted">Chaque /daily reclame achete automatiquement 1 ticket. Un gagnant tire au sort chaque semaine remporte la cagnotte.</p>
+        <label class="dp-toggle-row"><span>Loterie active</span><input type="checkbox" id="lottery-enabled" ${config?.lotteryEnabled ? 'checked' : ''} /></label>
+        <label for="lottery-ticket-price">Prix du ticket (deduit du solde a chaque /daily si active)</label>
+        <input type="number" id="lottery-ticket-price" value="${config?.lotteryTicketPrice ?? 10}" min="0" />
+        <button class="btn secondary" id="save-lottery" style="margin-top:8px;">Enregistrer</button>
+
         <h2 style="margin-top:18px; font-size:0.85rem;">Classement richesse</h2>
         <div id="economy-leaderboard">${economyLeaderboardRows}</div>
       `, { id: 'economie' })}
@@ -5138,6 +5189,45 @@ async function renderAutomationsPage(id, container = app) {
     try {
       await Api.updateConfig(id, { payTaxPercent: Number(document.getElementById('pay-tax-percent').value) });
       showToast('Taxe sur les transferts enregistree.');
+    } catch (err) {
+      showToast(err.message, 'error');
+    }
+  });
+
+  document.getElementById('save-currency')?.addEventListener('click', async () => {
+    try {
+      await Api.updateConfig(id, {
+        currencyName: document.getElementById('currency-name').value.trim() || undefined,
+        currencyEmoji: document.getElementById('currency-emoji').value.trim() || undefined,
+      });
+      showToast('Monnaie personnalisee.');
+    } catch (err) {
+      showToast(err.message, 'error');
+    }
+  });
+  document.getElementById('save-welcome-bonus')?.addEventListener('click', async () => {
+    try {
+      await Api.updateConfig(id, { welcomeBonusAmount: Math.max(0, Number(document.getElementById('welcome-bonus').value) || 0) });
+      showToast('Bonus de bienvenue enregistre.');
+    } catch (err) {
+      showToast(err.message, 'error');
+    }
+  });
+  document.getElementById('save-wealth-cap')?.addEventListener('click', async () => {
+    try {
+      await Api.updateConfig(id, { wealthCap: Math.max(0, Number(document.getElementById('wealth-cap').value) || 0) });
+      showToast('Plafond de richesse enregistre.');
+    } catch (err) {
+      showToast(err.message, 'error');
+    }
+  });
+  document.getElementById('save-lottery')?.addEventListener('click', async () => {
+    try {
+      await Api.updateConfig(id, {
+        lotteryEnabled: document.getElementById('lottery-enabled').checked,
+        lotteryTicketPrice: Math.max(0, Number(document.getElementById('lottery-ticket-price').value) || 0),
+      });
+      showToast('Loterie enregistree.');
     } catch (err) {
       showToast(err.message, 'error');
     }
@@ -6656,8 +6746,8 @@ async function renderMemberLookupPage(id, container = app) {
       <div class="member-warns-detail">
         ${rows || '<p class="muted" style="margin:0;">Aucune sanction enregistree.</p>'}
         ${inventory.length ? `
-          <label style="margin-top:8px; font-size:0.76rem;">🎒 Inventaire (${inventory.length} achat(s))</label>
-          <div style="display:flex; flex-wrap:wrap; gap:3px;">${inventory.slice().reverse().slice(0, 12).map((it) => `<span class="dp-chip" title="Achete le ${new Date(it.boughtAt).toLocaleString('fr-FR')} pour ${it.price} pieces">${escapeHtml(it.name)}</span>`).join('')}</div>` : ''}
+          <label style="margin-top:8px; font-size:0.76rem;">🎒 Inventaire (${inventory.length} achat(s)) — roadmap n°472</label>
+          <div style="display:flex; flex-wrap:wrap; gap:3px;">${inventory.slice().reverse().slice(0, 12).map((it, revIdx) => `<span class="dp-chip" title="Achete le ${new Date(it.boughtAt).toLocaleString('fr-FR')} pour ${it.price} pieces">${escapeHtml(it.name)} <button type="button" class="member-refund-btn" data-user="${targetUserId}" data-index="${inventory.length - 1 - revIdx}" data-name="${escapeHtml(it.name)}" title="Rembourser cet achat" aria-label="Rembourser ${escapeHtml(it.name)}">↩️</button></span>`).join('')}</div>` : ''}
         <label style="margin-top:8px; font-size:0.76rem;">📝 Note interne (staff uniquement)${note.author ? ` <span class="muted">— ${escapeHtml(note.author)}, ${new Date(note.updatedAt).toLocaleString('fr-FR')}</span>` : ''}</label>
         <textarea class="member-note-text" maxlength="2000" placeholder="Contexte, historique, points d'attention..." style="min-height:56px;">${escapeHtml(note.text || '')}</textarea>
         <button type="button" class="btn secondary member-note-save" data-note-user="${targetUserId}" style="align-self:flex-start;">Enregistrer la note</button>
@@ -6670,6 +6760,19 @@ async function renderMemberLookupPage(id, container = app) {
       } catch (err) {
         showToast(err.message, 'error');
       }
+    });
+    row.nextElementSibling.querySelectorAll('.member-refund-btn').forEach((btn) => {
+      btn.addEventListener('click', async () => {
+        const reason = window.prompt(`Rembourser "${btn.dataset.name}" ? Motif (optionnel) :`, '');
+        if (reason === null) return;
+        try {
+          const result = await Api.refundPurchase(id, btn.dataset.user, Number(btn.dataset.index), reason);
+          showToast(`Rembourse : ${result.refunded}.`);
+          btn.closest('.dp-chip').remove();
+        } catch (err) {
+          showToast(err.message, 'error');
+        }
+      });
     });
   });
 }
@@ -7106,6 +7209,15 @@ async function renderStatsPage(id, container = app) {
   const boostPoints = stats.map((s) => s.boostCount || 0);
   const currentBoosts = boostPoints.length ? boostPoints[boostPoints.length - 1] : 0;
 
+  // Anciennete moyenne des membres actifs (roadmap n°499).
+  const humanMembers = statMembers.filter((m) => !m.bot && m.joinedAt);
+  const avgTenureDays = humanMembers.length
+    ? Math.round(humanMembers.reduce((sum, m) => sum + (Date.now() - new Date(m.joinedAt).getTime()), 0) / humanMembers.length / 86400000)
+    : 0;
+
+  // Statistique d'inflation : monnaie totale en circulation (roadmap n°536).
+  const totalCurrencyInCirculation = Object.values(ecoAccounts).reduce((sum, acc) => sum + (acc?.balance || 0), 0);
+
   // Top salons par messages sur 7/30 jours (roadmap n°324).
   const topChannelsFor = (days) => {
     const cutoff = new Date(Date.now() - days * 86400000).toISOString().slice(0, 10);
@@ -7235,17 +7347,19 @@ async function renderStatsPage(id, container = app) {
   // Top membres (n°031) + stats vocales (n°032) depuis les donnees XP.
   const nameById = new Map(statMembers.map((m) => [m.userId, m.displayName || m.userId]));
   const xpEntries = Object.entries(xpData);
-  const topRow = (uid, value, unit) => `
+  // Podium visuel or/argent/bronze sur les 3 premiers (roadmap n°588).
+  const PODIUM_MEDALS = ['🥇', '🥈', '🥉'];
+  const topRow = (uid, value, unit, rank) => `
     <div class="stats-top-row">
-      <span class="stats-top-name">${escapeHtml(nameById.get(uid) || 'Membre parti')}</span>
+      <span class="stats-top-name">${PODIUM_MEDALS[rank] ? `${PODIUM_MEDALS[rank]} ` : ''}${escapeHtml(nameById.get(uid) || 'Membre parti')}</span>
       <span class="stats-top-value">${value.toLocaleString('fr-FR')} ${unit}</span>
     </div>`;
   const topMessages = xpEntries.filter(([, d]) => d.messageCount > 0)
     .sort((a, b) => b[1].messageCount - a[1].messageCount).slice(0, 10)
-    .map(([uid, d]) => topRow(uid, d.messageCount, 'msg')).join('') || '<p class="muted">Pas encore de donnees.</p>';
+    .map(([uid, d], i) => topRow(uid, d.messageCount, 'msg', i)).join('') || '<p class="muted">Pas encore de donnees.</p>';
   const topVoice = xpEntries.filter(([, d]) => d.voiceMinutes > 0)
     .sort((a, b) => b[1].voiceMinutes - a[1].voiceMinutes).slice(0, 10)
-    .map(([uid, d]) => topRow(uid, Math.round(d.voiceMinutes / 60 * 10) / 10, 'h vocal')).join('') || '<p class="muted">Pas encore de donnees vocales.</p>';
+    .map(([uid, d], i) => topRow(uid, Math.round(d.voiceMinutes / 60 * 10) / 10, 'h vocal', i)).join('') || '<p class="muted">Pas encore de donnees vocales.</p>';
 
   // Vocal cumule par salon (roadmap n°188) : minutes accumulees par le bot
   // (tick toutes les 5 min, un salon occupe par au moins un humain compte)
@@ -7275,7 +7389,7 @@ async function renderStatsPage(id, container = app) {
   const topWealth = Object.entries(ecoAccounts)
     .filter(([, acc]) => (acc?.balance || 0) > 0)
     .sort((a, b) => (b[1].balance || 0) - (a[1].balance || 0)).slice(0, 10)
-    .map(([uid, acc]) => topRow(uid, acc.balance, 'pieces')).join('') || '<p class="muted">Pas encore de comptes actifs.</p>';
+    .map(([uid, acc], i) => topRow(uid, acc.balance, 'pieces', i)).join('') || '<p class="muted">Pas encore de comptes actifs.</p>';
 
   // Tendance sur la croissance des membres (roadmap n°165) : delta net des
   // 7 derniers jours vs les 7 precedents.
@@ -7356,6 +7470,11 @@ async function renderStatsPage(id, container = app) {
         <p class="muted">Actuellement : <strong>${currentBoosts}</strong> boost(s).</p>
         ${boostPoints.some((v) => v > 0) ? lineChartSvg(boostPoints, { color: '#f47fff' }) : '<p class="muted">Pas encore de boost enregistre.</p>'}
       `, { id: 'stats-boosts' })}
+
+      ${sectionHtml('Autres indicateurs', `
+        <div class="stats-top-row"><span class="stats-top-name">📅 Anciennete moyenne des membres (n°499)</span><span class="stats-top-value">${avgTenureDays} jour(s)</span></div>
+        <div class="stats-top-row"><span class="stats-top-name">🪙 Monnaie totale en circulation (n°536)</span><span class="stats-top-value">${totalCurrencyInCirculation.toLocaleString('fr-FR')}</span></div>
+      `, { id: 'stats-misc' })}
     </div>
   `;
 

@@ -1,4 +1,5 @@
 const { kvGet, kvPut } = require('./cloudflareKv');
+const guildConfigStore = require('./guildConfigStore');
 
 const key = (guildId) => `guild:${guildId}:economy`;
 
@@ -37,8 +38,17 @@ function logTransaction(account, amount, reason) {
 }
 
 async function addBalance(guildId, userId, amount, reason) {
+  // Plafond de richesse (roadmap n°686), optionnel : ne s'applique qu'aux
+  // gains (amount > 0), un solde deja au-dessus du plafond au moment ou il
+  // est active n'est jamais retire de force.
+  let cap = null;
+  if (amount > 0) {
+    const config = await guildConfigStore.find(guildId).catch(() => null);
+    cap = config?.wealthCap > 0 ? config.wealthCap : null;
+  }
   return mutate(guildId, userId, (account) => {
-    account.balance = Math.max(0, account.balance + amount);
+    const target = account.balance + amount;
+    account.balance = Math.max(0, cap ? Math.min(cap, target) : target);
     logTransaction(account, amount, reason);
   });
 }

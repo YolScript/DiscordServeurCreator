@@ -401,6 +401,18 @@ const afkCommand = new SlashCommandBuilder()
   .toJSON();
 
 // Reserve au staff ("opt-in staff", roadmap n°377).
+const pingCommand = new SlashCommandBuilder()
+  .setName('ping')
+  .setDescription('Latence du bot, de l\'API Discord et du KV.')
+  .toJSON();
+
+const compareCommand = new SlashCommandBuilder()
+  .setName('compare')
+  .setDescription('Compare deux membres (niveau, XP, messages, vocal).')
+  .addUserOption((o) => o.setName('membre1').setDescription('Premier membre').setRequired(true))
+  .addUserOption((o) => o.setName('membre2').setDescription('Deuxieme membre').setRequired(true))
+  .toJSON();
+
 const snipeCommand = new SlashCommandBuilder()
   .setName('snipe')
   .setDescription('Affiche le dernier message supprime de ce salon.')
@@ -423,5 +435,5 @@ module.exports = [
   balanceCommand, dailyCommand, payCommand, shopCommand, economyLeaderboardCommand,
   eightballCommand, coinflipCommand, diceCommand, rollCommand,
   avatarCommand, bannerCommand, serverinfoCommand, userinfoCommand,
-  afkCommand, snipeCommand,
+  afkCommand, snipeCommand, pingCommand, compareCommand,
 ];

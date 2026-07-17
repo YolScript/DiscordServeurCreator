@@ -1,5 +1,8 @@
 const { MessageFlags } = require('discord.js');
 const economyStore = require('../../kv/economyStore');
+const guildConfigStore = require('../../kv/guildConfigStore');
+const lotteryStore = require('../../kv/lotteryStore');
+const { getCurrencyLabel } = require('../../shared/currency');
 
 const COOLDOWN_MS = 24 * 60 * 60_000;
 const MIN_REWARD = 100;
@@ -22,7 +25,22 @@ async function handleDailyCommand(interaction) {
   // dans claimDaily, on l'affiche depuis la derniere transaction loggee.
   const gained = updated.transactions[0]?.amount ?? reward;
   const streakLine = updated.dailyStreak > 1 ? ` (streak de **${updated.dailyStreak}** jours, bonus inclus)` : '';
-  await interaction.reply(`🪙 Tu recuperes **${gained}** pieces${streakLine} ! Solde : **${updated.balance}**.`);
+  const currency = await getCurrencyLabel(interaction.guild.id);
+
+  // Loterie hebdomadaire (roadmap n°496) : un ticket automatique par /daily
+  // reclame, prix deduit du solde si l'option est active.
+  let lotteryLine = '';
+  const lotteryConfig = await guildConfigStore.find(interaction.guild.id).catch(() => null);
+  if (lotteryConfig?.lotteryEnabled) {
+    const ticketPrice = lotteryConfig.lotteryTicketPrice ?? 10;
+    if (updated.balance >= ticketPrice) {
+      await economyStore.addBalance(interaction.guild.id, interaction.user.id, -ticketPrice, 'ticket de loterie');
+      await lotteryStore.addTicket(interaction.guild.id, interaction.user.id, ticketPrice);
+      lotteryLine = `\n🎟️ Ticket de loterie achete (-${ticketPrice}).`;
+    }
+  }
+
+  await interaction.reply(`${currency.emoji} Tu recuperes **${gained}** ${currency.name}${streakLine} ! Solde : **${updated.balance}**.${lotteryLine}`);
 }
 
 module.exports = handleDailyCommand;

@@ -1,6 +1,7 @@
 const { MessageFlags } = require('discord.js');
 const economyStore = require('../../kv/economyStore');
 const guildConfigStore = require('../../kv/guildConfigStore');
+const { getCurrencyLabel } = require('../../shared/currency');
 
 async function handlePayCommand(interaction) {
   const target = interaction.options.getUser('membre', true);
@@ -15,9 +16,10 @@ async function handlePayCommand(interaction) {
     return;
   }
 
+  const currency = await getCurrencyLabel(interaction.guild.id);
   const account = await economyStore.getAccount(interaction.guild.id, interaction.user.id);
   if (account.balance < amount) {
-    await interaction.reply({ content: `Solde insuffisant (tu as ${account.balance} pieces).`, flags: MessageFlags.Ephemeral });
+    await interaction.reply({ content: `Solde insuffisant (tu as ${account.balance} ${currency.name}).`, flags: MessageFlags.Ephemeral });
     return;
   }
 
@@ -30,7 +32,7 @@ async function handlePayCommand(interaction) {
 
   await economyStore.addBalance(interaction.guild.id, interaction.user.id, -amount, `envoye a ${target.tag}`);
   await economyStore.addBalance(interaction.guild.id, target.id, received, `recu de ${interaction.user.tag}`);
-  await interaction.reply(`🪙 <@${interaction.user.id}> a envoye **${received}** pieces a <@${target.id}>${tax ? ` (taxe de ${taxPercent}% : -${tax})` : ''}.`);
+  await interaction.reply(`${currency.emoji} <@${interaction.user.id}> a envoye **${received}** ${currency.name} a <@${target.id}>${tax ? ` (taxe de ${taxPercent}% : -${tax})` : ''}.`);
 }
 
 module.exports = handlePayCommand;

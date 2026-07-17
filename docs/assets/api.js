@@ -60,6 +60,7 @@ window.Api = (function api() {
     memberWarns: (guildId, userId) => request(`/api/guilds/${guildId}/members/${userId}/warns`),
     memberNote: (guildId, userId) => request(`/api/guilds/${guildId}/members/${userId}/note`),
     memberInventory: (guildId, userId) => request(`/api/guilds/${guildId}/members/${userId}/inventory`),
+    refundPurchase: (guildId, userId, index, reason) => request(`/api/guilds/${guildId}/members/${userId}/inventory/refund`, { method: 'POST', body: JSON.stringify({ index, reason }) }),
     saveMemberNote: (guildId, userId, text) => request(`/api/guilds/${guildId}/members/${userId}/note`, { method: 'PUT', body: JSON.stringify({ text }) }),
     xp: (guildId) => request(`/api/guilds/${guildId}/xp`),
     resetXp: (guildId, userId) => request(`/api/guilds/${guildId}/xp-reset`, { method: 'POST', body: JSON.stringify({ userId: userId || undefined }) }),

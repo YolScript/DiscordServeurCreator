@@ -8,6 +8,7 @@ const inviteTracker = require('../engagement/inviteTracker');
 const webhookDispatcher = require('../automation/webhookDispatcher');
 const { applyPlaceholders } = require('../../shared/placeholders');
 const { generateWelcomeCard } = require('../engagement/welcomeCard');
+const economyStore = require('../../kv/economyStore');
 const logger = require('../../shared/logger');
 
 client.on(Events.GuildMemberAdd, async (member) => {
@@ -27,6 +28,11 @@ client.on(Events.GuildMemberAdd, async (member) => {
     if (!config) return;
 
     if (config.autoRoleId) await member.roles.add(config.autoRoleId).catch((err) => logger.error('autoRole', err));
+
+    // Bonus de bienvenue (roadmap n°427).
+    if (config.welcomeBonusAmount > 0) {
+      await economyStore.addBalance(member.guild.id, member.id, config.welcomeBonusAmount, 'bonus de bienvenue').catch((err) => logger.error('welcomeBonus', err));
+    }
 
     if (!config.arrivalDepartureChannelId) return;
 

@@ -133,6 +133,8 @@ async function handleMessageCreate(message) {
 
     const guildConfig = await guildConfigStore.find(message.guild.id);
     if (!guildConfig) return; // serveur pas encore configure via /setup
+    // Pause globale des automatisations (roadmap n°494).
+    if (guildConfig.automationsPaused) return;
 
     const modConfig = await moderationConfigStore.find(message.guild.id);
     const content = message.content ?? '';

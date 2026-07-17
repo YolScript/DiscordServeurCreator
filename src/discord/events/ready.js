@@ -28,6 +28,7 @@ const threadAutoClose = require('../automation/threadAutoClose');
 const roleSalary = require('../automation/roleSalary');
 const dailyQuote = require('../automation/dailyQuote');
 const voiceAfkKick = require('../automation/voiceAfkKick');
+const weeklyLottery = require('../automation/weeklyLottery');
 const logger = require('../../shared/logger');
 
 client.once(Events.ClientReady, async (readyClient) => {
@@ -82,4 +83,5 @@ client.once(Events.ClientReady, async (readyClient) => {
   roleSalary.start();
   dailyQuote.start();
   voiceAfkKick.start();
+  weeklyLottery.start();
 });

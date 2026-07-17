@@ -134,6 +134,9 @@ export async function getEconomyAccounts(env, guildId) {
   const raw = await env.GUILD_KV.get(economyKey(guildId));
   return raw ? JSON.parse(raw) : {};
 }
+export async function putEconomyAccounts(env, guildId, accounts) {
+  await env.GUILD_KV.put(economyKey(guildId), JSON.stringify(accounts));
+}
 
 const TEMPLATE_REGISTRY_KEY = 'templates:registry';
 

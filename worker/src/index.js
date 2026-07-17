@@ -24,7 +24,7 @@ import {
   getEmbedTemplates, putEmbedTemplates,
   getReactionRoleGroups, putReactionRoleGroups,
   getBotStatus,
-  getShopItems, putShopItems, getEconomyAccounts,
+  getShopItems, putShopItems, getEconomyAccounts, putEconomyAccounts,
   getTemplateRegistry, putTemplateRegistry,
   getCustomCommands, putCustomCommands,
   getGenerationProgress, putGenerationProgress,
@@ -1074,6 +1074,28 @@ async function router(request, env) {
     if (sub === 'members' && parts[5] === 'inventory' && parts.length === 6 && method === 'GET') {
       await requireGuildAccess(env, request, guildId);
       return json((await env.GUILD_KV.get(`guild:${guildId}:inventory:${parts[4]}`, 'json')) || [], env);
+    }
+
+    // Remboursement d'un achat par le staff, avec motif (roadmap n°472).
+    if (sub === 'members' && parts[5] === 'inventory' && parts[6] === 'refund' && parts.length === 7 && method === 'POST') {
+      const session = await requireGuildAccess(env, request, guildId);
+      const targetUserId = parts[4];
+      const { index, reason } = await readJson(request);
+      const invKey = `guild:${guildId}:inventory:${targetUserId}`;
+      const inventory = (await env.GUILD_KV.get(invKey, 'json')) || [];
+      const item = inventory[index];
+      if (!item) throw new HttpError(404, 'Objet introuvable dans cet inventaire.');
+      inventory.splice(index, 1);
+      await env.GUILD_KV.put(invKey, JSON.stringify(inventory));
+      const accounts = await getEconomyAccounts(env, guildId);
+      const account = accounts[targetUserId] || { balance: 0, lastDaily: 0, transactions: [] };
+      account.balance += item.price;
+      account.transactions = account.transactions || [];
+      account.transactions.unshift({ amount: item.price, reason: `remboursement : ${item.name}${reason ? ` (${reason})` : ''}`, balance: account.balance, at: Date.now() });
+      accounts[targetUserId] = account;
+      await putEconomyAccounts(env, guildId, accounts);
+      await logAudit(env, guildId, { title: 'Achat rembourse', description: `${session.username} a rembourse "${item.name}" (${item.price}) a <@${targetUserId}>${reason ? ` : ${reason}` : ''}.` });
+      return json({ ok: true, refunded: item.price }, env);
     }
 
     // Note interne staff par membre (roadmap n°148) : visible uniquement

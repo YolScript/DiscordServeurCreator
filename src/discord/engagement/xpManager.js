@@ -23,6 +23,8 @@ async function getXpConfig(guildId) {
     boosts: config?.xpChannelBoosts || {},
     // Salons exclus de l'XP (roadmap n°294) : ex. bot-commandes, spam.
     excluded: new Set(config?.xpExcludedChannels || []),
+    // Pause globale des automatisations (roadmap n°494).
+    paused: !!config?.automationsPaused,
     expires: Date.now() + 5 * 60_000,
   };
   xpConfigCache.set(guildId, entry);
@@ -151,7 +153,9 @@ async function awardMessageXp(message) {
   if (message.author.bot || !message.guild || !message.member) return;
 
   try {
-    const { rate, boosts, excluded } = await getXpConfig(message.guild.id);
+    const { rate, boosts, excluded, paused } = await getXpConfig(message.guild.id);
+    // Pause globale des automatisations (roadmap n°494).
+    if (paused) return;
     // Salon exclu (roadmap n°294) : sort AVANT de consommer le cooldown, pour
     // qu'un message dans #bot-commandes n'empeche pas de gagner de l'XP au
     // prochain message dans un salon normal.
@@ -194,8 +198,10 @@ async function tickVoiceXp(client) {
       // salon exclu de l'XP : ce sont deux informations distinctes.
       if (activeMembers.length) queueChannelMinutes(guild.id, channel.id, 5);
       // eslint-disable-next-line no-await-in-loop
-      const { rate, excluded } = await getXpConfig(guild.id);
-      if (excluded.has(channel.id)) continue;
+      const { rate, excluded, paused } = await getXpConfig(guild.id);
+      // Pause globale des automatisations (roadmap n°494) : les stats
+      // d'occupation restent suivies au-dessus, seul l'XP s'arrete.
+      if (paused || excluded.has(channel.id)) continue;
       for (const member of activeMembers) {
         try {
           const data = await getMemberBuffered(guild.id, member.id);

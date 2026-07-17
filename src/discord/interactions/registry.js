@@ -87,6 +87,8 @@ const {
 } = require('../commands/info');
 const handleAfkCommand = require('../commands/afk');
 const handleSnipeCommand = require('../commands/snipe');
+const handlePingCommand = require('../commands/ping');
+const handleCompareCommand = require('../commands/compare');
 const logger = require('../../shared/logger');
 
 const commandHandlers = {
@@ -143,6 +145,8 @@ const commandHandlers = {
   userinfo: handleUserinfoCommand,
   afk: handleAfkCommand,
   snipe: handleSnipeCommand,
+  ping: handlePingCommand,
+  compare: handleCompareCommand,
 };
 
 async function routeInteraction(interaction) {
