@@ -830,7 +830,7 @@ input::placeholder, textarea::placeholder { color: var(--text-faint); }
 .dp-category.settings-active .dp-category-settings { opacity: 1; color: var(--accent); }
 .dp-category.collapsed + .dp-channels { display: none; }
 .dp-channel {
-  display: flex; align-items: center; gap: 6px; padding: 6px 8px; margin: 1px 0;
+  display: flex; align-items: center; gap: 2px; padding: 6px 8px; margin: 1px 0;
   border-radius: 3px; color: var(--text-muted); font-size: 0.9rem; cursor: pointer;
   transition: background 0.12s ease, color 0.12s ease;
 }
@@ -838,7 +838,7 @@ input::placeholder, textarea::placeholder { color: var(--text-faint); }
 .dp-channel-name { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; flex: 1; min-width: 0; }
 .dp-copy-id-btn {
   flex: none; margin-left: auto; background: none; border: none; color: var(--text-faint);
-  cursor: pointer; font-size: 0.76rem; padding: 2px 5px; border-radius: 4px;
+  cursor: pointer; font-size: 0.72rem; padding: 2px 3px; border-radius: 4px;
   opacity: 0; transition: opacity 0.12s ease, color 0.12s ease, background 0.12s ease;
 }
 .dp-channel:hover .dp-copy-id-btn, .dp-copy-id-btn:focus-visible { opacity: 1; }
@@ -847,7 +847,7 @@ input::placeholder, textarea::placeholder { color: var(--text-faint); }
    reveal que le bouton copier-ID juste au-dessus, place juste avant lui. */
 .dp-channel-emoji-btn {
   flex: none; margin-left: auto; background: none; border: none; color: var(--text-faint);
-  cursor: pointer; font-size: 0.76rem; padding: 2px 5px; border-radius: 4px;
+  cursor: pointer; font-size: 0.72rem; padding: 2px 3px; border-radius: 4px;
   opacity: 0; transition: opacity 0.12s ease, color 0.12s ease, background 0.12s ease;
 }
 .dp-channel:hover .dp-channel-emoji-btn, .dp-channel-emoji-btn:focus-visible { opacity: 1; }
@@ -857,7 +857,7 @@ input::placeholder, textarea::placeholder { color: var(--text-faint); }
    sinon au survol comme les autres boutons d'icone du salon. */
 .dp-channel-pin-btn {
   flex: none; margin-left: auto; background: none; border: none; color: var(--text-faint);
-  cursor: pointer; font-size: 0.82rem; padding: 2px 4px; border-radius: 4px;
+  cursor: pointer; font-size: 0.74rem; padding: 2px 3px; border-radius: 4px;
   opacity: 0; transition: opacity 0.12s ease, color 0.12s ease, background 0.12s ease;
 }
 .dp-channel:hover .dp-channel-pin-btn, .dp-channel-pin-btn:focus-visible { opacity: 1; }
@@ -868,7 +868,7 @@ input::placeholder, textarea::placeholder { color: var(--text-faint); }
 .dp-channel-pin-btn ~ .dp-channel-emoji-btn { margin-left: 0; }
 .dp-channel-lock-btn {
   flex: none; background: none; border: none; color: var(--text-faint);
-  cursor: pointer; font-size: 0.82rem; padding: 2px 4px; border-radius: 4px;
+  cursor: pointer; font-size: 0.74rem; padding: 2px 3px; border-radius: 4px;
   opacity: 0; transition: opacity 0.12s ease, color 0.12s ease, background 0.12s ease;
 }
 .dp-channel:hover .dp-channel-lock-btn, .dp-channel-lock-btn:focus-visible { opacity: 1; }
@@ -1771,7 +1771,7 @@ button.embed-json-jump { background: none; border: none; padding: 0; font-family
   background: var(--bg-input); border: 1px solid var(--border); color: var(--text);
 }
 .dp-ch-badge {
-  flex: none; font-size: 0.6rem; line-height: 1; padding: 2px 4px; margin-left: 3px;
+  flex: none; font-size: 0.58rem; line-height: 1; padding: 2px 3px; margin-left: 2px;
   border-radius: 4px; background: var(--bg-input); color: var(--text-faint);
   opacity: 0; transition: opacity 0.12s ease;
 }
