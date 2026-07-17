@@ -1,5 +1,6 @@
 window.Api = (function api() {
   const sleep = (ms) => new Promise((resolve) => setTimeout(resolve, ms));
+  const pendingConfigPatches = new Map(); // guildId -> patch fusionne (n°176)
 
   // Nouvelle tentative automatique (roadmap n°051) : les LECTURES qui
   // echouent (panne reseau, 5xx pendant un reveil du backend) sont retentees
@@ -83,7 +84,24 @@ window.Api = (function api() {
     removeMemberRole: (guildId, userId, roleId) => request(`/api/guilds/${guildId}/members/${userId}/roles/${roleId}`, { method: 'DELETE' }),
     createRole: (guildId, name, color, permissions) => request(`/api/guilds/${guildId}/roles`, { method: 'POST', body: JSON.stringify({ name, color, permissions }) }),
     config: (guildId) => request(`/api/guilds/${guildId}/config`),
-    updateConfig: (guildId, patch) => request(`/api/guilds/${guildId}/config`, { method: 'PATCH', body: JSON.stringify(patch) }),
+    // Regroupement des PATCH config (roadmap n°176) : plusieurs enregistrements
+    // rapproches (moins de 400 ms) fusionnent en UNE seule ecriture KV.
+    updateConfig: (guildId, patch) => new Promise((resolve, reject) => {
+      const entry = pendingConfigPatches.get(guildId) || { patch: {}, timer: null, waiters: [] };
+      Object.assign(entry.patch, patch);
+      entry.waiters.push({ resolve, reject });
+      clearTimeout(entry.timer);
+      entry.timer = setTimeout(async () => {
+        pendingConfigPatches.delete(guildId);
+        try {
+          const result = await request(`/api/guilds/${guildId}/config`, { method: 'PATCH', body: JSON.stringify(entry.patch) });
+          entry.waiters.forEach((w) => w.resolve(result));
+        } catch (err) {
+          entry.waiters.forEach((w) => w.reject(err));
+        }
+      }, 400);
+      pendingConfigPatches.set(guildId, entry);
+    }),
     gameRoles: (guildId) => request(`/api/guilds/${guildId}/gameroles`),
     gameRoleCatalog: () => request('/api/game-role-catalog'),
     addPresetGameRole: (guildId, gameKey) => request(`/api/guilds/${guildId}/gameroles/preset`, { method: 'POST', body: JSON.stringify({ gameKey }) }),

@@ -5285,6 +5285,9 @@ async function renderMemberLookupPage(id, container = app) {
     </div>
   `;
 
+  // Rendu limite (roadmap n°175) : 100 lignes affichees a la fois, le reste
+  // via « Afficher plus » — 1000 lignes DOM figeaient le scroll.
+  let memberDisplayLimit = 100;
   const repaintMembers = () => {
     const q = document.getElementById('member-search').value.trim();
     const ql = q.toLowerCase();
@@ -5292,11 +5295,21 @@ async function renderMemberLookupPage(id, container = app) {
     const filtered = ql
       ? base.filter((m) => (m.displayName || '').toLowerCase().includes(ql) || m.userId.includes(ql))
       : base;
-    document.getElementById('member-lookup-list').innerHTML = filtered.map((m) => rowHtml(m, q)).join('')
+    const visible = filtered.slice(0, memberDisplayLimit);
+    const remaining = filtered.length - visible.length;
+    document.getElementById('member-lookup-list').innerHTML = (visible.map((m) => rowHtml(m, q)).join('')
+      + (remaining > 0 ? `<button type="button" class="btn secondary" id="member-show-more" style="width:100%; margin-top:6px;">Afficher ${Math.min(100, remaining)} membre(s) de plus (${remaining} restants)</button>` : ''))
       || '<p class="muted">Aucun resultat.</p>';
+    document.getElementById('member-show-more')?.addEventListener('click', () => {
+      memberDisplayLimit += 100;
+      repaintMembers();
+    });
   };
   repaintMembers();
-  document.getElementById('member-search').addEventListener('input', repaintMembers);
+  document.getElementById('member-search').addEventListener('input', () => {
+    memberDisplayLimit = 100;
+    repaintMembers();
+  });
   document.getElementById('member-show-bots')?.addEventListener('change', (e) => {
     showBots = e.target.checked;
     repaintMembers();
