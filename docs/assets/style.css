@@ -1091,8 +1091,11 @@ input::placeholder, textarea::placeholder { color: var(--text-faint); }
 .dp-activity-row:last-child { border-bottom: none; }
 .dp-activity-text { flex: 1; min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
 .dp-activity-time { flex: none; font-size: 0.72rem; }
-.dp-ai-suggestions {
-  display: flex; flex-wrap: wrap; gap: 6px; padding: 0 24px 10px;
+.dp-ai-suggestions { padding: 0 24px 10px; }
+.dp-ai-suggestions summary { cursor: pointer; list-style: revert; font-size: 0.8rem; color: var(--text-muted); }
+.dp-ai-suggestions summary::marker { color: var(--text-muted); }
+.dp-ai-suggestions-list {
+  display: flex; flex-wrap: wrap; gap: 6px; margin-top: 8px;
 }
 .dp-ai-suggestion-chip {
   background: var(--bg-input); border: 1px solid var(--border-strong); color: var(--text-muted);
@@ -1822,6 +1825,11 @@ button.embed-json-jump { background: none; border: none; padding: 0; font-family
 }
 .dp-theme-menu-item:hover { background: var(--accent-soft); color: var(--accent); }
 .dp-theme-menu-item.active { font-weight: 700; }
+.dp-display-setting-row {
+  display: flex; align-items: center; justify-content: space-between; gap: 12px;
+  padding: 6px 8px; font-size: 0.82rem;
+}
+.dp-display-setting-row .btn { padding: 4px 10px; font-size: 0.78rem; }
 #dp-whatsnew-pop {
   position: fixed; top: 54px; right: 12px; z-index: 120; width: 340px; max-width: calc(100vw - 24px);
   max-height: 70vh; overflow-y: auto;
@@ -2155,11 +2163,6 @@ input[type=text].drag-over, textarea.drag-over { border-color: var(--accent); bo
   #whoami { display: none; }
   .user-chip { padding: 4px; }
   .auth-box { padding: 0 16px; }
-  /* Reglages secondaires (roadmap n°349, n°363) : masques sur mobile etroit
-     pour eviter le debordement de la topbar, deja chargee (densite, theme,
-     video, nouveautes, utilisateur) — restent accessibles depuis un ecran
-     plus large. */
-  #fontsize-toggle-btn, #corners-toggle-btn { display: none; }
 }
 
 @media (max-width: 480px) {

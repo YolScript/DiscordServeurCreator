@@ -1462,9 +1462,12 @@ function aiHomeHtml(guild, config) {
       <div id="dp-ai-tail">${aiConversationHtml()}</div>
     </div>
     ${aiConversation.length ? '' : `
-    <div class="dp-ai-suggestions" id="dp-ai-suggestions">
-      ${aiPromptSuggestions(config).map((s) => `<button type="button" class="dp-ai-suggestion-chip" data-prompt="${escapeHtml(s)}">${escapeHtml(s)}</button>`).join('')}
-    </div>`}
+    <details class="dp-ai-suggestions" id="dp-ai-suggestions">
+      <summary>💡 Suggestions de prompts</summary>
+      <div class="dp-ai-suggestions-list">
+        ${aiPromptSuggestions(config).map((s) => `<button type="button" class="dp-ai-suggestion-chip" data-prompt="${escapeHtml(s)}">${escapeHtml(s)}</button>`).join('')}
+      </div>
+    </details>`}
     <form class="dp-chat-input-bar" id="dp-ai-form">
       ${aiConversation.length ? '<button type="button" class="btn secondary" id="dp-ai-reset" title="Nouvelle conversation" aria-label="Nouvelle conversation">🔄</button>' : ''}
       <input type="text" id="dp-ai-input" placeholder="Ecris a l'assistant..." maxlength="1000" autocomplete="off" />
@@ -10382,67 +10385,77 @@ async function init() {
     });
   }
 
-  // Mode compact (roadmap n°111) : densite d'affichage reduite via une
-  // classe sur body, memorisee par appareil.
-  const densityBtn = document.getElementById('density-toggle-btn');
-  if (densityBtn) {
+  // Reglages d'affichage regroupes (roadmap n°111, n°349, n°363) : densite,
+  // taille de texte et coins arrondis dans un seul popover plutot que 3
+  // boutons separes dans la topbar (deja chargee).
+  const displaySettingsBtn = document.getElementById('display-settings-btn');
+  if (displaySettingsBtn) {
     const applyDensity = () => {
-      const compact = localStorage.getItem('dsc-density') === 'compact';
-      document.body.classList.toggle('density-compact', compact);
-      densityBtn.setAttribute('aria-pressed', String(compact));
-      densityBtn.title = compact ? 'Repasser en affichage confortable' : 'Mode compact';
+      document.body.classList.toggle('density-compact', localStorage.getItem('dsc-density') === 'compact');
     };
-    applyDensity();
-    densityBtn.addEventListener('click', () => {
-      localStorage.setItem('dsc-density', localStorage.getItem('dsc-density') === 'compact' ? 'normal' : 'compact');
-      applyDensity();
-      window.UISound?.click();
-    });
-  }
-
-  // Taille de police reglable (roadmap n°349) : cycle S -> M -> L -> S,
-  // memorisee par appareil.
-  const fontSizeBtn = document.getElementById('fontsize-toggle-btn');
-  if (fontSizeBtn) {
-    const FONT_SIZE_CYCLE = ['s', 'm', 'l'];
     const FONT_SIZE_LABELS = { s: 'Petite', m: 'Normale', l: 'Grande' };
     const applyFontSize = () => {
       const size = localStorage.getItem('dsc-font-size') || 'm';
       document.body.classList.toggle('font-size-s', size === 's');
       document.body.classList.toggle('font-size-l', size === 'l');
-      fontSizeBtn.title = `Taille du texte : ${FONT_SIZE_LABELS[size]} (clic pour changer)`;
     };
-    applyFontSize();
-    fontSizeBtn.addEventListener('click', () => {
-      const current = localStorage.getItem('dsc-font-size') || 'm';
-      const next = FONT_SIZE_CYCLE[(FONT_SIZE_CYCLE.indexOf(current) + 1) % FONT_SIZE_CYCLE.length];
-      localStorage.setItem('dsc-font-size', next);
-      applyFontSize();
-      window.UISound?.click();
-    });
-  }
-
-  // Coins arrondis reglables (roadmap n°363) : cycle net -> doux -> tres
-  // arrondi -> net, memorise par appareil.
-  const cornersBtn = document.getElementById('corners-toggle-btn');
-  if (cornersBtn) {
-    const CORNERS_CYCLE = ['sharp', 'soft', 'round'];
     const CORNERS_LABELS = { sharp: 'Net', soft: 'Doux', round: 'Tres arrondi' };
-    const CORNERS_ICONS = { sharp: '▢', soft: '▧', round: '⬭' };
     const applyCorners = () => {
       const mode = localStorage.getItem('dsc-corners') || 'soft';
       document.body.classList.toggle('corners-sharp', mode === 'sharp');
       document.body.classList.toggle('corners-round', mode === 'round');
-      cornersBtn.textContent = CORNERS_ICONS[mode];
-      cornersBtn.title = `Coins : ${CORNERS_LABELS[mode]} (clic pour changer)`;
     };
+    applyDensity();
+    applyFontSize();
     applyCorners();
-    cornersBtn.addEventListener('click', () => {
-      const current = localStorage.getItem('dsc-corners') || 'soft';
-      const next = CORNERS_CYCLE[(CORNERS_CYCLE.indexOf(current) + 1) % CORNERS_CYCLE.length];
-      localStorage.setItem('dsc-corners', next);
-      applyCorners();
-      window.UISound?.click();
+
+    const DISPLAY_SETTINGS = [
+      {
+        label: 'Densite', storageKey: 'dsc-density', cycle: ['normal', 'compact'], default: 'normal',
+        labels: { normal: 'Confortable', compact: 'Compact' }, apply: applyDensity,
+      },
+      {
+        label: 'Taille du texte', storageKey: 'dsc-font-size', cycle: ['s', 'm', 'l'], default: 'm', labels: FONT_SIZE_LABELS, apply: applyFontSize,
+      },
+      {
+        label: 'Coins', storageKey: 'dsc-corners', cycle: ['sharp', 'soft', 'round'], default: 'soft', labels: CORNERS_LABELS, apply: applyCorners,
+      },
+    ];
+
+    displaySettingsBtn.addEventListener('click', (e) => {
+      e.stopPropagation();
+      const existing = document.getElementById('dp-display-settings-menu');
+      if (existing) { existing.remove(); return; }
+      const menu = document.createElement('div');
+      menu.id = 'dp-display-settings-menu';
+      menu.className = 'dp-theme-menu';
+      menu.innerHTML = DISPLAY_SETTINGS.map((setting) => {
+        const current = localStorage.getItem(setting.storageKey) || setting.default;
+        return `
+        <div class="dp-display-setting-row">
+          <span>${setting.label}</span>
+          <button type="button" class="btn secondary" data-setting="${setting.storageKey}">${setting.labels[current]}</button>
+        </div>`;
+      }).join('');
+      document.body.appendChild(menu);
+      const rect = displaySettingsBtn.getBoundingClientRect();
+      menu.style.top = `${rect.bottom + 6}px`;
+      menu.style.right = `${window.innerWidth - rect.right}px`;
+      menu.querySelectorAll('[data-setting]').forEach((btn) => {
+        btn.addEventListener('click', () => {
+          const setting = DISPLAY_SETTINGS.find((s) => s.storageKey === btn.dataset.setting);
+          const current = localStorage.getItem(setting.storageKey) || setting.default;
+          const next = setting.cycle[(setting.cycle.indexOf(current) + 1) % setting.cycle.length];
+          localStorage.setItem(setting.storageKey, next);
+          setting.apply();
+          btn.textContent = setting.labels[next];
+          window.UISound?.click();
+        });
+      });
+    });
+    document.addEventListener('click', (e) => {
+      const menu = document.getElementById('dp-display-settings-menu');
+      if (menu && !menu.contains(e.target) && e.target !== displaySettingsBtn) menu.remove();
     });
   }
 
