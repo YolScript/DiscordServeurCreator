@@ -86,6 +86,7 @@ window.Api = (function api() {
     twitchDisconnect: (guildId) => request(`/api/guilds/${guildId}/twitch-link`, { method: 'DELETE' }),
     setInboundWebhook: (guildId, enabled, channelId) => request(`/api/guilds/${guildId}/inbound-webhook`, { method: 'POST', body: JSON.stringify({ enabled, channelId }) }),
     giveaways: (guildId) => request(`/api/guilds/${guildId}/giveaways`),
+    polls: (guildId) => request(`/api/guilds/${guildId}/polls`),
     createGiveaway: (guildId, payload) => request(`/api/guilds/${guildId}/giveaways`, { method: 'POST', body: JSON.stringify(payload) }),
     endGiveaway: (guildId, giveawayId) => request(`/api/guilds/${guildId}/giveaways/${giveawayId}/end`, { method: 'POST' }),
     rerollGiveaway: (guildId, giveawayId) => request(`/api/guilds/${guildId}/giveaways/${giveawayId}/reroll`, { method: 'POST' }),

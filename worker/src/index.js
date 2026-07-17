@@ -18,7 +18,7 @@ import {
   getReferralRoles, putReferralRoles, getReferralCounts,
   getStreamerLinks, putStreamerLinks,
   getScheduledTasks, putScheduledTasks,
-  getTickets, putTickets, getSanctionContests, putSanctionContests,
+  getTickets, putTickets, getSanctionContests, putSanctionContests, getPolls,
   pushPendingPanelAction,
   getStats,
   getEmbedTemplates, putEmbedTemplates,
@@ -1840,6 +1840,14 @@ async function router(request, env) {
 
     // Contestations de sanction (roadmap n°279) : liste + resolution depuis
     // le dashboard, remplies par le bot via le formulaire en DM du membre.
+    // Sondages (roadmap n°328) : lecture seule, utilisee pour le taux de
+    // participation dans les statistiques — la gestion complete reste cote
+    // bot (/poll).
+    if (sub === 'polls' && parts.length === 4 && method === 'GET') {
+      await requireGuildAccess(env, request, guildId);
+      return json(await getPolls(env, guildId), env);
+    }
+
     if (sub === 'sanction-contests' && parts.length === 4 && method === 'GET') {
       await requireGuildAccess(env, request, guildId);
       return json(await getSanctionContests(env, guildId), env);

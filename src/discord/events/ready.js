@@ -29,6 +29,8 @@ const roleSalary = require('../automation/roleSalary');
 const dailyQuote = require('../automation/dailyQuote');
 const voiceAfkKick = require('../automation/voiceAfkKick');
 const weeklyLottery = require('../automation/weeklyLottery');
+const channelCleanup = require('../automation/channelCleanup');
+const dashboardAccessReminder = require('../automation/dashboardAccessReminder');
 const logger = require('../../shared/logger');
 
 client.once(Events.ClientReady, async (readyClient) => {
@@ -84,4 +86,6 @@ client.once(Events.ClientReady, async (readyClient) => {
   dailyQuote.start();
   voiceAfkKick.start();
   weeklyLottery.start();
+  channelCleanup.start();
+  dashboardAccessReminder.start();
 });

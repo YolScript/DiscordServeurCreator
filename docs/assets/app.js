@@ -905,6 +905,15 @@ function renderRail() {
   });
 }
 
+// Page "Nouveautes" (roadmap n°341) : changelog produit maintenu a la main,
+// pas de contenu par serveur. Le plus recent en premier ; `id` sert a savoir
+// si l'utilisateur a deja vu la derniere entree (badge topbar).
+const CHANGELOG = [
+  { id: '2026-07-17', date: '17 juillet 2026', title: 'Moderation et salons', items: ['Contestation de sanction par formulaire (DM avec bouton)', 'Garde-fou comptes recents (<7j) avec action automatique', 'Groupes de salons pliables dans la sidebar', 'Edition en masse des topics avec variables'] },
+  { id: '2026-07-16', date: '16 juillet 2026', title: 'Economie et engagement', items: ['Loterie hebdomadaire automatique', 'Personnalisation du nom et de l\'emoji de la monnaie', 'Bonus de bienvenue configurable', 'Comparaison de deux membres (/compare)'] },
+  { id: '2026-07-15', date: '15 juillet 2026', title: 'Tickets et statistiques', items: ['Historique des transactions economie', 'Priorite, tags et satisfaction sur les tickets', '8ball, pile-ou-face, /roll, /afk, /snipe', 'Top salons par messages, repartition des roles'] },
+];
+
 /* ---------- Pages: guild list ---------- */
 
 const GUILD_GROUPS = [
@@ -1405,6 +1414,20 @@ function configChecklistHtml(config) {
     </div>`;
 }
 
+// Suggestions de prompts contextuelles (roadmap n°134) : puces cliquables
+// sous l'input, visibles seulement avant le premier message pour ne pas
+// alourdir une conversation deja en cours. Melange de prompts generiques et
+// de suggestions liees a ce qui manque dans la config du serveur.
+function aiPromptSuggestions(config) {
+  const suggestions = [];
+  if (!config?.autoRoleId) suggestions.push('Configure un role automatique pour les nouveaux membres');
+  if (!config?.arrivalDepartureChannelId) suggestions.push('Cree un salon et un message de bienvenue');
+  if (!config?.modLogChannelId) suggestions.push('Mets en place un salon de logs de moderation');
+  suggestions.push('Resume la configuration actuelle de mon serveur');
+  suggestions.push('Quels salons me manquent pour un serveur gaming ?');
+  return suggestions.slice(0, 4);
+}
+
 function aiHomeHtml(guild, config) {
   return `
     <div class="dp-chat" id="dp-ai-chat">
@@ -1414,6 +1437,7 @@ function aiHomeHtml(guild, config) {
           <div class="dp-chat-author">ServeurCreator Bot</div>
           <div class="dp-chat-text">Salut, je suis le bot de configuration de ${escapeHtml(guild?.name || 'ton serveur')} ! Glisse un salon, une categorie ou un role ici pour le configurer, ou choisis une categorie d'outils ci-dessous.</div>
           ${configChecklistHtml(config)}
+          <div id="dp-activity-feed"></div>
           ${(() => {
     const favs = getFavModuleKeys()
       .map((key) => HOME_MODULES.find((m) => favModuleKey(m) === key))
@@ -1437,6 +1461,10 @@ function aiHomeHtml(guild, config) {
       </div>
       <div id="dp-ai-tail">${aiConversationHtml()}</div>
     </div>
+    ${aiConversation.length ? '' : `
+    <div class="dp-ai-suggestions" id="dp-ai-suggestions">
+      ${aiPromptSuggestions(config).map((s) => `<button type="button" class="dp-ai-suggestion-chip" data-prompt="${escapeHtml(s)}">${escapeHtml(s)}</button>`).join('')}
+    </div>`}
     <form class="dp-chat-input-bar" id="dp-ai-form">
       ${aiConversation.length ? '<button type="button" class="btn secondary" id="dp-ai-reset" title="Nouvelle conversation" aria-label="Nouvelle conversation">🔄</button>' : ''}
       <input type="text" id="dp-ai-input" placeholder="Ecris a l'assistant..." maxlength="1000" autocomplete="off" />
@@ -1446,11 +1474,31 @@ function aiHomeHtml(guild, config) {
   `;
 }
 
-function wireAiHome(guildId, channels, rolesSorted) {
+function wireAiHome(guildId, channels, rolesSorted, members) {
   const form = document.getElementById('dp-ai-form');
   const input = document.getElementById('dp-ai-input');
   const sendBtn = document.getElementById('dp-ai-send');
   const chatEl = document.getElementById('dp-ai-chat');
+
+  // Fil d'activite du serveur (roadmap n°223) : 5 derniers evenements de
+  // l'audit log, charges a part pour ne pas ralentir l'affichage initial de
+  // l'accueil (comme la banniere bot hors-ligne un peu plus bas).
+  const feedEl = document.getElementById('dp-activity-feed');
+  if (feedEl) {
+    Api.auditLog(guildId).then((logs) => {
+      const recent = (logs || []).slice(0, 5);
+      if (!recent.length) return;
+      feedEl.innerHTML = `
+        <p class="dp-block-title" style="margin:12px 0 6px;">🕓 Activite recente</p>
+        <div class="dp-activity-list">
+          ${recent.map((entry) => `
+            <div class="dp-activity-row">
+              <span class="dp-activity-text"><strong>${escapeHtml(entry.title)}</strong> — ${resolveMentions(entry.description, members, rolesSorted)}</span>
+              <span class="dp-activity-time muted">${new Date(entry.timestamp).toLocaleString('fr-FR', { day: '2-digit', month: '2-digit', hour: '2-digit', minute: '2-digit' })}</span>
+            </div>`).join('')}
+        </div>`;
+    }).catch(() => {});
+  }
 
   document.getElementById('dp-ai-reset')?.addEventListener('click', () => {
     if (!window.confirm('Demarrer une nouvelle conversation avec l\'assistant ? L\'historique actuel sera perdu.')) return;
@@ -1465,6 +1513,13 @@ function wireAiHome(guildId, channels, rolesSorted) {
   document.getElementById('dp-ai-analyze-btn')?.addEventListener('click', () => {
     input.value = 'Analyse la structure, les permissions et la configuration de mon serveur, puis donne-moi un rapport concis des points a ameliorer.';
     form.requestSubmit();
+  });
+
+  document.querySelectorAll('.dp-ai-suggestion-chip').forEach((chip) => {
+    chip.addEventListener('click', () => {
+      input.value = chip.dataset.prompt;
+      form.requestSubmit();
+    });
   });
 
   function refreshTail() {
@@ -1580,6 +1635,7 @@ function wireAiHome(guildId, channels, rolesSorted) {
     aiConversation.push({ role: 'user', content: text });
     aiBusy = true;
     aiToolCount = 0;
+    document.getElementById('dp-ai-suggestions')?.remove();
     refreshTail();
     try {
       const result = await Api.aiChatStream(guildId, aiConversation.slice(0, -1), text, {
@@ -1794,11 +1850,23 @@ function renderPreviewContent(id, { channels, config, roles, members }) {
         </div>
         <button type="button" class="dp-drawer-btn left" id="dp-drawer-left" aria-label="Ouvrir le panneau des salons">☰</button>
         <button type="button" class="dp-drawer-btn right" id="dp-drawer-right" aria-label="Ouvrir le panneau des roles">🏷️</button>
+        <button type="button" class="dp-quickcreate-fab" id="dp-quickcreate-fab" aria-haspopup="true" aria-expanded="false" aria-label="Creation rapide">➕</button>
+        <div class="dp-quickcreate-menu" id="dp-quickcreate-menu" hidden>
+          <p class="dp-quickcreate-title">Creation rapide</p>
+          <div class="dp-quickcreate-row">
+            <input type="text" id="dp-quickcreate-channel-name" placeholder="Nom du salon" maxlength="80" aria-label="Nom du nouveau salon" />
+            <button type="button" id="dp-quickcreate-channel-btn" aria-label="Creer le salon">➕</button>
+          </div>
+          <div class="dp-quickcreate-row">
+            <input type="text" id="dp-quickcreate-category-name" placeholder="Nom de la categorie" maxlength="80" aria-label="Nom de la nouvelle categorie" />
+            <button type="button" id="dp-quickcreate-category-btn" aria-label="Creer la categorie">➕</button>
+          </div>
+        </div>
       </div>
     </div>
   `;
 
-  wireAiHome(id, channels, rolesSorted);
+  wireAiHome(id, channels, rolesSorted, members);
   // Les cartes favoris de l'accueil (n°021) vivent hors de la grille de
   // modules : cablage direct.
   wireHomeModuleCards(document.getElementById('dp-ai-chat'));
@@ -2263,6 +2331,53 @@ function renderPreviewContent(id, { channels, config, roles, members }) {
   };
   wireDrawer('dp-drawer-left', '.dp-sidebar');
   wireDrawer('dp-drawer-right', '.dp-roles-panel');
+
+  // Bouton flottant de creation rapide (roadmap n°122), pouce mobile : empile
+  // au-dessus des tiroirs tactiles existants (jamais centre, voir la lecon
+  // sur le FAB centre qui entrait en conflit avec le chat IA plein ecran).
+  const quickFab = document.getElementById('dp-quickcreate-fab');
+  const quickMenu = document.getElementById('dp-quickcreate-menu');
+  if (quickFab && quickMenu) {
+    quickFab.addEventListener('click', (e) => {
+      e.stopPropagation();
+      const open = quickMenu.hidden;
+      quickMenu.hidden = !open;
+      quickFab.setAttribute('aria-expanded', String(open));
+    });
+    quickMenu.addEventListener('click', (e) => e.stopPropagation());
+    document.getElementById('dp-quickcreate-channel-btn').addEventListener('click', async () => {
+      const input = document.getElementById('dp-quickcreate-channel-name');
+      const name = input.value.trim();
+      if (!name) { showToast('Nom du salon requis.', 'error'); return; }
+      try {
+        await Api.createChannel(id, name, 'text', '', false, undefined);
+        showToast('Salon cree.');
+        await renderPreviewPage(id);
+      } catch (err) {
+        showToast(err.message, 'error');
+      }
+    });
+    document.getElementById('dp-quickcreate-category-btn').addEventListener('click', async () => {
+      const input = document.getElementById('dp-quickcreate-category-name');
+      const name = input.value.trim();
+      if (!name) { showToast('Nom de la categorie requis.', 'error'); return; }
+      try {
+        await Api.createCategory(id, name);
+        showToast('Categorie creee.');
+        await renderPreviewPage(id);
+      } catch (err) {
+        showToast(err.message, 'error');
+      }
+    });
+    if (!window.__dpQuickCreateCloser) {
+      window.__dpQuickCreateCloser = true;
+      document.addEventListener('click', () => {
+        const m = document.getElementById('dp-quickcreate-menu');
+        const f = document.getElementById('dp-quickcreate-fab');
+        if (m && !m.hidden) { m.hidden = true; f?.setAttribute('aria-expanded', 'false'); }
+      });
+    }
+  }
   document.getElementById('dp-main')?.addEventListener('click', () => {
     app.querySelectorAll('.touch-open').forEach((p) => p.classList.remove('touch-open'));
   });
@@ -6465,6 +6580,11 @@ async function renderSecurityPage(id, container = app) {
         <button class="btn secondary" id="restore-structure" style="margin-top:10px;" disabled>Restaurer depuis ce fichier</button>
       `, { id: 'sec-export' })}
 
+      ${sectionHtml('Copier ma config (roadmap n°343)', `
+        <p class="muted">Copie un resume lisible (pas de JSON technique) a coller sur le serveur d'entraide pour obtenir de l'aide contextualisee — aucune donnee sensible (pas d'ID brut, pas de token).</p>
+        <button class="btn secondary" id="copy-config-summary">📋 Copier ma config</button>
+      `, { id: 'sec-copy-config' })}
+
       ${sectionHtml('Configuration complete (JSON versionne)', `
         <p class="muted">Exporte TOUS les reglages du bot pour ce serveur (niveaux, paliers, parrainage, boutique, commandes perso, modeles d'embed, reaction-roles, roles de jeu) — pas la structure (roles/salons), voir ci-dessus. Utile pour dupliquer une config sur un autre serveur ou revenir en arriere.</p>
         <button class="btn secondary" id="export-config">⬇️ Telecharger la configuration (.json)</button>
@@ -6520,6 +6640,22 @@ async function renderSecurityPage(id, container = app) {
         <label class="dp-toggle-row" style="margin-top:6px;"><span>Uniquement les messages avec un lien</span><input type="checkbox" id="purge-links-only" /></label>
         <button class="btn danger" id="purge-btn" style="margin-top:10px;">🧹 Purger</button>
       `, { id: 'sec-purge' })}
+
+      ${sectionHtml('Nettoyage programme (roadmap n°290)', `
+        <p class="muted">Vide automatiquement un salon (spam bot, test...) a intervalle regulier. Desactive si aucun salon choisi.</p>
+        <label for="autocleanup-channel">Salon a nettoyer</label>
+        <select id="autocleanup-channel">
+          <option value="">Desactive</option>
+          ${currentChannels.filter((c) => c.type === 0).map((c) => `<option value="${c.id}" ${securityConfig?.autoCleanupChannelId === c.id ? 'selected' : ''}>#${escapeHtml(c.name)}</option>`).join('')}
+        </select>
+        <label for="autocleanup-interval">Frequence</label>
+        <select id="autocleanup-interval">
+          <option value="24" ${(securityConfig?.autoCleanupIntervalHours ?? 24) === 24 ? 'selected' : ''}>Quotidien (toutes les 24h)</option>
+          <option value="168" ${securityConfig?.autoCleanupIntervalHours === 168 ? 'selected' : ''}>Hebdomadaire (tous les 7 jours)</option>
+          <option value="1" ${securityConfig?.autoCleanupIntervalHours === 1 ? 'selected' : ''}>Toutes les heures</option>
+        </select>
+        <button class="btn secondary" id="save-autocleanup" style="margin-top:10px;">Enregistrer</button>
+      `, { id: 'sec-autocleanup' })}
 
       ${sectionHtml('Liste blanche (roadmap n°333)', `
         <p class="muted">IDs Discord jamais bannables depuis le dashboard ou via /tempban, meme par erreur.</p>
@@ -6644,6 +6780,29 @@ async function renderSecurityPage(id, container = app) {
       showToast(`Restaure : ${result.roles} role(s), ${result.categories} categorie(s), ${result.channels} salon(s) crees.`);
     } catch (err) {
       showToast(err.message || 'Fichier JSON invalide.', 'error');
+    }
+  });
+
+  // Copier ma config (roadmap n°343) : resume lisible, anonymise (noms
+  // uniquement, pas d'ID brut) a coller sur le serveur d'entraide.
+  document.getElementById('copy-config-summary').addEventListener('click', async () => {
+    const guildName = allGuilds.find((g) => g.guildId === id)?.name || 'mon serveur';
+    const channelName = (cid) => currentChannels.find((c) => c.id === cid)?.name;
+    const check = (v) => (v ? '✅' : '▫️');
+    const lines = [
+      `Config de "${guildName}" (${currentChannels.filter((c) => c.type !== 4).length} salons, ${currentRoles.length} roles) :`,
+      `${check(securityConfig?.arrivalDepartureChannelId)} Bienvenue : ${channelName(securityConfig?.arrivalDepartureChannelId) ? `#${channelName(securityConfig.arrivalDepartureChannelId)}` : 'non configure'}`,
+      `${check(securityConfig?.modLogChannelId)} Journal de moderation : ${securityConfig?.modLogChannelId ? 'configure' : 'non configure'}`,
+      `${check(securityConfig?.announceChannelId)} Annonces : ${securityConfig?.announceChannelId ? 'configure' : 'non configure'}`,
+      `${check(securityConfig?.autoRoleId)} Role automatique : ${securityConfig?.autoRoleId ? 'actif' : 'aucun'}`,
+      `${check(securityConfig?.xpRate)} Vitesse XP : x${securityConfig?.xpRate || 1}`,
+      `${check(securityConfig?.ticketPanelChannelId)} Tickets : ${securityConfig?.ticketPanelChannelId ? 'actif' : 'non configure'}`,
+    ];
+    try {
+      await navigator.clipboard.writeText(lines.join('\n'));
+      showToast('Resume copie, colle-le sur le serveur d\'entraide.');
+    } catch {
+      showToast('Copie impossible (permission navigateur).', 'error');
     }
   });
 
@@ -6801,6 +6960,18 @@ async function renderSecurityPage(id, container = app) {
     } catch (err) {
       showToast(err.message, 'error');
       e.target.checked = !e.target.checked;
+    }
+  });
+
+  document.getElementById('save-autocleanup').addEventListener('click', async () => {
+    try {
+      await Api.updateConfig(id, {
+        autoCleanupChannelId: document.getElementById('autocleanup-channel').value || null,
+        autoCleanupIntervalHours: Number(document.getElementById('autocleanup-interval').value) || 24,
+      });
+      showToast('Nettoyage programme enregistre.');
+    } catch (err) {
+      showToast(err.message, 'error');
     }
   });
 
@@ -7305,6 +7476,26 @@ async function renderCreatorPage(id, container = app) {
 // Le worker cree l'entree KV + poste le message avec le bouton Participer ;
 // le bot gere ensuite participations, cloture, tirage et annonce.
 
+// Confettis visuels (roadmap n°321) : anime a la volee en CSS, pas de
+// librairie externe. Desactive si l'utilisateur a demande moins de mouvement.
+function launchConfetti() {
+  if (window.matchMedia?.('(prefers-reduced-motion: reduce)').matches) return;
+  const colors = ['#e5484d', '#30a46c', '#d3a13a', '#5865f2', '#c97a5c'];
+  const layer = document.createElement('div');
+  layer.className = 'dp-confetti-layer';
+  for (let i = 0; i < 40; i += 1) {
+    const piece = document.createElement('span');
+    piece.className = 'dp-confetti-piece';
+    piece.style.left = `${Math.random() * 100}%`;
+    piece.style.background = colors[i % colors.length];
+    piece.style.animationDelay = `${Math.random() * 0.4}s`;
+    piece.style.animationDuration = `${1.8 + Math.random() * 1.2}s`;
+    layer.appendChild(piece);
+  }
+  document.body.appendChild(layer);
+  setTimeout(() => layer.remove(), 3200);
+}
+
 async function renderGiveawaysPage(id, container = app) {
   container.innerHTML = skeletonHtml('list');
   const [giveaways, channels, roles, gwConfig] = await Promise.all([
@@ -7315,6 +7506,17 @@ async function renderGiveawaysPage(id, container = app) {
   ]);
   const textChannels = channels.filter((c) => c.type === 0);
   const roleName = (rid) => roles.find((r) => r.id === rid)?.name || rid;
+
+  // Confettis a la premiere visite d'un giveaway termine avec gagnant(s)
+  // (roadmap n°321) : marque "vu" en localStorage pour ne feter qu'une fois.
+  const celebratedKey = `dsc-gw-celebrated-${id}`;
+  const celebrated = new Set(JSON.parse(localStorage.getItem(celebratedKey) || '[]'));
+  const newlyWon = giveaways.filter((g) => g.closed && g.winners?.length && !celebrated.has(g.id));
+  if (newlyWon.length) {
+    newlyWon.forEach((g) => celebrated.add(g.id));
+    localStorage.setItem(celebratedKey, JSON.stringify([...celebrated]));
+    setTimeout(launchConfetti, 300);
+  }
 
   const rowHtml = (g) => {
     const status = g.closed
@@ -7505,7 +7707,7 @@ const TIMEZONE_OPTIONS = [
 
 async function renderStatsPage(id, container = app) {
   container.innerHTML = skeletonHtml('chart');
-  const [stats, xpData, statMembers, ecoAccounts, statChannels, voiceChannelStats, statConfig, statRoles, channelMsgStats] = await Promise.all([
+  const [stats, xpData, statMembers, ecoAccounts, statChannels, voiceChannelStats, statConfig, statRoles, channelMsgStats, statPolls, statGiveaways] = await Promise.all([
     Api.stats(id),
     Api.xp(id).catch(() => ({})),
     Api.members(id).catch(() => []),
@@ -7515,7 +7717,30 @@ async function renderStatsPage(id, container = app) {
     Api.config(id).catch(() => ({})),
     Api.roles(id).catch(() => []),
     Api.channelMessageStats(id).catch(() => ({})),
+    Api.polls(id).catch(() => []),
+    Api.giveaways(id).catch(() => []),
   ]);
+
+  // Taux de reponse aux sondages / participation aux giveaways (roadmap
+  // n°328) : moyenne, sur chaque sondage/giveaway cloture, du % de membres
+  // humains ayant vote/participe.
+  const humanMemberCount = statMembers.filter((m) => !m.bot).length || 1;
+  const pollParticipationRate = (() => {
+    const closedPolls = statPolls.filter((p) => p.options?.length);
+    if (!closedPolls.length) return null;
+    const rates = closedPolls.map((p) => {
+      const voters = new Set();
+      p.options.forEach((o) => (o.votes || []).forEach((v) => voters.add(v)));
+      return voters.size / humanMemberCount;
+    });
+    return Math.round((rates.reduce((a, b) => a + b, 0) / rates.length) * 100);
+  })();
+  const giveawayParticipationRate = (() => {
+    const closedGiveaways = statGiveaways.filter((g) => g.closed);
+    if (!closedGiveaways.length) return null;
+    const rates = closedGiveaways.map((g) => (g.entrants?.length || 0) / humanMemberCount);
+    return Math.round((rates.reduce((a, b) => a + b, 0) / rates.length) * 100);
+  })();
 
   const memberPoints = stats.map((s) => s.memberCount);
   const messagePoints = stats.map((s) => s.messageCount);
@@ -7788,6 +8013,22 @@ async function renderStatsPage(id, container = app) {
         <p class="muted">Actuellement : <strong>${currentBoosts}</strong> boost(s).</p>
         ${boostPoints.some((v) => v > 0) ? lineChartSvg(boostPoints, { color: '#f47fff' }) : '<p class="muted">Pas encore de boost enregistre.</p>'}
       `, { id: 'stats-boosts' })}
+
+      ${sectionHtml('Participation sondages & giveaways (roadmap n°328)', `
+        <p class="muted">Moyenne, sur les sondages et giveaways clotures, du pourcentage de membres humains ayant vote ou participe.</p>
+        <div class="stats-top-grid">
+          <div class="dp-block" style="text-align:center;">
+            <p class="dp-block-title" style="margin:0;">🗳️ Sondages</p>
+            <p style="font-size:1.6rem; font-weight:700; margin:6px 0 0;">${pollParticipationRate === null ? '—' : `${pollParticipationRate}%`}</p>
+            <p class="muted" style="font-size:0.76rem; margin:2px 0 0;">${statPolls.length ? `${statPolls.length} sondage(s)` : 'Aucun sondage cree'}</p>
+          </div>
+          <div class="dp-block" style="text-align:center;">
+            <p class="dp-block-title" style="margin:0;">🎉 Giveaways</p>
+            <p style="font-size:1.6rem; font-weight:700; margin:6px 0 0;">${giveawayParticipationRate === null ? '—' : `${giveawayParticipationRate}%`}</p>
+            <p class="muted" style="font-size:0.76rem; margin:2px 0 0;">${statGiveaways.filter((g) => g.closed).length ? `${statGiveaways.filter((g) => g.closed).length} giveaway(s) termine(s)` : 'Aucun giveaway termine'}</p>
+          </div>
+        </div>
+      `, { id: 'stats-participation' })}
 
       ${sectionHtml('Autres indicateurs', `
         <div class="stats-top-row"><span class="stats-top-name">📅 Anciennete moyenne des membres (n°499)</span><span class="stats-top-value">${avgTenureDays} jour(s)</span></div>
@@ -9832,20 +10073,58 @@ async function init() {
     const THEME_META = {
       dark: ['🌙', 'Sombre chaud'], cold: ['❄️', 'Sombre froid'], amoled: ['⬛', 'AMOLED noir'], light: ['☀️', 'Clair'],
     };
-    const currentTheme = () => document.documentElement.getAttribute('data-theme') || (systemPrefersLight ? 'light' : 'dark');
+    const savedTheme = () => localStorage.getItem('theme') || (systemPrefersLight ? 'light' : 'dark');
+    const currentTheme = () => document.documentElement.getAttribute('data-theme') || savedTheme();
     const paintTheme = () => {
       const [icon, label] = THEME_META[currentTheme()] || THEME_META.dark;
       themeToggleBtn.textContent = icon;
       themeToggleBtn.title = `Theme : ${label} (cliquer pour changer)`;
     };
     paintTheme();
-    themeToggleBtn.addEventListener('click', () => {
-      const next = THEME_CYCLE[(THEME_CYCLE.indexOf(currentTheme()) + 1) % THEME_CYCLE.length];
-      document.documentElement.setAttribute('data-theme', next);
-      localStorage.setItem('theme', next);
-      paintTheme();
-      showToast(`Theme : ${THEME_META[next][1]}`);
-      window.UISound?.click();
+
+    // Apercu en direct au survol (roadmap n°361) : le menu deroulant liste
+    // les 4 themes, un survol applique temporairement le theme (preview),
+    // seul un clic le confirme et le sauvegarde ; en quittant sans cliquer
+    // le theme reellement sauvegarde est restaure.
+    themeToggleBtn.addEventListener('click', (e) => {
+      e.stopPropagation();
+      const existing = document.getElementById('dp-theme-menu');
+      if (existing) { existing.remove(); return; }
+      const menu = document.createElement('div');
+      menu.id = 'dp-theme-menu';
+      menu.className = 'dp-theme-menu';
+      menu.innerHTML = THEME_CYCLE.map((t) => `
+        <button type="button" class="dp-theme-menu-item${t === savedTheme() ? ' active' : ''}" data-theme-choice="${t}">
+          <span>${THEME_META[t][0]}</span> ${THEME_META[t][1]}
+        </button>`).join('');
+      document.body.appendChild(menu);
+      const rect = themeToggleBtn.getBoundingClientRect();
+      menu.style.top = `${rect.bottom + 6}px`;
+      menu.style.right = `${window.innerWidth - rect.right}px`;
+      menu.querySelectorAll('[data-theme-choice]').forEach((item) => {
+        item.addEventListener('mouseenter', () => {
+          document.documentElement.setAttribute('data-theme', item.dataset.themeChoice);
+        });
+        item.addEventListener('click', () => {
+          const next = item.dataset.themeChoice;
+          document.documentElement.setAttribute('data-theme', next);
+          localStorage.setItem('theme', next);
+          paintTheme();
+          showToast(`Theme : ${THEME_META[next][1]}`);
+          window.UISound?.click();
+          menu.remove();
+        });
+      });
+      menu.addEventListener('mouseleave', () => {
+        document.documentElement.setAttribute('data-theme', savedTheme());
+      });
+    });
+    document.addEventListener('click', (e) => {
+      const menu = document.getElementById('dp-theme-menu');
+      if (menu && !menu.contains(e.target) && e.target !== themeToggleBtn) {
+        document.documentElement.setAttribute('data-theme', savedTheme());
+        menu.remove();
+      }
     });
   }
 
@@ -10022,6 +10301,38 @@ async function init() {
     }, { passive: true });
   }
 
+  // Nouveautes (roadmap n°341) : popover topbar avec le changelog produit,
+  // badge tant que la derniere entree n'a pas ete vue.
+  const whatsNewBtn = document.getElementById('whatsnew-toggle-btn');
+  if (whatsNewBtn) {
+    const lastSeen = localStorage.getItem('dsc-whatsnew-seen');
+    if (lastSeen !== CHANGELOG[0]?.id) whatsNewBtn.classList.add('has-badge');
+    whatsNewBtn.addEventListener('click', (e) => {
+      e.stopPropagation();
+      const existingPop = document.getElementById('dp-whatsnew-pop');
+      if (existingPop) { existingPop.remove(); return; }
+      localStorage.setItem('dsc-whatsnew-seen', CHANGELOG[0]?.id || '');
+      whatsNewBtn.classList.remove('has-badge');
+      const pop = document.createElement('div');
+      pop.id = 'dp-whatsnew-pop';
+      pop.innerHTML = `
+        <p class="dp-block-title" style="margin:0 0 8px;">🆕 Nouveautes</p>
+        ${CHANGELOG.map((entry) => `
+          <div class="dp-history-row">
+            <strong>${escapeHtml(entry.title)}</strong>
+            <span class="muted" style="font-size:0.7rem;">${escapeHtml(entry.date)}</span>
+            <ul style="margin:4px 0 0; padding-left:18px; font-size:0.82rem; color:var(--text-muted);">
+              ${entry.items.map((i) => `<li>${escapeHtml(i)}</li>`).join('')}
+            </ul>
+          </div>`).join('')}`;
+      document.body.appendChild(pop);
+    });
+    document.addEventListener('click', (e) => {
+      const pop = document.getElementById('dp-whatsnew-pop');
+      if (pop && !pop.contains(e.target) && e.target !== whatsNewBtn) pop.remove();
+    });
+  }
+
   // Historique des dernieres actions (roadmap n°113) : popover topbar avec
   // les 10 dernieres entrees de l'audit log ; les suppressions pointent vers
   // la corbeille (l'« annuler » de ces actions).
@@ -10083,6 +10394,52 @@ async function init() {
     densityBtn.addEventListener('click', () => {
       localStorage.setItem('dsc-density', localStorage.getItem('dsc-density') === 'compact' ? 'normal' : 'compact');
       applyDensity();
+      window.UISound?.click();
+    });
+  }
+
+  // Taille de police reglable (roadmap n°349) : cycle S -> M -> L -> S,
+  // memorisee par appareil.
+  const fontSizeBtn = document.getElementById('fontsize-toggle-btn');
+  if (fontSizeBtn) {
+    const FONT_SIZE_CYCLE = ['s', 'm', 'l'];
+    const FONT_SIZE_LABELS = { s: 'Petite', m: 'Normale', l: 'Grande' };
+    const applyFontSize = () => {
+      const size = localStorage.getItem('dsc-font-size') || 'm';
+      document.body.classList.toggle('font-size-s', size === 's');
+      document.body.classList.toggle('font-size-l', size === 'l');
+      fontSizeBtn.title = `Taille du texte : ${FONT_SIZE_LABELS[size]} (clic pour changer)`;
+    };
+    applyFontSize();
+    fontSizeBtn.addEventListener('click', () => {
+      const current = localStorage.getItem('dsc-font-size') || 'm';
+      const next = FONT_SIZE_CYCLE[(FONT_SIZE_CYCLE.indexOf(current) + 1) % FONT_SIZE_CYCLE.length];
+      localStorage.setItem('dsc-font-size', next);
+      applyFontSize();
+      window.UISound?.click();
+    });
+  }
+
+  // Coins arrondis reglables (roadmap n°363) : cycle net -> doux -> tres
+  // arrondi -> net, memorise par appareil.
+  const cornersBtn = document.getElementById('corners-toggle-btn');
+  if (cornersBtn) {
+    const CORNERS_CYCLE = ['sharp', 'soft', 'round'];
+    const CORNERS_LABELS = { sharp: 'Net', soft: 'Doux', round: 'Tres arrondi' };
+    const CORNERS_ICONS = { sharp: '▢', soft: '▧', round: '⬭' };
+    const applyCorners = () => {
+      const mode = localStorage.getItem('dsc-corners') || 'soft';
+      document.body.classList.toggle('corners-sharp', mode === 'sharp');
+      document.body.classList.toggle('corners-round', mode === 'round');
+      cornersBtn.textContent = CORNERS_ICONS[mode];
+      cornersBtn.title = `Coins : ${CORNERS_LABELS[mode]} (clic pour changer)`;
+    };
+    applyCorners();
+    cornersBtn.addEventListener('click', () => {
+      const current = localStorage.getItem('dsc-corners') || 'soft';
+      const next = CORNERS_CYCLE[(CORNERS_CYCLE.indexOf(current) + 1) % CORNERS_CYCLE.length];
+      localStorage.setItem('dsc-corners', next);
+      applyCorners();
       window.UISound?.click();
     });
   }

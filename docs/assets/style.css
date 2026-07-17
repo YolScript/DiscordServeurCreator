@@ -33,6 +33,16 @@
   --font-mono: ui-monospace, "JetBrains Mono", "SF Mono", Consolas, "Roboto Mono", monospace;
 }
 
+/* Coins arrondis reglables (roadmap n°363) : "doux" = valeurs par defaut
+   ci-dessus, ces deux classes les redefinissent globalement — tout composant
+   qui utilise deja --radius/--radius-sm/--radius-lg suit sans modification. */
+body.corners-sharp {
+  --radius-sm: 2px; --radius: 3px; --radius-lg: 4px;
+}
+body.corners-round {
+  --radius-sm: 10px; --radius: 14px; --radius-lg: 18px;
+}
+
 /* Themes predefinis (n°180) : sombre froid et AMOLED noir, en plus du
    sombre chaud par defaut et du clair existant. Seuls les tokens changent. */
 :root[data-theme="cold"] {
@@ -97,6 +107,10 @@ body {
   min-height: 100vh;
   -webkit-font-smoothing: antialiased;
 }
+/* Taille de police reglable (roadmap n°349) : S/M/L, memorisee par appareil,
+   M = taille par defaut ci-dessus (pas de classe supplementaire). */
+body.font-size-s { font-size: 13px; }
+body.font-size-l { font-size: 17px; }
 
 /* ---------- Video de fond (floute) ---------- */
 
@@ -1054,6 +1068,34 @@ input::placeholder, textarea::placeholder { color: var(--text-faint); }
   border-radius: 6px; padding: 12px 14px; display: flex; flex-direction: column; gap: 10px;
 }
 .dp-ai-confirm-row { display: flex; gap: 8px; }
+.dp-confetti-layer {
+  position: fixed; inset: 0; z-index: 400; pointer-events: none; overflow: hidden;
+}
+.dp-confetti-piece {
+  position: absolute; top: -20px; width: 8px; height: 14px; opacity: 0.9;
+  animation-name: dpConfettiFall; animation-timing-function: ease-in; animation-fill-mode: forwards;
+}
+@keyframes dpConfettiFall {
+  0% { transform: translateY(0) rotate(0deg); opacity: 0.9; }
+  100% { transform: translateY(100vh) rotate(540deg); opacity: 0; }
+}
+.dp-activity-list { display: flex; flex-direction: column; gap: 4px; }
+.dp-activity-row {
+  display: flex; align-items: baseline; justify-content: space-between; gap: 10px;
+  padding: 4px 0; font-size: 0.82rem; border-bottom: 1px solid var(--border);
+}
+.dp-activity-row:last-child { border-bottom: none; }
+.dp-activity-text { flex: 1; min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.dp-activity-time { flex: none; font-size: 0.72rem; }
+.dp-ai-suggestions {
+  display: flex; flex-wrap: wrap; gap: 6px; padding: 0 24px 10px;
+}
+.dp-ai-suggestion-chip {
+  background: var(--bg-input); border: 1px solid var(--border-strong); color: var(--text-muted);
+  border-radius: 999px; padding: 6px 12px; font-size: 0.78rem; font-family: inherit; cursor: pointer;
+  transition: border-color 0.12s ease, color 0.12s ease;
+}
+.dp-ai-suggestion-chip:hover { border-color: var(--accent); color: var(--accent); }
 .dp-chat-input-bar {
   flex: none; display: flex; gap: 10px; padding: 14px 24px; border-top: 1px solid var(--border);
   background: rgba(0,0,0,0.12);
@@ -1452,6 +1494,7 @@ button.embed-json-jump { background: none; border: none; padding: 0; font-family
    lateraux deviennent des tiroirs ouverts par boutons flottants, et les
    petites cibles passent a ~44px (n°045). */
 .dp-drawer-btn { display: none; }
+.dp-quickcreate-fab, .dp-quickcreate-menu { display: none; }
 @media (hover: none) and (pointer: coarse), (max-width: 700px) {
   .dp-sidebar, .dp-roles-panel { transition: transform 0.2s ease; }
   .dp-sidebar { transform: translateX(-100%); }
@@ -1471,6 +1514,33 @@ button.embed-json-jump { background: none; border: none; padding: 0; font-family
   }
   .dp-drawer-btn.left { left: 12px; }
   .dp-drawer-btn.right { right: 12px; }
+  /* Creation rapide (roadmap n°122) : empilee au-dessus du tiroir salons,
+     jamais centree ni en superposition avec le chat IA (voir la lecon sur
+     le bouton "remonter en haut" plus haut dans ce fichier). */
+  .dp-quickcreate-fab {
+    display: flex; position: absolute; bottom: 130px; left: 12px; z-index: 46;
+    width: 44px; height: 44px; align-items: center; justify-content: center;
+    border-radius: 50%; border: 1px solid var(--accent); background: var(--accent);
+    color: #fff; font-size: 1.1rem; cursor: pointer;
+    box-shadow: 0 6px 18px -6px rgba(0,0,0,0.5);
+  }
+  .dp-quickcreate-menu {
+    display: block; position: absolute; bottom: 184px; left: 12px; z-index: 46; width: min(260px, calc(100vw - 24px));
+    background: var(--bg-elevated); border: 1px solid var(--border-strong); border-radius: 10px;
+    padding: 10px; box-shadow: 0 14px 40px -10px rgba(0,0,0,0.6);
+  }
+  .dp-quickcreate-menu[hidden] { display: none; }
+  .dp-quickcreate-title { margin: 0 0 8px; font-size: 0.78rem; font-weight: 700; color: var(--text-muted); }
+  .dp-quickcreate-row { display: flex; gap: 6px; margin-bottom: 6px; }
+  .dp-quickcreate-row:last-child { margin-bottom: 0; }
+  .dp-quickcreate-row input {
+    flex: 1; min-width: 0; background: var(--bg-input); border: 1px solid var(--border-strong);
+    color: var(--text); border-radius: 5px; padding: 8px 10px; font-size: 0.85rem;
+  }
+  .dp-quickcreate-row button {
+    flex: none; width: 36px; border-radius: 5px; border: 1px solid var(--accent);
+    background: var(--accent-soft); color: var(--accent); font-size: 1rem; cursor: pointer;
+  }
   .dp-copy-id-btn, .dp-category-settings, .dp-role-settings, .dp-category-sort,
   .embed-field-remove, .embed-field-handle, .embed-field-duplicate,
   .member-warns-btn, .member-timeout-btn, .dp-chat-copy, .embed-md-btn,
@@ -1736,6 +1806,31 @@ button.embed-json-jump { background: none; border: none; padding: 0; font-family
 .dp-history-row:last-of-type { border-bottom: none; }
 .dp-history-row a { color: var(--accent); }
 
+.dp-theme-menu {
+  position: fixed; z-index: 120; min-width: 190px;
+  background: var(--bg-elevated); border: 1px solid var(--border-strong); border-radius: 8px;
+  box-shadow: 0 14px 34px -10px rgba(0,0,0,0.6); padding: 4px;
+}
+.dp-theme-menu-item {
+  display: flex; align-items: center; gap: 8px; width: 100%; text-align: left;
+  background: none; border: none; color: var(--text); font-family: inherit; font-size: 0.85rem;
+  padding: 8px 10px; border-radius: 5px; cursor: pointer;
+}
+.dp-theme-menu-item:hover { background: var(--accent-soft); color: var(--accent); }
+.dp-theme-menu-item.active { font-weight: 700; }
+#dp-whatsnew-pop {
+  position: fixed; top: 54px; right: 12px; z-index: 120; width: 340px; max-width: calc(100vw - 24px);
+  max-height: 70vh; overflow-y: auto;
+  background: var(--bg-elevated); border: 1px solid var(--border-strong); border-radius: 10px;
+  padding: 12px; box-shadow: 0 14px 40px -10px rgba(0,0,0,0.6); font-size: 0.82rem;
+}
+#dp-whatsnew-pop .dp-history-row { gap: 2px; }
+.video-toggle.has-badge { position: relative; }
+.video-toggle.has-badge::after {
+  content: ''; position: absolute; top: 4px; right: 4px; width: 8px; height: 8px;
+  border-radius: 50%; background: var(--danger); border: 1.5px solid var(--bg);
+}
+
 /* Barre de navigation inferieure mobile (n°123). */
 /* CAUSE RACINE du bug "visible sur PC" : display:flex (style auteur) ecrase
    le display:none que le navigateur applique a l'attribut [hidden]. Cette
@@ -1834,6 +1929,12 @@ body.density-compact .dp-channel, body.density-compact .dp-role-row { padding-to
 body.density-compact .inner section, body.density-compact .dp-block { padding: 10px 12px; margin-bottom: 10px; }
 body.density-compact input[type=text], body.density-compact select, body.density-compact textarea { padding: 6px 10px; }
 body.density-compact .btn { padding: 6px 12px; }
+/* Densite des tableaux et listes (roadmap n°219) : etend le mode compact
+   existant a toutes les rangees de listes/tableaux (membres, audit,
+   suggestions, tickets...) via un selecteur generique sur le suffixe de
+   classe, plutot que d'enumerer chaque liste une a une. */
+body.density-compact [class*="-row"] { padding-top: 2px; padding-bottom: 2px; }
+body.density-compact .perm-matrix-table td, body.density-compact .perm-matrix-table th { padding: 3px 6px; }
 input[type=text].drag-over, textarea.drag-over { border-color: var(--accent); box-shadow: 0 0 0 3px var(--accent-soft); }
 
 .embed-field-row {
@@ -2050,6 +2151,11 @@ input[type=text].drag-over, textarea.drag-over { border-color: var(--accent); bo
   #whoami { display: none; }
   .user-chip { padding: 4px; }
   .auth-box { padding: 0 16px; }
+  /* Reglages secondaires (roadmap n°349, n°363) : masques sur mobile etroit
+     pour eviter le debordement de la topbar, deja chargee (densite, theme,
+     video, nouveautes, utilisateur) — restent accessibles depuis un ecran
+     plus large. */
+  #fontsize-toggle-btn, #corners-toggle-btn { display: none; }
 }
 
 @media (max-width: 480px) {
