@@ -1,6 +1,7 @@
 const { ChannelType, PermissionFlagsBits: P } = require('discord.js');
 const guildConfigStore = require('../../kv/guildConfigStore');
 const publicVoiceStore = require('../../kv/publicVoiceStore');
+const { postVoiceControlPanel } = require('../interactions/buttons/voiceControlPanel');
 const logger = require('../../shared/logger');
 
 // File sequentielle par guilde : evite les creations/suppressions concurrentes
@@ -77,6 +78,7 @@ async function handleVoiceStateUpdate(oldState, newState) {
       if (channel && channel.members.size === 0) {
         await channel.delete().catch(() => {});
         state.spawnedChannelIds = state.spawnedChannelIds.filter((id) => id !== oldState.channelId);
+        delete state.owners[oldState.channelId];
         await publicVoiceStore.set(guild.id, state);
       }
     }
@@ -96,7 +98,11 @@ async function handleVoiceStateUpdate(oldState, newState) {
       if (room) {
         await newState.member.voice.setChannel(room.id).catch(() => {});
         state.spawnedChannelIds.push(room.id);
+        state.owners[room.id] = newState.member.id;
         await publicVoiceStore.set(guild.id, state);
+        // Panneau de controle (roadmap n°187) : renommer/verrouiller/limiter
+        // sans passer par le dashboard, directement dans le chat du vocal.
+        await postVoiceControlPanel(room, newState.member.id);
         logger.info(`Vocal temporaire personnel cree sur ${guild.id}`);
       }
     }

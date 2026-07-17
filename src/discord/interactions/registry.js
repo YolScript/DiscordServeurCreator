@@ -7,6 +7,7 @@ const {
   CAPTCHA_OK, CAPTCHA_NO, TICKET_OPEN, TICKET_FORM_MODAL, POLL_CREATE_OPEN, POLL_CREATE_MODAL, TICKET_RATE_PREFIX,
   SUGGESTION_VOTE_PREFIX, SUGGESTION_APPROVE_PREFIX, SUGGESTION_DENY_PREFIX, SHOP_BUY_PREFIX,
   CAPTCHA_IMAGE_VERIFY, CAPTCHA_IMAGE_MODAL, AGE_VERIFY_BUTTON, AGE_VERIFY_MODAL,
+  VOICE_CTRL_RENAME_BUTTON, VOICE_CTRL_RENAME_MODAL, VOICE_CTRL_LOCK_BUTTON, VOICE_CTRL_LIMIT_BUTTON,
 } = require('./customIds');
 const pollManager = require('../engagement/pollManager');
 const giveawayManager = require('../engagement/giveawayManager');
@@ -15,6 +16,9 @@ const {
   createTicket, closeTicket, claimTicket, rateTicket, TICKET_CLOSE_ID, TICKET_CLAIM_ID,
 } = require('../support/ticketManager');
 const { handleReportCommand } = require('../moderation/reportMessage');
+const {
+  handleVoiceCtrlRename, handleVoiceCtrlRenameModal, handleVoiceCtrlLock, handleVoiceCtrlLimit,
+} = require('./buttons/voiceControlPanel');
 const { handleCannedResponseCommand, autocompleteCannedResponse } = require('../commands/cannedResponse');
 const handleConfigSummaryCommand = require('../commands/configSummary');
 const handlePollCreateButton = require('./buttons/pollCreateButton');
@@ -171,6 +175,12 @@ async function routeInteraction(interaction) {
             : 'Participation enregistree, bonne chance !',
           flags: MessageFlags.Ephemeral,
         });
+      } else if (interaction.customId === VOICE_CTRL_RENAME_BUTTON) {
+        await handleVoiceCtrlRename(interaction);
+      } else if (interaction.customId === VOICE_CTRL_LOCK_BUTTON) {
+        await handleVoiceCtrlLock(interaction);
+      } else if (interaction.customId === VOICE_CTRL_LIMIT_BUTTON) {
+        await handleVoiceCtrlLimit(interaction);
       } else if (interaction.customId === TICKET_CLOSE_ID) {
         await closeTicket(interaction);
       } else if (interaction.customId === TICKET_CLAIM_ID) {
@@ -263,6 +273,9 @@ async function routeInteraction(interaction) {
     }
     if (interaction.isModalSubmit() && interaction.customId === AGE_VERIFY_MODAL) {
       await handleAgeVerifyModal(interaction);
+    }
+    if (interaction.isModalSubmit() && interaction.customId === VOICE_CTRL_RENAME_MODAL) {
+      await handleVoiceCtrlRenameModal(interaction);
     }
     if (interaction.isModalSubmit() && interaction.customId === TICKET_FORM_MODAL) {
       await interaction.deferReply({ flags: MessageFlags.Ephemeral });
