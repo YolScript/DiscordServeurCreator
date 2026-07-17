@@ -216,7 +216,49 @@ async function callGemini({
   return { content, toolCalls };
 }
 
-const ADAPTERS = { anthropic: callAnthropic, openai: callOpenAi, gemini: callGemini };
+// Mistral expose une API compatible OpenAI (memes formats de messages et de
+// tool calling) : seul l'endpoint et le modele changent.
+async function callMistral({
+  apiKey, systemPrompt, messages, tools,
+}) {
+  const mistralMessages = [{ role: 'system', content: systemPrompt }];
+  for (const m of messages) {
+    if (m.role === 'user') {
+      mistralMessages.push({ role: 'user', content: m.content || '' });
+    } else if (m.role === 'assistant') {
+      const msg = { role: 'assistant', content: m.content || '' };
+      if (m.toolCalls?.length) {
+        msg.tool_calls = m.toolCalls.map((tc) => ({
+          id: tc.id, type: 'function', function: { name: tc.name, arguments: JSON.stringify(tc.args) },
+        }));
+      }
+      mistralMessages.push(msg);
+    } else if (m.role === 'tool') {
+      mistralMessages.push({ role: 'tool', tool_call_id: m.toolCallId, name: m.name, content: JSON.stringify(m.result) });
+    }
+  }
+
+  const res = await fetch('https://api.mistral.ai/v1/chat/completions', {
+    method: 'POST',
+    headers: { Authorization: `Bearer ${apiKey}`, 'content-type': 'application/json' },
+    body: JSON.stringify({
+      model: 'mistral-large-latest',
+      messages: mistralMessages,
+      tools: tools.map((t) => ({ type: 'function', function: { name: t.name, description: t.description, parameters: t.parameters } })),
+    }),
+  });
+  if (!res.ok) throw new Error(describeProviderError('Mistral', res.status, await res.text()));
+  const data = await res.json();
+  const message = data.choices?.[0]?.message || {};
+  const toolCalls = (message.tool_calls || []).map((tc) => ({
+    id: tc.id, name: tc.function.name, args: JSON.parse(tc.function.arguments || '{}'),
+  }));
+  return { content: (message.content || '').trim(), toolCalls };
+}
+
+const ADAPTERS = {
+  anthropic: callAnthropic, openai: callOpenAi, gemini: callGemini, mistral: callMistral,
+};
 
 export async function callProvider({
   provider, apiKey, systemPrompt, messages, tools, onDelta,

@@ -4101,6 +4101,14 @@ async function renderAutomationsPage(id, container = app) {
           </select>
           <button class="btn secondary" id="add-shop-item">Ajouter</button>
         </div>
+        <h2 style="margin-top:18px; font-size:0.85rem;">💸 Taxe sur /pay</h2>
+        <p class="muted">Pourcentage preleve (et detruit) sur chaque transfert entre membres — freine l'inflation. 0 = aucun.</p>
+        <div class="row" style="gap:8px;">
+          <select id="pay-tax-percent" aria-label="Taxe sur les transferts" style="margin:0;">
+            ${[0, 2, 5, 10, 15, 25].map((p) => `<option value="${p}" ${(config?.payTaxPercent || 0) === p ? 'selected' : ''}>${p}%</option>`).join('')}
+          </select>
+          <button class="btn secondary" id="save-pay-tax">Enregistrer</button>
+        </div>
         <h2 style="margin-top:18px; font-size:0.85rem;">Classement richesse</h2>
         <div id="economy-leaderboard">${economyLeaderboardRows}</div>
       `, { id: 'economie' })}
@@ -4533,6 +4541,16 @@ async function renderAutomationsPage(id, container = app) {
     }
   });
   wireWebhookDeleteButtons();
+
+  // Taxe /pay (roadmap n°201).
+  document.getElementById('save-pay-tax')?.addEventListener('click', async () => {
+    try {
+      await Api.updateConfig(id, { payTaxPercent: Number(document.getElementById('pay-tax-percent').value) });
+      showToast('Taxe sur les transferts enregistree.');
+    } catch (err) {
+      showToast(err.message, 'error');
+    }
+  });
 
   document.getElementById('add-shop-item').addEventListener('click', async () => {
     const name = document.getElementById('new-shop-name').value.trim();
@@ -7256,6 +7274,7 @@ const AI_PROVIDERS = [
   { value: 'anthropic', label: 'Anthropic (Claude)' },
   { value: 'openai', label: 'OpenAI (GPT)' },
   { value: 'gemini', label: 'Google (Gemini)' },
+  { value: 'mistral', label: 'Mistral (Large)' },
 ];
 
 async function renderAiConfigPage(guildId, container = app) {

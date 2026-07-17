@@ -515,7 +515,7 @@ async function router(request, env) {
     if (sub === 'aiconfig' && parts.length === 4 && method === 'PUT') {
       const session = await requireGuildAccess(env, request, guildId);
       const { provider, apiKey } = await readJson(request);
-      if (!['anthropic', 'openai', 'gemini'].includes(provider)) throw new HttpError(400, 'provider invalide.');
+      if (!['anthropic', 'openai', 'gemini', 'mistral'].includes(provider)) throw new HttpError(400, 'provider invalide.');
       if (!apiKey || apiKey.length < 8) throw new HttpError(400, 'apiKey invalide.');
       await setAiConfig(env, guildId, { provider, apiKey });
       await logAudit(env, guildId, { title: 'Cle IA mise a jour', description: `${session.username} a configure l'assistant IA (${provider}).` });
