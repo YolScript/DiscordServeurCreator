@@ -3975,6 +3975,7 @@ async function renderAutomationsPage(id, container = app) {
         <p class="muted">Ajoute des modules complementaires a ce serveur en invitant ces bots.</p>
         <div class="row">
           <a class="btn secondary" href="https://discord.com/oauth2/authorize?client_id=1526016642411135107&permissions=286262288&scope=bot" target="_blank" rel="noopener">➕ Ajouter FortniteParty</a>
+          <button class="btn secondary" id="copy-bot-invite" title="Copier le lien pour inviter ServeurCreator sur un autre serveur">🔗 Copier le lien d'invitation de ServeurCreator</button>
           <a class="btn secondary" href="https://discord.com/oauth2/authorize?client_id=1449858112054886442&scope=bot%20applications.commands&permissions=268520448&guild_id=1526242972989915307" target="_blank" rel="noopener">➕ Ajouter BotStream</a>
         </div>
       `, { id: 'bots' })}
@@ -4356,6 +4357,19 @@ async function renderAutomationsPage(id, container = app) {
         </div>
         <button class="btn secondary" id="save-ticket-roles" style="margin-top:8px;">Enregistrer les roles autorises</button>
 
+        <h2 style="margin-top:18px; font-size:0.85rem;">💬 Reponses pre-ecrites (/reponse)</h2>
+        <p class="muted">Le staff les insere dans un ticket avec /reponse (autocomplete). 10 maximum.</p>
+        <div id="canned-list">${(config?.cannedResponses || []).map((r) => `
+          <div class="row" style="justify-content:space-between; margin-bottom:6px;">
+            <span style="font-size:0.84rem; min-width:0;"><strong>${escapeHtml(r.name)}</strong> — <span class="muted">${escapeHtml(r.text.slice(0, 80))}</span></span>
+            <button class="btn danger delete-canned" data-canned-id="${r.id}">Supprimer</button>
+          </div>`).join('') || '<p class="muted">Aucune reponse pre-ecrite.</p>'}</div>
+        <div class="row" style="margin-top:8px; gap:8px; flex-wrap:wrap;">
+          <input type="text" id="new-canned-name" placeholder="Nom court (ex: bienvenue-ticket)" aria-label="Nom de la reponse" maxlength="50" style="width:220px; margin:0;" />
+          <button class="btn secondary" id="add-canned">Ajouter</button>
+        </div>
+        <textarea id="new-canned-text" maxlength="1900" placeholder="Texte de la reponse..." style="margin-top:6px;"></textarea>
+
         <h2 style="margin-top:18px; font-size:0.85rem;">Tickets</h2>
         <div id="tickets-list">${ticketRows}</div>
       `, { id: 'tickets' })}
@@ -4726,6 +4740,43 @@ async function renderAutomationsPage(id, container = app) {
   container.querySelectorAll('.delete-streamer').forEach((btn) => {
     btn.addEventListener('click', () => {
       undoableDelete(btn, 'Streamer retire.', () => Api.deleteStreamer(id, btn.dataset.user, btn.dataset.platform));
+    });
+  });
+
+  // Lien d'invitation du bot (roadmap n°190) : permissions Administrator —
+  // le bot cree salons/roles/permissions, un mask partiel casserait tout.
+  document.getElementById('copy-bot-invite')?.addEventListener('click', async () => {
+    try {
+      await navigator.clipboard.writeText('https://discord.com/oauth2/authorize?client_id=1526237674355036401&permissions=8&scope=bot%20applications.commands');
+      showToast('Lien d\'invitation copie : partage-le pour installer le bot ailleurs.');
+    } catch {
+      showToast('Copie impossible (permission navigateur).', 'error');
+    }
+  });
+
+  // Reponses pre-ecrites (roadmap n°159) : CRUD dans config.cannedResponses.
+  document.getElementById('add-canned')?.addEventListener('click', async () => {
+    const name = document.getElementById('new-canned-name').value.trim();
+    const text = document.getElementById('new-canned-text').value.trim();
+    if (!name || !text) { showToast('Nom et texte requis.', 'error'); return; }
+    const existing = config?.cannedResponses || [];
+    if (existing.length >= 10) { showToast('10 reponses maximum.', 'error'); return; }
+    if (existing.some((r) => r.name === name)) { showToast('Ce nom existe deja.', 'error'); return; }
+    try {
+      await Api.updateConfig(id, {
+        cannedResponses: [...existing, { id: `${Date.now().toString(36)}${Math.random().toString(36).slice(2, 5)}`, name, text }],
+      });
+      showToast('Reponse ajoutee : disponible via /reponse.');
+      await renderAutomationsPage(id, container);
+    } catch (err) {
+      showToast(err.message, 'error');
+    }
+  });
+  container.querySelectorAll('.delete-canned').forEach((btn) => {
+    btn.addEventListener('click', () => {
+      undoableDelete(btn, 'Reponse supprimee.', () => Api.updateConfig(id, {
+        cannedResponses: (config?.cannedResponses || []).filter((r) => r.id !== btn.dataset.cannedId),
+      }));
     });
   });
 

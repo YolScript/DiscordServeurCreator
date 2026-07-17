@@ -15,6 +15,8 @@ const {
   createTicket, closeTicket, claimTicket, rateTicket, TICKET_CLOSE_ID, TICKET_CLAIM_ID,
 } = require('../support/ticketManager');
 const { handleReportCommand } = require('../moderation/reportMessage');
+const { handleCannedResponseCommand, autocompleteCannedResponse } = require('../commands/cannedResponse');
+const handleConfigSummaryCommand = require('../commands/configSummary');
 const handlePollCreateButton = require('./buttons/pollCreateButton');
 const handlePollCreateModal = require('./modals/pollCreateModal');
 const {
@@ -74,6 +76,8 @@ const logger = require('../../shared/logger');
 
 const commandHandlers = {
   setup: handleSetupCommand,
+  reponse: handleCannedResponseCommand,
+  config: handleConfigSummaryCommand,
   warn: handleWarnCommand,
   warnings: handleWarningsCommand,
   clearwarns: handleClearwarnsCommand,
@@ -118,6 +122,10 @@ const commandHandlers = {
 async function routeInteraction(interaction) {
   try {
     if (interaction.isAutocomplete()) {
+      if (interaction.commandName === 'reponse') {
+        await autocompleteCannedResponse(interaction);
+        return;
+      }
       if (interaction.commandName === 'setup') {
         const focused = interaction.options.getFocused().toLowerCase();
         const choices = await listTemplateChoices();

@@ -8,6 +8,21 @@ const reportMessageCommand = new ContextMenuCommandBuilder()
   .setType(ApplicationCommandType.Message)
   .toJSON();
 
+// Reponses pre-ecrites (roadmap n°159).
+const cannedResponseCommand = new SlashCommandBuilder()
+  .setName('reponse')
+  .setDescription('Poste une reponse pre-ecrite configuree dans le dashboard.')
+  .setDefaultMemberPermissions(PermissionFlagsBits.ModerateMembers)
+  .addStringOption((o) => o.setName('nom').setDescription('Nom de la reponse (tape pour rechercher)').setRequired(true).setAutocomplete(true))
+  .toJSON();
+
+// Resume de configuration (roadmap n°183).
+const configSummaryCommand = new SlashCommandBuilder()
+  .setName('config')
+  .setDescription('Resume ce qui est configure sur ce serveur.')
+  .setDefaultMemberPermissions(PermissionFlagsBits.Administrator)
+  .toJSON();
+
 const setupCommand = new SlashCommandBuilder()
   .setName('setup')
   .setDescription('Configure ce serveur avec un template (salons, roles, permissions).')
@@ -324,6 +339,8 @@ const remindCommand = new SlashCommandBuilder()
 
 module.exports = [
   reportMessageCommand,
+  cannedResponseCommand,
+  configSummaryCommand,
   remindCommand,
   setupCommand, warnCommand, warningsCommand, clearwarnsCommand, timeoutCommand, tempbanCommand, unlockCommand, automodCommand,
   scheduleAnnouncementCommand, scheduleEventCommand, scheduledListCommand, scheduledCancelCommand,
