@@ -59,6 +59,7 @@ window.Api = (function api() {
     memberInventory: (guildId, userId) => request(`/api/guilds/${guildId}/members/${userId}/inventory`),
     saveMemberNote: (guildId, userId, text) => request(`/api/guilds/${guildId}/members/${userId}/note`, { method: 'PUT', body: JSON.stringify({ text }) }),
     xp: (guildId) => request(`/api/guilds/${guildId}/xp`),
+    resetXp: (guildId, userId) => request(`/api/guilds/${guildId}/xp-reset`, { method: 'POST', body: JSON.stringify({ userId: userId || undefined }) }),
     suggestions: (guildId) => request(`/api/guilds/${guildId}/suggestions`),
     reports: (guildId) => request(`/api/guilds/${guildId}/reports`),
     resolveReport: (guildId, reportId) => request(`/api/guilds/${guildId}/reports/${reportId}/resolve`, { method: 'POST' }),

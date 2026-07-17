@@ -1195,6 +1195,7 @@ function aiHomeHtml(guild, config) {
       <input type="text" id="dp-ai-input" placeholder="Ecris a l'assistant..." maxlength="1000" autocomplete="off" />
       <button type="submit" class="btn" id="dp-ai-send">Envoyer</button>
     </form>
+    <p class="muted" id="dp-ai-cost" style="font-size:0.68rem; margin:2px 16px 0; text-align:right;"></p>
   `;
 }
 
@@ -1224,6 +1225,14 @@ function wireAiHome(guildId, channels, rolesSorted) {
     document.getElementById('dp-ai-tail').innerHTML = aiConversationHtml();
     input.disabled = aiBusy;
     sendBtn.disabled = aiBusy;
+    // Cout estime de la conversation (roadmap n°196) : ~4 caracteres par
+    // token — ordre de grandeur pour la cle API du serveur, pas une facture.
+    const costEl = document.getElementById('dp-ai-cost');
+    if (costEl) {
+      const totalChars = aiConversation.reduce((sum, m) => sum + (m.content || '').length, 0);
+      const tokens = Math.round(totalChars / 4);
+      costEl.textContent = tokens > 0 ? `Contexte : ~${tokens.toLocaleString('fr-FR')} tokens envoyes a chaque tour` : '';
+    }
     const yesBtn = document.getElementById('dp-ai-confirm-yes');
     const noBtn = document.getElementById('dp-ai-confirm-no');
     if (yesBtn) yesBtn.addEventListener('click', () => handleConfirm(true));
@@ -4147,6 +4156,13 @@ async function renderAutomationsPage(id, container = app) {
         </div>
         <button class="btn" id="save-xp-config" style="margin-top:10px;">Enregistrer la vitesse d'XP</button>
         <p class="muted" style="font-size:0.76rem; margin-top:6px;">Le bot applique les changements sous 5 minutes.</p>
+        <h2 style="margin-top:18px; font-size:0.85rem;">♻️ Reinitialisation XP</h2>
+        <p class="muted">Remet l'XP a zero — un membre precis (ID) ou tout le serveur. Irreversible.</p>
+        <div class="row" style="gap:8px; flex-wrap:wrap;">
+          <input type="text" id="xp-reset-user" placeholder="ID du membre (vide = tout le serveur)" aria-label="ID du membre a reinitialiser" style="width:260px; margin:0;" />
+          <button class="btn danger" id="xp-reset-btn">Reinitialiser</button>
+        </div>
+
         <h2 style="margin-top:18px; font-size:0.85rem;">🌍 Classement public</h2>
         <p class="muted">Un lien en lecture seule du top 20 (pseudo, niveau, XP — aucun identifiant), a partager hors Discord.</p>
         ${config?.publicLeaderboardToken
@@ -4630,6 +4646,23 @@ async function renderAutomationsPage(id, container = app) {
       showToast('URL copiee.');
     } catch {
       showToast('Copie impossible (permission navigateur).', 'error');
+    }
+  });
+
+  // Reset XP (roadmap n°200) : double confirmation pour le serveur entier.
+  document.getElementById('xp-reset-btn')?.addEventListener('click', async () => {
+    const userId = document.getElementById('xp-reset-user').value.trim();
+    if (userId && !/^\d{5,25}$/.test(userId)) { showToast('ID de membre invalide.', 'error'); return; }
+    if (!window.confirm(userId ? `Reinitialiser l'XP du membre ${userId} ?` : 'Reinitialiser l\'XP de TOUT le serveur ?')) return;
+    if (!userId && window.prompt('Action irreversible. Tape RESET pour confirmer :') !== 'RESET') {
+      showToast('Reinitialisation annulee.');
+      return;
+    }
+    try {
+      await Api.resetXp(id, userId);
+      showToast(userId ? 'XP du membre reinitialisee.' : 'XP du serveur entierement reinitialisee.');
+    } catch (err) {
+      showToast(err.message, 'error');
     }
   });
 

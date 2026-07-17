@@ -1,5 +1,6 @@
 const { MessageFlags } = require('discord.js');
 const economyStore = require('../../kv/economyStore');
+const guildConfigStore = require('../../kv/guildConfigStore');
 
 async function handlePayCommand(interaction) {
   const target = interaction.options.getUser('membre', true);
@@ -20,9 +21,16 @@ async function handlePayCommand(interaction) {
     return;
   }
 
+  // Taxe sur les transferts (roadmap n°201) : pourcentage configurable au
+  // dashboard, la part taxee est detruite (anti-inflation).
+  const config = await guildConfigStore.find(interaction.guild.id).catch(() => null);
+  const taxPercent = Math.min(25, Math.max(0, Number(config?.payTaxPercent) || 0));
+  const tax = Math.floor((amount * taxPercent) / 100);
+  const received = amount - tax;
+
   await economyStore.addBalance(interaction.guild.id, interaction.user.id, -amount);
-  await economyStore.addBalance(interaction.guild.id, target.id, amount);
-  await interaction.reply(`🪙 <@${interaction.user.id}> a envoye **${amount}** pieces a <@${target.id}>.`);
+  await economyStore.addBalance(interaction.guild.id, target.id, received);
+  await interaction.reply(`🪙 <@${interaction.user.id}> a envoye **${received}** pieces a <@${target.id}>${tax ? ` (taxe de ${taxPercent}% : -${tax})` : ''}.`);
 }
 
 module.exports = handlePayCommand;

@@ -1155,9 +1155,11 @@ async function router(request, env) {
     }
 
     if (sub === 'permissions' && parts[4] === 'export' && method === 'GET') {
-      await requireGuildAccess(env, request, guildId);
+      const session = await requireGuildAccess(env, request, guildId);
       const channelId = url.searchParams.get('channelId');
       if (!channelId) throw new HttpError(400, 'channelId requis.');
+      // Journal des exports (roadmap n°204).
+      await logAudit(env, guildId, { title: 'Permissions exportees', description: `${session.username} a exporte les permissions de <#${channelId}>.` });
       return json(await exportChannelPermissions(env, channelId), env);
     }
 
@@ -1237,6 +1239,26 @@ async function router(request, env) {
       await putGuildConfig(env, guildId, { ...config, memberCountChannelId: channel.id, memberCountChannelNameTemplate: template });
       await logAudit(env, guildId, { title: 'Salon compteur cree', description: `${session.username} a cree le salon compteur de membres.` });
       return json(channel, env);
+    }
+
+    // Reset XP (roadmap n°200) : un membre precis ou tout le serveur.
+    if (sub === 'xp-reset' && parts.length === 4 && method === 'POST') {
+      const session = await requireGuildAccess(env, request, guildId);
+      const { userId } = await readJson(request);
+      const xpKey = `guild:${guildId}:xp`;
+      if (userId) {
+        const data = (await env.GUILD_KV.get(xpKey, 'json')) || {};
+        if (!data[userId]) throw new HttpError(404, 'Aucune donnee XP pour ce membre.');
+        delete data[userId];
+        await env.GUILD_KV.put(xpKey, JSON.stringify(data));
+      } else {
+        await env.GUILD_KV.delete(xpKey);
+      }
+      await logAudit(env, guildId, {
+        title: 'XP reinitialisee',
+        description: `${session.username} a reinitialise l'XP ${userId ? `du membre ${userId}` : 'de TOUT le serveur'}.`,
+      });
+      return json({ ok: true }, env);
     }
 
     // Mode lent global (roadmap n°198) : slowmode applique d'un coup sur
@@ -1548,7 +1570,9 @@ async function router(request, env) {
 
     // --- Securite ---
     if (sub === 'security' && parts[4] === 'export' && method === 'GET') {
-      await requireGuildAccess(env, request, guildId);
+      const session = await requireGuildAccess(env, request, guildId);
+      // Journal des exports (roadmap n°204) : qui a exporte quoi, quand.
+      await logAudit(env, guildId, { title: 'Structure exportee', description: `${session.username} a exporte la structure du serveur (JSON).` });
       return json(await buildSnapshot(env, guildId), env);
     }
     if (sub === 'security' && parts[4] === 'restore' && method === 'POST') {
