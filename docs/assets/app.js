@@ -5101,9 +5101,11 @@ async function renderAutomationsPage(id, container = app) {
 
 async function renderSecurityPage(id, container = app) {
   container.innerHTML = skeletonHtml();
-  const [snapshots, trashItems] = await Promise.all([
+  const [snapshots, trashItems, currentChannels, currentRoles] = await Promise.all([
     Api.securitySnapshots(id),
     Api.trash(id).catch(() => []),
+    Api.channels(id).catch(() => []),
+    Api.roles(id).catch(() => []),
   ]);
 
   // Corbeille (roadmap n°138) : elements supprimes restaurables 24h.
@@ -5120,9 +5122,28 @@ async function renderSecurityPage(id, container = app) {
   const snapshotRows = snapshots.map((s, idx) => `
     <div class="row" data-idx="${idx}" style="justify-content:space-between; margin-bottom:6px;">
       <span>${new Date(s.exportedAt).toLocaleString('fr-FR')} — ${s.roles.length} role(s), ${s.categories.length} categorie(s), ${s.channels.length} salon(s)</span>
-      <button class="btn secondary restore-snapshot" data-idx="${idx}">Restaurer</button>
+      <button class="btn secondary preview-snapshot" data-idx="${idx}">Comparer et restaurer</button>
     </div>
   `).join('') || '<p class="muted">Aucun snapshot pour le moment. Un snapshot automatique est pris chaque jour.</p>';
+
+  // Diff visuel avant restauration (roadmap n°168) : ne montre que ce qui
+  // MANQUERAIT et serait recree (la restauration est additive, jamais de
+  // suppression) — compare par nom normalise, insensible a la casse/accents.
+  const normalizeName = (s) => (s || '').toLowerCase().normalize('NFKD').replace(/[^a-z0-9]+/g, '');
+  function snapshotDiffHtml(snapshot) {
+    const currentRoleNames = new Set(currentRoles.map((r) => normalizeName(r.name)));
+    const currentChannelNames = new Set(currentChannels.map((c) => normalizeName(c.name)));
+    const missingRoles = (snapshot.roles || []).filter((r) => !currentRoleNames.has(normalizeName(r.name)));
+    const missingCategories = (snapshot.categories || []).filter((c) => !currentChannelNames.has(normalizeName(c.name)));
+    const missingChannels = (snapshot.channels || []).filter((c) => !currentChannelNames.has(normalizeName(c.name)));
+    const total = missingRoles.length + missingCategories.length + missingChannels.length;
+    if (!total) return '<p class="muted">Rien a recreer : tout ce que contient ce snapshot existe deja sur le serveur.</p>';
+    return `
+      <p class="muted">${total} element(s) seront recrees (rien d'existant ne sera touche ni supprime) :</p>
+      ${missingRoles.length ? `<p style="margin:8px 0 2px; font-size:0.78rem; font-weight:700;">🏷️ Roles (${missingRoles.length})</p>${missingRoles.map((r) => `<div style="padding:2px 0; font-size:0.82rem;">+ ${escapeHtml(r.name)}</div>`).join('')}` : ''}
+      ${missingCategories.length ? `<p style="margin:8px 0 2px; font-size:0.78rem; font-weight:700;">📁 Categories (${missingCategories.length})</p>${missingCategories.map((c) => `<div style="padding:2px 0; font-size:0.82rem;">+ ${escapeHtml(c.name)}</div>`).join('')}` : ''}
+      ${missingChannels.length ? `<p style="margin:8px 0 2px; font-size:0.78rem; font-weight:700;">#️⃣ Salons (${missingChannels.length})</p>${missingChannels.map((c) => `<div style="padding:2px 0; font-size:0.82rem;">+ ${escapeHtml(c.name)}</div>`).join('')}` : ''}`;
+  }
 
   container.innerHTML = `
     <div class="inner">
@@ -5340,16 +5361,35 @@ async function renderSecurityPage(id, container = app) {
     }
   });
 
-  container.querySelectorAll('.restore-snapshot').forEach((btn) => {
-    btn.addEventListener('click', async () => {
-      if (!window.confirm('Restaurer ce snapshot ? Les elements manquants seront recrees (rien ne sera supprime).')) return;
-      try {
-        const snapshot = snapshots[Number(btn.dataset.idx)];
-        const result = await Api.securityRestore(id, snapshot);
-        showToast(`Restaure : ${result.roles} role(s), ${result.categories} categorie(s), ${result.channels} salon(s) crees.`);
-      } catch (err) {
-        showToast(err.message, 'error');
-      }
+  container.querySelectorAll('.preview-snapshot').forEach((btn) => {
+    btn.addEventListener('click', () => {
+      const snapshot = snapshots[Number(btn.dataset.idx)];
+      const existingPop = document.getElementById('dp-snapshot-diff');
+      existingPop?.remove();
+      const pop = document.createElement('div');
+      pop.id = 'dp-snapshot-diff';
+      pop.className = 'dp-modal-pop';
+      pop.innerHTML = `
+        <div class="dp-modal-pop-inner">
+          <p class="dp-block-title" style="margin:0 0 8px;">🔍 A recreer — snapshot du ${new Date(snapshot.exportedAt).toLocaleString('fr-FR')}</p>
+          <div style="max-height:50vh; overflow-y:auto;">${snapshotDiffHtml(snapshot)}</div>
+          <div class="row" style="justify-content:flex-end; gap:8px; margin-top:12px;">
+            <button type="button" class="btn secondary" id="dp-snapshot-cancel">Annuler</button>
+            <button type="button" class="btn" id="dp-snapshot-confirm">Restaurer</button>
+          </div>
+        </div>`;
+      document.body.appendChild(pop);
+      pop.querySelector('#dp-snapshot-cancel').addEventListener('click', () => pop.remove());
+      pop.addEventListener('click', (e) => { if (e.target === pop) pop.remove(); });
+      pop.querySelector('#dp-snapshot-confirm').addEventListener('click', async () => {
+        pop.remove();
+        try {
+          const result = await Api.securityRestore(id, snapshot);
+          showToast(`Restaure : ${result.roles} role(s), ${result.categories} categorie(s), ${result.channels} salon(s) crees.`);
+        } catch (err) {
+          showToast(err.message, 'error');
+        }
+      });
     });
   });
 

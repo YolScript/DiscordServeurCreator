@@ -1572,6 +1572,17 @@ button.embed-json-jump { background: none; border: none; padding: 0; font-family
 
 .dp-empty-state { text-align: center; padding: 22px 12px; }
 
+/* Modale diff snapshot (n°168) — reutilisable pour d'autres apercus modaux. */
+.dp-modal-pop {
+  position: fixed; inset: 0; z-index: 250; background: rgba(0,0,0,0.55);
+  display: flex; align-items: center; justify-content: center; padding: 16px;
+}
+.dp-modal-pop-inner {
+  background: var(--bg-elevated); border: 1px solid var(--border-strong); border-radius: 12px;
+  padding: 16px; max-width: 460px; width: 100%; box-shadow: 0 20px 60px -12px rgba(0,0,0,0.7);
+  font-size: 0.84rem;
+}
+
 /* Popover historique des actions (n°113). */
 #dp-history-pop {
   position: fixed; top: 54px; right: 12px; z-index: 120; width: 320px; max-width: calc(100vw - 24px);
@@ -1603,7 +1614,10 @@ button.embed-json-jump { background: none; border: none; padding: 0; font-family
 .mobile-tabbar button span { font-size: 1.15rem; line-height: 1.2; }
 .mobile-tabbar button.active { color: var(--accent); background: var(--accent-soft); }
 body.has-tabbar .content-body { padding-bottom: 66px; }
-body.has-tabbar .dp-drawer-btn { bottom: 130px; }
+/* Sur telephone (barre du bas visible), les boutons ronds ☰/🏷️ flottaient
+   seuls dans une bande vide et genaient : le geste swipe (n°121) ouvre deja
+   les memes tiroirs, ces boutons redondants sont donc masques ici. */
+body.has-tabbar .dp-drawer-btn { display: none; }
 body.has-tabbar .toast { margin-bottom: 60px; }
 
 /* Checklist de configuration (n°169). */
