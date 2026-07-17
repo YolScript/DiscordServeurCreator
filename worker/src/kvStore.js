@@ -39,13 +39,21 @@ async function putList(env, key, items) {
   await env.GUILD_KV.put(key, JSON.stringify(items));
 }
 
+// Cache memoire par requete (roadmap n°177) : la config d'un serveur est lue
+// plusieurs fois dans une meme requete (acces, route, audit) — une seule
+// lecture KV suffit. env.__requestCache est pose par le fetch handler.
 export async function getGuildConfig(env, guildId) {
-  const raw = await env.GUILD_KV.get(configKey(guildId));
-  return raw ? JSON.parse(raw) : null;
+  const cacheKey = configKey(guildId);
+  if (env.__requestCache?.has(cacheKey)) return env.__requestCache.get(cacheKey);
+  const raw = await env.GUILD_KV.get(cacheKey);
+  const config = raw ? JSON.parse(raw) : null;
+  env.__requestCache?.set(cacheKey, config);
+  return config;
 }
 
 export async function putGuildConfig(env, guildId, config) {
   await env.GUILD_KV.put(configKey(guildId), JSON.stringify({ ...config, updatedAt: Date.now() }));
+  env.__requestCache?.delete(configKey(guildId));
 }
 
 export async function getGameRoles(env, guildId) {

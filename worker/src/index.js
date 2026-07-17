@@ -146,7 +146,19 @@ async function router(request, env) {
 
   // --- Supervision (pour un monitoring externe type UptimeRobot) ---
   if (method === 'GET' && url.pathname === '/health') {
-    return json({ ok: true, time: new Date().toISOString() }, env);
+    // /health enrichi (roadmap n°191) : latence KV mesuree en direct, etat
+    // du bot (heartbeat KV ecrit par botStatusHeartbeat), file d'actions.
+    const kvStart = Date.now();
+    const botStatus = await env.GUILD_KV.get('bot:status', 'json').catch(() => null);
+    const kvLatencyMs = Date.now() - kvStart;
+    return json({
+      ok: true,
+      time: new Date().toISOString(),
+      kvLatencyMs,
+      bot: botStatus
+        ? { lastSeen: botStatus.updatedAt || null, guilds: botStatus.guildCount ?? null, online: botStatus.updatedAt ? (Date.now() - botStatus.updatedAt) < 25 * 60 * 1000 : null }
+        : null,
+    }, env);
   }
 
   // --- Webhook entrant universel (roadmap n°100) : POST public protege par
@@ -1974,7 +1986,9 @@ async function snapshotAllGuilds(env) {
 
 export default {
   async fetch(request, rawEnv) {
-    const env = { ...rawEnv, RESOLVED_CORS_ORIGIN: resolveCorsOrigin(request, rawEnv) };
+    // __requestCache (roadmap n°177) : cache memoire limite a CETTE requete,
+    // evite les lectures KV repetees (config lue 2-3x par requete).
+    const env = { ...rawEnv, RESOLVED_CORS_ORIGIN: resolveCorsOrigin(request, rawEnv), __requestCache: new Map() };
     try {
       return await router(request, env);
     } catch (err) {
