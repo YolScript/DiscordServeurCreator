@@ -1718,6 +1718,7 @@ async function router(request, env) {
           components = [{ type: 1, components: built }];
         }
         const messagePayload = { content: body.content || undefined, embeds: prepared, ...(components ? { components } : {}) };
+        let sentMessage = null;
         if (incomingFiles.length) {
           // Envoi multipart direct : les fichiers partent AVEC le message,
           // les embeds les referencent en attachment://nom (reheberges
@@ -1732,14 +1733,31 @@ async function router(request, env) {
             body: discordForm,
           });
           if (!res.ok) throw new HttpError(502, `Discord a refuse le message : ${(await res.text()).slice(0, 300)}`);
+          sentMessage = await res.json().catch(() => null);
         } else {
-          await botFetchJson(env, `/channels/${body.channelId}/messages`, {
+          sentMessage = await botFetchJson(env, `/channels/${body.channelId}/messages`, {
             method: 'POST',
             body: JSON.stringify(messagePayload),
           });
         }
+        // Historique des envois (roadmap n°130) : les 15 derniers embeds
+        // postes, rechargeables dans le generateur.
+        try {
+          const historyKey = `guild:${guildId}:embedhistory`;
+          const history = (await env.GUILD_KV.get(historyKey, 'json')) || [];
+          history.push({
+            id: `${Date.now().toString(36)}${Math.random().toString(36).slice(2, 6)}`,
+            channelId: body.channelId,
+            messageId: sentMessage?.id || null,
+            content: body.content || '',
+            embeds: prepared,
+            postedAt: Date.now(),
+            author: session.username,
+          });
+          await env.GUILD_KV.put(historyKey, JSON.stringify(history.slice(-15)));
+        } catch { /* historique best-effort, jamais bloquant */ }
         await logAudit(env, guildId, { title: 'Embed poste', description: `${session.username} a poste un embed dans <#${body.channelId}>.` });
-        return json({ ok: true }, env);
+        return json({ ok: true, messageId: sentMessage?.id || null }, env);
       }
       await pushPendingPanelAction(env, guildId, { type: key, channelId: body.channelId });
       return json({ ok: true }, env);
@@ -1773,6 +1791,12 @@ async function router(request, env) {
         await logAudit(env, guildId, { title: 'Embed edite', description: `${session.username} a edite un message dans <#${channelId}>.` });
         return json({ ok: true }, env);
       }
+    }
+
+    // Historique des embeds envoyes (roadmap n°130).
+    if (sub === 'embed-history' && parts.length === 4 && method === 'GET') {
+      await requireGuildAccess(env, request, guildId);
+      return json((await env.GUILD_KV.get(`guild:${guildId}:embedhistory`, 'json')) || [], env);
     }
 
     // --- Modeles d'embed sauvegardes ---

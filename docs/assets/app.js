@@ -6416,11 +6416,12 @@ function wireEmbedFieldRows(root) {
 
 async function renderEmbedBuilderPage(id, container = app) {
   container.innerHTML = skeletonHtml();
-  const [channels, templates, members, embedRoles] = await Promise.all([
+  const [channels, templates, members, embedRoles, embedHistory] = await Promise.all([
     Api.channels(id),
     Api.embedTemplates(id).catch(() => []),
     Api.members(id).catch(() => null),
     Api.roles(id).catch(() => []),
+    Api.embedHistory(id).catch(() => []),
   ]);
   const textChannels = channels.filter((c) => c.type === 0);
   const channelOptions = textChannels.map((c) => `<option value="${c.id}">#${escapeHtml(c.name)}</option>`).join('');
@@ -6571,6 +6572,18 @@ async function renderEmbedBuilderPage(id, container = app) {
             </div>
             <div id="embed-draft-row"></div>
             <div id="embed-templates-list">${templateRows()}</div>
+
+            <div class="dp-subsection-divider"></div>
+            <p class="dp-block-title">🕘 Derniers envois</p>
+            <div id="embed-history-list">${embedHistory.slice().reverse().map((h) => `
+              <div class="embed-template-row">
+                <span class="embed-template-name" title="${escapeHtml(h.embeds?.[0]?.title || h.content || 'Sans titre')}">
+                  ${escapeHtml((h.embeds?.[0]?.title || h.content || 'Sans titre').slice(0, 40))}
+                  <span class="muted" style="font-size:0.72rem;">— #${escapeHtml(textChannels.find((c) => c.id === h.channelId)?.name || '?')}, ${new Date(h.postedAt).toLocaleString('fr-FR', { day: '2-digit', month: '2-digit', hour: '2-digit', minute: '2-digit' })}</span>
+                </span>
+                <button class="btn secondary embed-history-load" data-history-id="${h.id}">Recharger</button>
+                ${h.messageId ? `<button class="btn secondary embed-history-edit" data-history-id="${h.id}" title="Recharge le formulaire puis mettra a jour CE message a l'envoi">✏️ Editer</button>` : ''}
+              </div>`).join('') || '<p class="muted">Aucun envoi encore. Les 15 derniers embeds postes apparaitront ici.</p>'}</div>
 
             <div class="dp-subsection-divider"></div>
             <p class="dp-block-title">🧾 JSON avance (import/export)</p>
@@ -6961,6 +6974,25 @@ async function renderEmbedBuilderPage(id, container = app) {
         populateEmbedForm(container, template.embed, '');
         showToast('Modele charge.');
       }
+    });
+  });
+
+  // Historique des envois (roadmap n°130) : recharger une copie, ou editer
+  // le message d'origine (n°131 — pre-remplit salon + ID, l'envoi PATCHera).
+  container.querySelectorAll('.embed-history-load, .embed-history-edit').forEach((btn) => {
+    btn.addEventListener('click', () => {
+      const entry = embedHistory.find((h) => h.id === btn.dataset.historyId);
+      if (!entry) return;
+      container.__mb = { embeds: JSON.parse(JSON.stringify(entry.embeds || [{}])), active: 0 };
+      populateEmbedForm(container, container.__mb.embeds[0] || {}, entry.content || '');
+      renderEmbedTabs(container);
+      const isEdit = btn.classList.contains('embed-history-edit');
+      const channelSel = container.querySelector('#embed-target-channel');
+      if ([...channelSel.options].some((o) => o.value === entry.channelId)) channelSel.value = entry.channelId;
+      container.querySelector('#embed-target-message-id').value = isEdit ? (entry.messageId || '') : '';
+      showToast(isEdit
+        ? 'Charge : l\'envoi mettra a jour le message d\'origine.'
+        : 'Envoi recharge dans le formulaire (nouvelle copie).');
     });
   });
   container.querySelectorAll('.embed-delete-template').forEach((btn) => {

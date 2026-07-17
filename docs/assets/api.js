@@ -232,6 +232,7 @@ window.Api = (function api() {
       if (!res.ok) throw new Error((body && body.error) || `Erreur ${res.status}`);
       return body;
     },
+    embedHistory: (guildId) => request(`/api/guilds/${guildId}/embed-history`),
     getMessage: (guildId, channelId, messageId) => request(`/api/guilds/${guildId}/messages/${channelId}/${messageId}`),
     editEmbedMessage: (guildId, channelId, messageId, embeds, content) => request(`/api/guilds/${guildId}/messages/${channelId}/${messageId}`, { method: 'PATCH', body: JSON.stringify({ embeds, content }) }),
     createMemberCountChannel: (guildId, nameTemplate) => request(`/api/guilds/${guildId}/membercount`, { method: 'POST', body: JSON.stringify({ nameTemplate }) }),
