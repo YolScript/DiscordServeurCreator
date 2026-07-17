@@ -640,6 +640,27 @@ function sectionHtml(title, bodyHtml, { id = '', alwaysOpen = false } = {}) {
   return `<div class="section-panel${alwaysOpen ? ' active' : ''}"${id ? ` id="section-${id}"` : ''}>${bodyHtml}</div>`;
 }
 
+// Table des matieres rapide (retour utilisateur : les pages a beaucoup de
+// sections empilees font rater les fonctionnalites recentes en scrollant).
+// `entries` = [[sectionId, label, icon?], ...] dans l'ordre d'apparition.
+function quickJumpBarHtml(entries) {
+  return `
+    <div class="dp-quickjump" role="navigation" aria-label="Aller a une section">
+      ${entries.map(([sid, label, icon]) => `<button type="button" class="dp-quickjump-btn" data-jump-to="${sid}">${icon ? `${icon} ` : ''}${escapeHtml(label)}</button>`).join('')}
+    </div>`;
+}
+function wireQuickJump(container) {
+  container.querySelectorAll('.dp-quickjump-btn').forEach((btn) => {
+    btn.addEventListener('click', () => {
+      const target = document.getElementById(`section-${btn.dataset.jumpTo}`);
+      if (!target) return;
+      target.scrollIntoView({ behavior: 'smooth', block: 'start' });
+      target.classList.add('flash-highlight');
+      setTimeout(() => target.classList.remove('flash-highlight'), 2400);
+    });
+  });
+}
+
 // Undo global (roadmap n°112) : la ligne disparait tout de suite, la
 // suppression reelle ne part qu'apres le compte a rebours du toast (Annuler
 // la restaure sans rien avoir supprime).
@@ -3455,6 +3476,10 @@ async function renderPermissionsPage(id, container = app) {
 
   container.innerHTML = `
     <div class="inner">
+      ${quickJumpBarHtml([
+    ['perm-bulk', 'Edition en masse'], ['perm-matrix', 'Matrice'], ['perm-viewas', 'Voir comme'],
+    ['perm-io', 'Export/Import'], ['perm-default', 'Par defaut'], ['perm-dashboard', 'Acces dashboard'],
+  ])}
       ${sectionHtml('Edition en masse', `
         <p class="muted">Choisis les salons, le role, et une action rapide a appliquer partout en un clic.</p>
         <label>Salons</label>
@@ -3527,6 +3552,7 @@ async function renderPermissionsPage(id, container = app) {
       `, { id: 'perm-dashboard' })}
     </div>
   `;
+  wireQuickJump(container);
 
   // Pre-remplissage apres un drop role -> salon (roadmap n°016).
   if (permPrefill) {
@@ -4059,6 +4085,12 @@ async function renderAutomationsPage(id, container = app) {
 
   container.innerHTML = `
     <div class="inner">
+      ${quickJumpBarHtml([
+    ['streamers', 'Streamers'], ['annonces', 'Annonces'], ['regles', 'Regles'], ['cooldowns', 'Cooldowns'],
+    ['automod', 'Auto-mod'], ['service', 'Service staff'], ['tickets', 'Tickets'], ['suggestions', 'Suggestions'],
+    ['signalements', 'Signalements'], ['economie', 'Economie'], ['niveaux', 'Niveaux'], ['parrainage', 'Parrainage'],
+    ['bots', 'Bots'], ['webhooks', 'Webhooks'], ['rss', 'RSS'], ['arrivee', 'Bot & role auto'],
+  ])}
       ${sectionHtml('Bots complementaires', `
         <p class="muted">Ajoute des modules complementaires a ce serveur en invitant ces bots.</p>
         <div class="row">
@@ -4507,6 +4539,7 @@ async function renderAutomationsPage(id, container = app) {
       `, { id: 'tickets' })}
     </div>
   `;
+  wireQuickJump(container);
 
   document.getElementById('save-service-config').addEventListener('click', async () => {
     const btn = document.getElementById('save-service-config');
