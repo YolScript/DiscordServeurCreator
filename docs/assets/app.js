@@ -575,6 +575,18 @@ function renderMarkdownLite(text) {
     html = html.replace(/\*\*([^*\n]+)\*\*/g, '<strong>$1</strong>');
     html = html.replace(/(?<![*\w])\*([^*\n]+)\*(?!\w)/g, '<em>$1</em>');
     html = html.replace(/\[([^\]\n]+)\]\((https?:\/\/[^\s)]+)\)/g, '<a href="$2" target="_blank" rel="noopener noreferrer">$1</a>');
+    // Mentions de role/salon avec leur vraie couleur (roadmap n°235) : le
+    // texte est deja passe par escapeHtml juste au-dessus, <@&id> est donc
+    // devenu &lt;@&amp;id&gt; a ce stade.
+    html = html.replace(/&lt;@&amp;(\d+)&gt;/g, (_, roleId) => {
+      const role = paletteCtx?.roles?.find((r) => r.id === roleId);
+      if (!role) return '<span class="embed-mention-pill">@role</span>';
+      return `<span class="embed-mention-pill" style="--mc:${intToHex(role.color)};">@${escapeHtml(role.name)}</span>`;
+    });
+    html = html.replace(/&lt;#(\d+)&gt;/g, (_, channelId) => {
+      const ch = paletteCtx?.channels?.find((c) => c.id === channelId);
+      return `<span class="embed-mention-pill embed-mention-channel">#${escapeHtml(ch?.name || 'salon')}</span>`;
+    });
     // Listes : regroupe les lignes consecutives commencant par -/* ou 1.
     const lines = html.split('\n');
     const out = [];
@@ -1524,6 +1536,7 @@ function renderPreviewContent(id, { channels, config, roles, members }) {
       <div class="dp-category" data-cat="${cat.id}" draggable="true" tabindex="0" role="button" aria-expanded="true" aria-label="Categorie ${escapeHtml(cat.name)}" data-drag-type="category" data-drag-name="${escapeHtml(cat.name)}">
         <span class="chevron">▾</span>
         <span class="dp-category-name">${escapeHtml(cat.name)}</span>
+        <span class="dp-category-count" title="${children.length} salon(s)">${children.length}</span>
         <button type="button" class="dp-category-sort dp-category-duplicate" data-cat-duplicate="${cat.id}" data-cat-name="${escapeHtml(cat.name)}" title="Dupliquer la categorie et ses salons" aria-label="Dupliquer la categorie ${escapeHtml(cat.name)}">⧉</button>
         <button type="button" class="dp-category-sort" data-cat-sort="${cat.id}" title="Trier les salons de A a Z" aria-label="Trier les salons de ${escapeHtml(cat.name)} de A a Z">A→Z</button>
         <button type="button" class="dp-category-settings" data-cat-settings="${cat.id}" data-cat-name="${escapeHtml(cat.name)}" title="Configurer" aria-label="Configurer la categorie ${escapeHtml(cat.name)}">⚙</button>
@@ -7182,7 +7195,7 @@ function updateEmbedPreview(root) {
 function renderEmbedTabs(root) {
   const state = root.__mb;
   const tabsHtml = state.embeds.map((_, i) => `
-    <span class="embed-tab-group">
+    <span class="embed-tab-group" draggable="true" data-index="${i}">
       <button type="button" class="btn ${i === state.active ? '' : 'secondary'} embed-tab-btn" data-index="${i}" style="padding:6px 12px;">Embed ${i + 1}</button>
       ${state.embeds.length > 1 ? `<button type="button" class="btn secondary embed-tab-remove" data-index="${i}" aria-label="Supprimer Embed ${i + 1}" title="Supprimer cet embed" style="padding:6px 8px;">✕</button>` : ''}
     </span>
@@ -7199,11 +7212,64 @@ function renderEmbedTabs(root) {
   });
   root.querySelectorAll('.embed-tab-btn').forEach((btn) => {
     btn.addEventListener('click', () => switchEmbedTab(root, Number(btn.dataset.index)));
+    // Alternative clavier au drag&drop (roadmap n°239), meme logique que les
+    // champs d'embed : Alt+fleche gauche/droite deplace l'onglet.
+    btn.addEventListener('keydown', (e) => {
+      if (!e.altKey || (e.key !== 'ArrowLeft' && e.key !== 'ArrowRight')) return;
+      e.preventDefault();
+      const i = Number(btn.dataset.index);
+      const j = e.key === 'ArrowLeft' ? i - 1 : i + 1;
+      if (j < 0 || j >= state.embeds.length) return;
+      moveEmbedTab(root, i, j);
+      root.querySelector(`.embed-tab-btn[data-index="${j}"]`)?.focus();
+    });
   });
   const addTabBtn = root.querySelector('#embed-tab-add');
   if (addTabBtn) addTabBtn.addEventListener('click', () => addEmbedTab(root));
   const dupTabBtn = root.querySelector('#embed-tab-duplicate');
   if (dupTabBtn) dupTabBtn.addEventListener('click', () => duplicateEmbedTab(root));
+
+  // Glisser-deposer pour reordonner les embeds multiples (roadmap n°239).
+  if (state.embeds.length > 1) {
+    root.querySelectorAll('.embed-tab-group').forEach((group) => {
+      group.ondragstart = (e) => {
+        group.classList.add('dragging');
+        e.dataTransfer.setData('text/plain', '');
+        e.dataTransfer.effectAllowed = 'move';
+      };
+      group.ondragover = (e) => {
+        e.preventDefault();
+        const list = group.parentElement;
+        const dragging = list.querySelector('.embed-tab-group.dragging');
+        if (!dragging || dragging === group) return;
+        const rect = group.getBoundingClientRect();
+        const before = (e.clientX - rect.left) < rect.width / 2;
+        const target = before ? group : group.nextSibling;
+        if (dragging.nextSibling === target) return;
+        list.insertBefore(dragging, target);
+      };
+      group.ondragend = () => {
+        group.classList.remove('dragging');
+        const domOrder = [...root.querySelector('#embed-tabs').querySelectorAll('.embed-tab-group')].map((g) => Number(g.dataset.index));
+        if (domOrder.every((idx, pos) => idx === pos)) return; // rien deplace
+        const activeEmbed = state.embeds[state.active];
+        state.embeds = domOrder.map((idx) => state.embeds[idx]);
+        state.active = state.embeds.indexOf(activeEmbed);
+        renderEmbedTabs(root);
+      };
+    });
+  }
+}
+
+// Deplace l'embed d'index i vers j (roadmap n°239, utilise par le raccourci
+// clavier Alt+fleches).
+function moveEmbedTab(root, i, j) {
+  const state = root.__mb;
+  const activeEmbed = state.embeds[state.active];
+  const [moved] = state.embeds.splice(i, 1);
+  state.embeds.splice(j, 0, moved);
+  state.active = state.embeds.indexOf(activeEmbed);
+  renderEmbedTabs(root);
 }
 
 // Duplique l'embed actif (n°008) et bascule dessus.
@@ -7351,13 +7417,20 @@ async function renderEmbedBuilderPage(id, container = app) {
     memberCount: Array.isArray(members) ? members.length : null,
   };
 
-  const templateRows = () => templates.map((t) => `
+  // Recherche dans les modeles sauvegardes (roadmap n°243) : filtre cote
+  // client sur le nom, la liste grandissant vite des qu'on en enregistre
+  // regulierement.
+  const templateRows = (query = '') => {
+    const q = query.trim().toLowerCase();
+    const filtered = q ? templates.filter((t) => t.name.toLowerCase().includes(q)) : templates;
+    return filtered.map((t) => `
     <div class="embed-template-row" data-id="${t.id}">
       <span class="embed-template-name" title="${escapeHtml(t.name)}">${escapeHtml(t.name)}</span>
       <button class="btn secondary embed-load-template" data-id="${t.id}">Charger</button>
       <button class="btn danger embed-delete-template" data-id="${t.id}" title="Supprimer le modele" aria-label="Supprimer le modele ${escapeHtml(t.name)}">✕</button>
     </div>
-  `).join('') || '<p class="muted">Aucun modele enregistre.</p>';
+  `).join('') || `<p class="muted">${q ? 'Aucun modele ne correspond a la recherche.' : 'Aucun modele enregistre.'}</p>`;
+  };
 
   container.innerHTML = `
     <div class="inner" style="max-width:none;">
@@ -7492,6 +7565,7 @@ async function renderEmbedBuilderPage(id, container = app) {
               ${EMBED_PRESETS.map((p) => `<button type="button" class="embed-preset-btn" data-preset="${p.key}">${p.label}</button>`).join('')}
             </div>
             <div id="embed-draft-row"></div>
+            ${templates.length > 5 ? '<input type="text" id="embed-template-search" placeholder="Rechercher un modele..." aria-label="Rechercher un modele" style="margin-bottom:8px;" />' : ''}
             <div id="embed-templates-list">${templateRows()}</div>
 
             <div class="dp-subsection-divider"></div>
@@ -7529,6 +7603,7 @@ async function renderEmbedBuilderPage(id, container = app) {
           <label style="margin-top:10px;" for="embed-target-message-id">ID du message a editer (optionnel — laisse vide pour poster un nouveau message)</label>
           <input type="text" id="embed-target-message-id" placeholder="Clic droit sur le message > Copier l'ID" />
           <button class="btn secondary" id="embed-load-message-btn" style="margin-top:8px; width:100%;">📥 Charger le contenu de ce message</button>
+          <button class="btn secondary" id="embed-test-dm-btn" style="margin-top:10px; width:100%;">🧪 Tester en MP</button>
           <button class="btn" id="embed-post-btn" style="margin-top:10px; width:100%;">🚀 Poster dans Discord</button>
           <button class="btn secondary" id="embed-save-template-btn" style="margin-top:8px; width:100%;">💾 Enregistrer comme modele</button>
 
@@ -7699,21 +7774,40 @@ async function renderEmbedBuilderPage(id, container = app) {
     e.currentTarget.textContent = mobile ? '🖥️ Apercu bureau' : '📱 Apercu mobile';
   });
 
-  // Validation en direct des URL d'images (n°010) : chargement reel teste.
+  // Validation en direct des URL d'images (n°010), avec dimensions + poids
+  // (roadmap n°237). Le poids depend d'un HEAD Content-Length qui echoue
+  // silencieusement si le CDN ne pose pas de header CORS (pas de bug, juste
+  // une info indisponible pour ce cas) : on affiche alors les dimensions
+  // seules plutot que de pretendre avoir le poids.
   const imgUrlIds = ['embed-author-icon', 'embed-thumbnail', 'embed-image', 'embed-footer-icon'];
+  const formatBytes = (n) => (n < 1024 ? `${n} o` : n < 1024 * 1024 ? `${Math.round(n / 1024)} Ko` : `${(n / (1024 * 1024)).toFixed(1)} Mo`);
   imgUrlIds.forEach((fieldId) => {
     const input = container.querySelector(`#${fieldId}`);
+    const info = document.createElement('span');
+    info.className = 'embed-img-info';
+    input.insertAdjacentElement('afterend', info);
     let timer = null;
     input.addEventListener('input', () => {
       clearTimeout(timer);
       input.classList.remove('url-ok', 'url-bad');
+      info.textContent = '';
       const v = input.value.trim();
       if (!v) return;
       if (v.startsWith('attachment://')) return; // fichier local joint : pas d'URL a tester
-      timer = setTimeout(() => {
+      timer = setTimeout(async () => {
         if (!/^https?:\/\/\S+$/i.test(v)) { input.classList.add('url-bad'); return; }
         const probe = new Image();
-        probe.onload = () => { if (input.value.trim() === v) input.classList.add('url-ok'); };
+        probe.onload = async () => {
+          if (input.value.trim() !== v) return;
+          input.classList.add('url-ok');
+          let sizeLabel = '';
+          try {
+            const res = await fetch(v, { method: 'HEAD' });
+            const len = res.headers.get('content-length');
+            if (len) sizeLabel = ` — ${formatBytes(Number(len))}`;
+          } catch { /* CORS ou reseau : poids simplement indisponible */ }
+          if (input.value.trim() === v) info.textContent = `📐 ${probe.naturalWidth}×${probe.naturalHeight}px${sizeLabel}`;
+        };
         probe.onerror = () => { if (input.value.trim() === v) input.classList.add('url-bad'); };
         probe.src = v;
       }, 600);
@@ -7817,6 +7911,27 @@ async function renderEmbedBuilderPage(id, container = app) {
     }
   });
 
+  container.querySelector('#embed-test-dm-btn').addEventListener('click', async (e) => {
+    const state = container.__mb;
+    state.embeds[state.active] = buildEmbedFromForm(container).embed;
+    const embeds = state.embeds.map(substituteEmbedVars);
+    const content = resolveEmbedVars(container.querySelector('#embed-content').value.trim());
+    if (!embeds.some((em) => em.title || em.description || (em.fields || []).length)) {
+      showToast('Ajoute au moins un titre, une description ou un champ.', 'error');
+      return;
+    }
+    const btn = e.currentTarget;
+    btn.disabled = true;
+    try {
+      await Api.postEmbedDm(id, embeds, content);
+      showToast('Apercu envoye en MP.');
+    } catch (err) {
+      showToast(err.message, 'error');
+    } finally {
+      btn.disabled = false;
+    }
+  });
+
   container.querySelector('#embed-post-btn').addEventListener('click', async () => {
     const channelId = container.querySelector('#embed-target-channel').value;
     const messageId = container.querySelector('#embed-target-message-id').value.trim();
@@ -7895,14 +8010,28 @@ async function renderEmbedBuilderPage(id, container = app) {
     }
   });
 
-  container.querySelectorAll('.embed-load-template').forEach((btn) => {
-    btn.addEventListener('click', () => {
-      const template = templates.find((t) => t.id === btn.dataset.id);
-      if (template) {
-        populateEmbedForm(container, template.embed, '');
-        showToast('Modele charge.');
-      }
+  // Delegue (roadmap n°243) : la liste est re-rendue a chaque frappe dans la
+  // recherche, re-cabler individuellement chaque bouton a chaque fois.
+  function wireTemplateButtons() {
+    container.querySelectorAll('.embed-load-template').forEach((btn) => {
+      btn.onclick = () => {
+        const template = templates.find((t) => t.id === btn.dataset.id);
+        if (template) {
+          populateEmbedForm(container, template.embed, '');
+          showToast('Modele charge.');
+        }
+      };
     });
+    container.querySelectorAll('.embed-delete-template').forEach((btn) => {
+      btn.onclick = () => {
+        undoableDelete(btn, 'Modele supprime.', () => Api.deleteEmbedTemplate(id, btn.dataset.id));
+      };
+    });
+  }
+  wireTemplateButtons();
+  container.querySelector('#embed-template-search')?.addEventListener('input', (e) => {
+    container.querySelector('#embed-templates-list').innerHTML = templateRows(e.target.value);
+    wireTemplateButtons();
   });
 
   // Historique des envois (roadmap n°130) : recharger une copie, ou editer
@@ -7923,12 +8052,6 @@ async function renderEmbedBuilderPage(id, container = app) {
         : 'Envoi recharge dans le formulaire (nouvelle copie).');
     });
   });
-  container.querySelectorAll('.embed-delete-template').forEach((btn) => {
-    btn.addEventListener('click', () => {
-      undoableDelete(btn, 'Modele supprime.', () => Api.deleteEmbedTemplate(id, btn.dataset.id));
-    });
-  });
-
   container.querySelector('a.embed-json-jump').addEventListener('click', () => {
     setTimeout(() => container.querySelector('#embed-json').focus(), 300);
   });

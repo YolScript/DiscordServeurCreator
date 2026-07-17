@@ -2004,6 +2004,28 @@ async function router(request, env) {
       return json({ ok: true }, env);
     }
 
+    // Bouton "Tester en MP" du generateur d'embed (roadmap n°241) : envoie
+    // l'embed au dashboard-user courant en message prive, AVANT publication
+    // reelle dans le serveur. Volontairement plus simple que l'envoi normal
+    // (pas de fichiers joints, pas d'historique) : c'est un apercu, pas un post.
+    if (sub === 'panels' && parts[4] === 'embed-dm' && parts.length === 5 && method === 'POST') {
+      const session = await requireGuildAccess(env, request, guildId);
+      const body = await readJson(request);
+      const embeds = body.embeds || (body.embed ? [body.embed] : null);
+      if (!embeds?.length) throw new HttpError(400, 'embeds requis.');
+      if (embeds.length > 10) throw new HttpError(400, '10 embeds maximum par message.');
+      const dm = await botFetchJson(env, '/users/@me/channels', {
+        method: 'POST',
+        body: JSON.stringify({ recipient_id: session.userId }),
+      }).catch(() => null);
+      if (!dm?.id) throw new HttpError(502, "Impossible d'ouvrir un MP (bloques les MP des membres du serveur ?).");
+      await botFetchJson(env, `/channels/${dm.id}/messages`, {
+        method: 'POST',
+        body: JSON.stringify({ content: body.content ? `🧪 **Apercu** : ${body.content}` : '🧪 **Apercu de ton embed**', embeds }),
+      });
+      return json({ ok: true }, env);
+    }
+
     // --- Lecture/edition directe d'un message existant (pour "editer un
     // embed deja poste") : appel direct a l'API Discord, pas besoin de
     // passer par la file d'attente du bot puisque c'est une simple requete

@@ -231,6 +231,7 @@ window.Api = (function api() {
     createReactionRoleGroup: (guildId, payload) => request(`/api/guilds/${guildId}/reactionroles`, { method: 'POST', body: JSON.stringify(payload) }),
     deleteReactionRoleGroup: (guildId, groupId) => request(`/api/guilds/${guildId}/reactionroles/${groupId}`, { method: 'DELETE' }),
     postEmbed: (guildId, channelId, embeds, content, buttons) => request(`/api/guilds/${guildId}/panels/embed`, { method: 'POST', body: JSON.stringify({ channelId, embeds, content, buttons }) }),
+    postEmbedDm: (guildId, embeds, content) => request(`/api/guilds/${guildId}/panels/embed-dm`, { method: 'POST', body: JSON.stringify({ embeds, content }) }),
     // Variante multipart (roadmap n°001) : images locales jointes au message.
     // fetch dedie : request() force Content-Type JSON, le multipart doit
     // laisser le navigateur poser le boundary.
