@@ -15,15 +15,23 @@ client.on(Events.MessageCreate, async (message) => {
   await staffChatLogger.handleMessageCreate(message);
   if (message.guild && !message.author.bot) statsTracker.recordMessage(message.guild.id);
 
-  // Publication croisee automatique (roadmap n°101) : tout message poste
-  // dans un salon d'annonces est publie vers les serveurs abonnes, si le
-  // toggle est actif au dashboard.
-  if (message.guild && message.channel.type === ChannelType.GuildAnnouncement) {
+  if (message.guild && !message.author.bot) {
     try {
       const config = await guildConfigStore.find(message.guild.id);
-      if (config?.autoCrosspost && message.crosspostable) await message.crosspost();
+
+      // Publication croisee automatique (roadmap n°101) : tout message poste
+      // dans un salon d'annonces est publie vers les serveurs abonnes, si le
+      // toggle est actif au dashboard.
+      if (message.channel.type === ChannelType.GuildAnnouncement && config?.autoCrosspost && message.crosspostable) {
+        await message.crosspost();
+      }
+
+      // Reaction automatique par salon (roadmap n°284) : ex. 📌 sur chaque
+      // post d'un salon d'annonces, sans intervention du staff.
+      const emoji = config?.autoReactChannels?.[message.channel.id];
+      if (emoji) await message.react(emoji).catch(() => {});
     } catch (err) {
-      logger.error('autoCrosspost', err);
+      logger.error('messageCreate.perGuildAutomation', err);
     }
   }
 });

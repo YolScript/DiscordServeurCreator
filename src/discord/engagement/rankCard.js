@@ -14,7 +14,7 @@ function roundRect(ctx, x, y, w, h, r) {
 }
 
 async function buildRankCard({
-  username, avatarUrl, level, xp, currentLevelXp, nextLevelXp, rank, messageCount, voiceMinutes,
+  username, avatarUrl, level, xp, currentLevelXp, nextLevelXp, rank, messageCount, voiceMinutes, nextTier,
 }) {
   const canvas = createCanvas(WIDTH, HEIGHT);
   const ctx = canvas.getContext('2d');
@@ -67,6 +67,23 @@ async function buildRankCard({
   ctx.fillStyle = '#9aa4c7';
   ctx.font = '22px sans-serif';
   ctx.fillText(`${messageCount} messages · ${voiceMinutes} min vocal`, WIDTH - 50, 130);
+
+  // Badge de palier (roadmap n°288) : bronze/argent/or selon le niveau,
+  // paliers calques sur la courbe d'XP (50*n*(n+1)) pour rester coherents
+  // avec un rythme de progression normal (or = investissement consequent).
+  const tier = level >= 25 ? { label: 'OR', color: '#ffd700' } : level >= 10 ? { label: 'ARGENT', color: '#c0c0c0' } : level >= 1 ? { label: 'BRONZE', color: '#cd7f32' } : null;
+  if (tier) {
+    ctx.font = 'bold 16px sans-serif';
+    const badgeW = ctx.measureText(tier.label).width + 24;
+    const badgeX = WIDTH - 50 - badgeW;
+    const badgeY = 145;
+    ctx.fillStyle = tier.color;
+    roundRect(ctx, badgeX, badgeY, badgeW, 26, 13);
+    ctx.fill();
+    ctx.fillStyle = '#1a1a2e';
+    ctx.textAlign = 'center';
+    ctx.fillText(tier.label, badgeX + badgeW / 2, badgeY + 18);
+  }
   ctx.textAlign = 'left';
 
   const barX = textX;
@@ -91,6 +108,14 @@ async function buildRankCard({
   ctx.fillStyle = '#9aa4c7';
   ctx.font = '20px sans-serif';
   ctx.fillText(`${xp - currentLevelXp} / ${nextLevelXp - currentLevelXp} XP`, barX, barY + barH + 30);
+
+  // Prochain palier (roadmap n°298) : distinct du prochain NIVEAU ci-dessus,
+  // peut etre a plusieurs niveaux d'ecart (role/bonus configure par l'admin).
+  if (nextTier) {
+    ctx.fillStyle = '#ffd700';
+    ctx.font = '18px sans-serif';
+    ctx.fillText(`Prochain palier : niveau ${nextTier.level} (encore ${Math.max(0, nextTier.xpNeeded).toLocaleString('fr-FR')} XP)`, barX, barY + barH + 58);
+  }
 
   return canvas.encode('png');
 }

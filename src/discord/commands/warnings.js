@@ -3,7 +3,7 @@ const warnStore = require('../../kv/warnStore');
 
 async function handleWarningsCommand(interaction) {
   const target = interaction.options.getUser('membre', true);
-  const warns = await warnStore.list(interaction.guild.id, target.id);
+  const warns = await warnStore.listActive(interaction.guild.id, target.id);
 
   if (warns.length === 0) {
     await interaction.reply({ content: `<@${target.id}> n'a aucun avertissement.`, flags: MessageFlags.Ephemeral });

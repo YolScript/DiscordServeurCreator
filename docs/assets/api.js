@@ -168,6 +168,7 @@ window.Api = (function api() {
 
     applyServiceVisibility: (guildId) => request(`/api/guilds/${guildId}/service/apply`, { method: 'POST' }),
     auditLog: (guildId) => request(`/api/guilds/${guildId}/auditlog`),
+    moderationStats: (guildId) => request(`/api/guilds/${guildId}/moderation-stats`),
     stats: (guildId) => request(`/api/guilds/${guildId}/stats`),
     voiceChannelStats: (guildId) => request(`/api/guilds/${guildId}/voicechannelstats`),
     setRolePositions: (guildId, positions) => request(`/api/guilds/${guildId}/roles/positions`, { method: 'PATCH', body: JSON.stringify({ positions }) }),

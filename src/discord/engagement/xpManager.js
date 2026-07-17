@@ -21,6 +21,8 @@ async function getXpConfig(guildId) {
   const entry = {
     rate: Math.min(3, Math.max(0.5, Number(config?.xpRate) || 1)),
     boosts: config?.xpChannelBoosts || {},
+    // Salons exclus de l'XP (roadmap n°294) : ex. bot-commandes, spam.
+    excluded: new Set(config?.xpExcludedChannels || []),
     expires: Date.now() + 5 * 60_000,
   };
   xpConfigCache.set(guildId, entry);
@@ -116,6 +118,26 @@ function formatAnnounce(template, userId, level) {
   return template.replace(/\{user\}/g, `<@${userId}>`).replace(/\{level\}/g, String(level));
 }
 
+// Destination de l'annonce de niveau (roadmap n°296) : salon ou le message a
+// declenche le passage de niveau (comportement historique, defaut), un salon
+// dedie choisi au dashboard, ou MP au membre. Le vocal n'a pas de "salon
+// declencheur" : il beneficie donc directement du mode salon-dedie/MP la ou
+// avant il n'annoncait jamais rien.
+async function sendLevelAnnounce(guild, member, text, fallbackChannel) {
+  const config = await guildConfigStore.find(guild.id).catch(() => null);
+  const mode = config?.levelUpAnnounceMode || 'channel';
+  if (mode === 'off') return;
+  if (mode === 'dm') {
+    await member.send(text).catch(() => {});
+    return;
+  }
+  if (mode === 'channel' && config?.levelUpAnnounceChannelId) {
+    const channel = await guild.channels.fetch(config.levelUpAnnounceChannelId).catch(() => null);
+    if (channel) { await channel.send(text).catch(() => {}); return; }
+  }
+  if (fallbackChannel) await fallbackChannel.send(text).catch(() => {});
+}
+
 async function awardLevelRewards(guildId, userId, triggered) {
   for (const lr of triggered) {
     if (lr.bonus) {
@@ -127,13 +149,18 @@ async function awardLevelRewards(guildId, userId, triggered) {
 
 async function awardMessageXp(message) {
   if (message.author.bot || !message.guild || !message.member) return;
-  const cooldownKey = `${message.guild.id}:${message.author.id}`;
-  const now = Date.now();
-  if ((messageCooldowns.get(cooldownKey) ?? 0) > now) return;
-  messageCooldowns.set(cooldownKey, now + MESSAGE_COOLDOWN_MS);
 
   try {
-    const { rate, boosts } = await getXpConfig(message.guild.id);
+    const { rate, boosts, excluded } = await getXpConfig(message.guild.id);
+    // Salon exclu (roadmap n°294) : sort AVANT de consommer le cooldown, pour
+    // qu'un message dans #bot-commandes n'empeche pas de gagner de l'XP au
+    // prochain message dans un salon normal.
+    if (excluded.has(message.channel.id)) return;
+    const cooldownKey = `${message.guild.id}:${message.author.id}`;
+    const now = Date.now();
+    if ((messageCooldowns.get(cooldownKey) ?? 0) > now) return;
+    messageCooldowns.set(cooldownKey, now + MESSAGE_COOLDOWN_MS);
+
     const boost = Math.min(5, Math.max(0.5, Number(boosts[message.channel.id]) || 1));
     const data = await getMemberBuffered(message.guild.id, message.author.id);
     const oldLevel = data.level;
@@ -150,7 +177,7 @@ async function awardMessageXp(message) {
       await awardLevelRewards(message.guild.id, message.author.id, triggered);
       const customAnnounces = triggered.filter((lr) => lr.announce).map((lr) => formatAnnounce(lr.announce, message.author.id, lr.level));
       const text = customAnnounces.length ? customAnnounces.join('\n') : `🎉 <@${message.author.id}> passe niveau **${newLevel}** !`;
-      await message.channel.send(text).catch(() => {});
+      await sendLevelAnnounce(message.guild, message.member, text, message.channel);
     }
     await checkAndAwardBadges(message.guild, message.author.id);
   } catch (err) {
@@ -163,10 +190,14 @@ async function tickVoiceXp(client) {
     for (const channel of guild.channels.cache.values()) {
       if (channel.type !== 2 || !channel.members) continue; // 2 = GuildVoice
       const activeMembers = [...channel.members.values()].filter((m) => !m.user.bot && !m.voice.selfDeaf && !m.voice.deaf);
+      // Les statistiques d'occupation (n°188) restent suivies meme sur un
+      // salon exclu de l'XP : ce sont deux informations distinctes.
       if (activeMembers.length) queueChannelMinutes(guild.id, channel.id, 5);
+      // eslint-disable-next-line no-await-in-loop
+      const { rate, excluded } = await getXpConfig(guild.id);
+      if (excluded.has(channel.id)) continue;
       for (const member of activeMembers) {
         try {
-          const { rate } = await getXpConfig(guild.id);
           const data = await getMemberBuffered(guild.id, member.id);
           const oldLevel = data.level;
           data.xp += Math.round(XP_PER_VOICE_TICK * rate);
@@ -179,6 +210,12 @@ async function tickVoiceXp(client) {
             await flushMemberNow(guild.id, member.id);
             const triggered = await applyLevelRewards(member, oldLevel, newLevel);
             await awardLevelRewards(guild.id, member.id, triggered);
+            // Pas de "salon declencheur" en vocal : uniquement salon dedie ou
+            // MP (roadmap n°296) — silencieux si aucun des deux n'est
+            // configure, comme avant cette fonctionnalite.
+            const customAnnounces = triggered.filter((lr) => lr.announce).map((lr) => formatAnnounce(lr.announce, member.id, lr.level));
+            const text = customAnnounces.length ? customAnnounces.join('\n') : `🎉 <@${member.id}> passe niveau **${newLevel}** !`;
+            await sendLevelAnnounce(guild, member, text, null);
           }
           await checkAndAwardBadges(guild, member.id);
         } catch (err) {

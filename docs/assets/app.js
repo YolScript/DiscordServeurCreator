@@ -4450,7 +4450,7 @@ async function renderAutomationsPage(id, container = app) {
     ['automod', 'Auto-mod'], ['service', 'Service staff'], ['tickets', 'Tickets'], ['suggestions', 'Suggestions'],
     ['signalements', 'Signalements'], ['economie', 'Economie'], ['niveaux', 'Niveaux'], ['parrainage', 'Parrainage'],
     ['bots', 'Bots'], ['webhooks', 'Webhooks'], ['rss', 'RSS'], ['arrivee', 'Bot & role auto'],
-    ['notifications', 'Notifications push'],
+    ['autoreact', 'Reactions auto'], ['notifications', 'Notifications push'],
   ])}
       ${sectionHtml('Bots complementaires', `
         <p class="muted">Ajoute des modules complementaires a ce serveur en invitant ces bots.</p>
@@ -4495,6 +4495,25 @@ async function renderAutomationsPage(id, container = app) {
           <button class="btn secondary" id="create-membercount-channel" style="margin-top:8px;">Creer le salon compteur</button>
         `}
       `, { id: 'arrivee' })}
+
+      ${sectionHtml('Reactions automatiques par salon', `
+        <p class="muted">Le bot ajoute automatiquement une reaction a chaque message poste dans le salon choisi (roadmap n°284, ex. 📌 sur les annonces).</p>
+        <div id="autoreact-list">${Object.entries(config?.autoReactChannels || {}).map(([cid, emoji]) => `
+          <div class="row" style="justify-content:space-between; margin-bottom:6px;">
+            <span>${emoji} → ${escapeHtml(channelName(cid))}</span>
+            <button type="button" class="btn danger delete-autoreact" data-channel="${cid}">Supprimer</button>
+          </div>`).join('') || '<p class="muted">Aucune reaction automatique configuree.</p>'}</div>
+        <div class="row" style="margin-top:10px; gap:8px;">
+          <select id="new-autoreact-channel" aria-label="Salon">${textChannelOptions}</select>
+          <input type="text" id="new-autoreact-emoji" placeholder="📌" maxlength="8" style="width:80px; margin:0;" aria-label="Emoji" />
+          <button class="btn secondary" id="add-autoreact">Ajouter</button>
+        </div>
+        <div class="dp-subsection-divider"></div>
+        <p class="dp-block-title">🧵 Fermeture automatique des threads (roadmap n°286)</p>
+        <label for="thread-autoclose-days">Archiver un thread apres N jours d'inactivite (0 = desactive)</label>
+        <input type="number" id="thread-autoclose-days" value="${config?.threadAutoCloseDays ?? 0}" min="0" />
+        <button class="btn secondary" id="save-thread-autoclose" style="margin-top:8px;">Enregistrer</button>
+      `, { id: 'autoreact' })}
 
       ${sectionHtml('Notifications push', `
         <p class="muted">Recois une notification directement sur cet appareil (navigateur) pour : nouveau ticket, giveaway termine, bot hors ligne. Rien n'est envoye si tu ne l'actives pas.</p>
@@ -4594,6 +4613,9 @@ async function renderAutomationsPage(id, container = app) {
         <label class="dp-toggle-row" style="margin-top:6px;"><span>Anti-raid actif</span><input type="checkbox" id="am-antiraid" ${modConfig.antiRaidEnabled ? 'checked' : ''} /></label>
         <label for="am-antiraid-threshold">Seuil anti-raid (arrivees rapprochees)</label>
         <input type="number" id="am-antiraid-threshold" value="${modConfig.antiRaidJoinThreshold}" min="1" />
+        <label for="am-warn-expiry">Expiration des avertissements apres N jours (roadmap n°280, 0 = jamais)</label>
+        <input type="number" id="am-warn-expiry" value="${config?.warnExpiryDays ?? 0}" min="0" />
+        <p class="muted" style="font-size:0.76rem; margin-top:-6px;">Un avertissement expire n'apparait plus dans /warnings mais reste visible (attenue) dans le casier du dashboard.</p>
         <label for="am-auto-timeout">Timeout automatique apres N infractions en 1 h (0 = jamais)</label>
         <input type="number" id="am-auto-timeout" value="${modConfig.autoTimeoutAfterWarns ?? 3}" min="0" />
         <label for="am-auto-timeout-min">Duree du timeout automatique (minutes)</label>
@@ -4607,7 +4629,7 @@ async function renderAutomationsPage(id, container = app) {
         <p class="dp-block-title">📝 Motifs de sanction (roadmap n°272)</p>
         <p class="muted" style="font-size:0.78rem;">Suggeres par autocompletion dans le champ "raison" de /warn, /timeout et /tempban — un par ligne. Vide = liste par defaut.</p>
         <textarea id="am-sanction-reasons" placeholder="Spam&#10;Propos injurieux ou insultants&#10;Contenu NSFW hors salon dedie">${escapeHtml((config?.sanctionReasonPresets || []).join('\n'))}</textarea>
-        <button class="btn secondary" id="save-sanction-reasons" style="margin-top:8px;">Enregistrer les motifs</button>
+        <button class="btn secondary" id="save-sanction-reasons" style="margin-top:8px;">Enregistrer les motifs et l'expiration</button>
       `, { id: 'automod' })}
 
       ${sectionHtml('Roles de niveau (XP)', `
@@ -4638,7 +4660,27 @@ async function renderAutomationsPage(id, container = app) {
         <div id="xp-boosts-list" class="muted" style="font-size:0.8rem; margin-top:6px;">
           ${Object.entries(config?.xpChannelBoosts || {}).map(([cid, m]) => `• #${escapeHtml(channels.find((c) => c.id === cid)?.name || cid)} : x${m}`).join('<br>') || 'Aucun salon booste.'}
         </div>
+        <label style="margin-top:14px;">Salons exclus de l'XP (roadmap n°294 — ex. bot-commandes)</label>
+        <div class="channel-picker">
+          ${channels.filter((c) => c.type === 0 || c.type === 2).map((c) => `
+            <label><input type="checkbox" value="${c.id}" class="xp-excluded-channel" ${(config?.xpExcludedChannels || []).includes(c.id) ? 'checked' : ''} /> ${c.type === 2 ? '🔊' : '#'} ${escapeHtml(c.name)}</label>
+          `).join('')}
+        </div>
         <button class="btn" id="save-xp-config" style="margin-top:10px;">Enregistrer la vitesse d'XP</button>
+
+        <h2 style="margin-top:18px; font-size:0.85rem;">📣 Annonce de niveau (roadmap n°296)</h2>
+        <label for="levelup-mode">Ou annoncer un passage de niveau</label>
+        <select id="levelup-mode">
+          <option value="channel" ${(config?.levelUpAnnounceMode || 'channel') === 'channel' ? 'selected' : ''}>Dans un salon (celui du message par defaut, ou un salon dedie ci-dessous)</option>
+          <option value="dm" ${config?.levelUpAnnounceMode === 'dm' ? 'selected' : ''}>En message prive au membre</option>
+          <option value="off" ${config?.levelUpAnnounceMode === 'off' ? 'selected' : ''}>Ne jamais annoncer</option>
+        </select>
+        <label for="levelup-channel">Salon dedie (optionnel — sinon le message du niveau atteint reste dans le salon d'origine)</label>
+        <select id="levelup-channel">
+          <option value="">Aucun (salon d'origine)</option>
+          ${channels.filter((c) => c.type === 0).map((c) => `<option value="${c.id}" ${config?.levelUpAnnounceChannelId === c.id ? 'selected' : ''}>#${escapeHtml(c.name)}</option>`).join('')}
+        </select>
+        <button class="btn secondary" id="save-levelup-announce" style="margin-top:8px;">Enregistrer</button>
         <p class="muted" style="font-size:0.76rem; margin-top:6px;">Le bot applique les changements sous 5 minutes.</p>
         <h2 style="margin-top:18px; font-size:0.85rem;">♻️ Reinitialisation XP</h2>
         <p class="muted">Remet l'XP a zero — un membre precis (ID) ou tout le serveur. Irreversible.</p>
@@ -4978,6 +5020,39 @@ async function renderAutomationsPage(id, container = app) {
     }
   });
 
+  document.getElementById('add-autoreact').addEventListener('click', async () => {
+    const channelId = document.getElementById('new-autoreact-channel').value;
+    const emoji = document.getElementById('new-autoreact-emoji').value.trim();
+    if (!channelId || !emoji) { showToast('Choisis un salon et un emoji.', 'error'); return; }
+    try {
+      const autoReactChannels = { ...(config?.autoReactChannels || {}), [channelId]: emoji };
+      await Api.updateConfig(id, { autoReactChannels });
+      showToast('Reaction automatique ajoutee.');
+      await renderAutomationsPage(id, container);
+    } catch (err) {
+      showToast(err.message, 'error');
+    }
+  });
+  container.querySelectorAll('.delete-autoreact').forEach((btn) => {
+    btn.addEventListener('click', () => {
+      undoableDelete(btn, 'Reaction automatique supprimee.', async () => {
+        const autoReactChannels = { ...(config?.autoReactChannels || {}) };
+        delete autoReactChannels[btn.dataset.channel];
+        await Api.updateConfig(id, { autoReactChannels });
+      });
+    });
+  });
+
+  document.getElementById('save-thread-autoclose').addEventListener('click', async () => {
+    try {
+      const threadAutoCloseDays = Math.max(0, Number(document.getElementById('thread-autoclose-days').value) || 0);
+      await Api.updateConfig(id, { threadAutoCloseDays });
+      showToast('Fermeture automatique des threads enregistree.');
+    } catch (err) {
+      showToast(err.message, 'error');
+    }
+  });
+
   wirePushToggle(id, container);
 
   document.getElementById('save-suggestions-channel').addEventListener('click', async () => {
@@ -5088,8 +5163,9 @@ async function renderAutomationsPage(id, container = app) {
     try {
       const sanctionReasonPresets = document.getElementById('am-sanction-reasons').value
         .split('\n').map((l) => l.trim()).filter(Boolean).slice(0, 25);
-      await Api.updateConfig(id, { sanctionReasonPresets });
-      showToast('Motifs de sanction enregistres.');
+      const warnExpiryDays = Math.max(0, Number(document.getElementById('am-warn-expiry').value) || 0);
+      await Api.updateConfig(id, { sanctionReasonPresets, warnExpiryDays });
+      showToast('Motifs de sanction et expiration enregistres.');
     } catch (err) {
       showToast(err.message, 'error');
     }
@@ -5208,6 +5284,18 @@ async function renderAutomationsPage(id, container = app) {
       showToast(err.message, 'error');
     }
   });
+  document.getElementById('save-levelup-announce').addEventListener('click', async () => {
+    try {
+      await Api.updateConfig(id, {
+        levelUpAnnounceMode: document.getElementById('levelup-mode').value,
+        levelUpAnnounceChannelId: document.getElementById('levelup-channel').value || null,
+      });
+      showToast('Annonce de niveau enregistree.');
+    } catch (err) {
+      showToast(err.message, 'error');
+    }
+  });
+
   document.getElementById('copy-public-lb')?.addEventListener('click', async () => {
     try {
       await navigator.clipboard.writeText(document.getElementById('public-lb-link').value);
@@ -5225,10 +5313,12 @@ async function renderAutomationsPage(id, container = app) {
     const boostMult = document.getElementById('xp-boost-mult').value;
     if (boostMult) boosts[boostChannel] = Number(boostMult);
     else delete boosts[boostChannel];
+    const xpExcludedChannels = [...container.querySelectorAll('.xp-excluded-channel:checked')].map((el) => el.value);
     try {
       await Api.updateConfig(id, {
         xpRate: Number(document.getElementById('xp-rate').value) || 1,
         xpChannelBoosts: boosts,
+        xpExcludedChannels,
       });
       showToast("Vitesse d'XP enregistree.");
       await renderAutomationsPage(id, container);
@@ -6216,10 +6306,11 @@ function resolveMentions(text, members, roles) {
 
 async function renderAuditLogPage(id, container = app) {
   container.innerHTML = skeletonHtml('list');
-  const [logs, members, roles, logins] = await Promise.all([
+  const [logs, members, roles, logins, modStats] = await Promise.all([
     Api.auditLog(id), Api.members(id).catch(() => []), Api.roles(id).catch(() => []),
-    Api.dashboardLogins(id).catch(() => []),
+    Api.dashboardLogins(id).catch(() => []), Api.moderationStats(id).catch(() => []),
   ]);
+  const memberTag = (userId) => members.find((m) => m.userId === userId)?.displayName || userId;
 
   const rowHtml = (entry) => `
     <div class="audit-row">
@@ -6260,6 +6351,14 @@ async function renderAuditLogPage(id, container = app) {
               <span class="muted">${new Date(l.at).toLocaleString('fr-FR')}</span>
             </div>
           </div>`).join('') || '<p class="muted">Aucune connexion enregistree (le journal demarre a partir de maintenant).</p>'}</div>
+
+        <h2 style="margin-top:20px; font-size:0.85rem;">📊 Statistiques de moderation par moderateur (roadmap n°278)</h2>
+        <p class="muted">Avertissements poses (manuels et automod), regroupes par moderateur.</p>
+        <div class="audit-log-list">${modStats.length ? modStats.map((s) => `
+          <div class="stats-top-row">
+            <span class="stats-top-name">${s.source === 'automod' ? '🤖 Auto-moderation' : escapeHtml(memberTag(s.moderatorId))}</span>
+            <span class="stats-top-value">${s.last7} cette semaine · ${s.last30} ce mois · ${s.total} au total</span>
+          </div>`).join('') : '<p class="muted">Aucun avertissement enregistre pour le moment.</p>'}</div>
       `, { alwaysOpen: true })}
     </div>
   `;
@@ -6424,8 +6523,8 @@ async function renderMemberLookupPage(id, container = app) {
       Api.memberInventory(id, targetUserId).catch(() => []),
     ]);
     const rows = warns.slice().reverse().map((w) => `
-      <div class="member-warn-row">
-        <span>${escapeHtml(w.reason || 'Sans raison')}</span>
+      <div class="member-warn-row"${w.expired ? ' style="opacity:0.5;"' : ''}>
+        <span>${escapeHtml(w.reason || 'Sans raison')}${w.expired ? ' <span class="muted">(expire)</span>' : ''}</span>
         <span class="muted">${w.source === 'automod' ? '🤖 automod' : '👮 manuel'} — ${new Date(w.createdAt).toLocaleString('fr-FR')}</span>
       </div>`).join('');
     row.insertAdjacentHTML('afterend', `

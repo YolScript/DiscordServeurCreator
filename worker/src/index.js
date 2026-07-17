@@ -996,7 +996,47 @@ async function router(request, env) {
     if (sub === 'members' && parts[5] === 'warns' && parts.length === 6 && method === 'GET') {
       await requireGuildAccess(env, request, guildId);
       const warns = (await env.GUILD_KV.get(`guild:${guildId}:warns:${parts[4]}`, 'json')) || [];
-      return json(warns, env);
+      // Expiration configurable (roadmap n°280) : l'historique complet reste
+      // visible ici (casier = archive), on marque juste ce qui a expire pour
+      // que le dashboard l'affiche attenue plutot que de le faire disparaitre.
+      const config = await getGuildConfig(env, guildId);
+      const expiryDays = config?.warnExpiryDays;
+      const cutoff = expiryDays > 0 ? Date.now() - expiryDays * 86400000 : null;
+      const withExpiry = warns.map((w) => ({ ...w, expired: cutoff ? w.createdAt <= cutoff : false }));
+      return json(withExpiry, env);
+    }
+
+    // Statistiques de moderation par moderateur (roadmap n°278) : les warns
+    // sont stockes un tableau par MEMBRE CIBLE (guild:{id}:warns:{userId}),
+    // pas par moderateur — on scanne donc le prefixe et on regroupe par
+    // moderatorId cote worker. Les entrees automod (moderatorId = l'ID du
+    // bot) sont regroupees separement pour ne pas fausser les stats "staff".
+    if (sub === 'moderation-stats' && parts.length === 4 && method === 'GET') {
+      await requireGuildAccess(env, request, guildId);
+      const prefix = `guild:${guildId}:warns:`;
+      const byModerator = new Map();
+      const now = Date.now();
+      const WEEK_MS = 7 * 86400000;
+      const MONTH_MS = 30 * 86400000;
+      let cursor;
+      do {
+        // eslint-disable-next-line no-await-in-loop
+        const page = await env.GUILD_KV.list({ prefix, cursor });
+        // eslint-disable-next-line no-await-in-loop
+        const entries = await Promise.all(page.keys.map((k) => env.GUILD_KV.get(k.name, 'json')));
+        for (const warns of entries) {
+          for (const w of warns || []) {
+            const modId = w.moderatorId || 'inconnu';
+            const stat = byModerator.get(modId) || { moderatorId: modId, source: w.source, last7: 0, last30: 0, total: 0 };
+            stat.total += 1;
+            if (now - w.createdAt < WEEK_MS) stat.last7 += 1;
+            if (now - w.createdAt < MONTH_MS) stat.last30 += 1;
+            byModerator.set(modId, stat);
+          }
+        }
+        cursor = page.list_complete ? undefined : page.cursor;
+      } while (cursor);
+      return json([...byModerator.values()].sort((a, b) => b.last30 - a.last30), env);
     }
 
     // File de signalements (roadmap n°147) : signalements poses par la
