@@ -2112,6 +2112,19 @@ function renderPreviewContent(id, { channels, config, roles, members }) {
         window.UISound?.select();
         withViewTransition(() => { renderSettingsPanel(id, btn.dataset.gotoSettings, btn.dataset.gotoSettingsSection); });
       });
+      // Prechargement au survol (roadmap n°206) : la quasi-totalite des
+      // modules de reglages dependent de config/channels/roles — les
+      // demarrer des le survol (avant le clic) chauffe la connexion et
+      // souvent termine la requete avant que le rendu en ait besoin. Fire-
+      // and-forget, une seule fois par module grace a __warmedModules.
+      btn.addEventListener('mouseenter', () => {
+        window.__warmedModules = window.__warmedModules || new Set();
+        const key = `${id}:${btn.dataset.gotoSettings}`;
+        if (window.__warmedModules.has(key)) return;
+        window.__warmedModules.add(key);
+        Api.config(id).catch(() => {});
+        Api.channels(id).catch(() => {});
+      }, { once: true });
     });
     scope.querySelectorAll('[data-home-create]').forEach((btn) => {
       btn.addEventListener('click', () => {
