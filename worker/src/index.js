@@ -943,6 +943,24 @@ async function router(request, env) {
       return json(warns, env);
     }
 
+    // File de signalements (roadmap n°147) : signalements poses par la
+    // commande contextuelle du bot, traites depuis le dashboard.
+    if (sub === 'reports' && parts.length === 4 && method === 'GET') {
+      await requireGuildAccess(env, request, guildId);
+      return json((await env.GUILD_KV.get(`guild:${guildId}:reports`, 'json')) || [], env);
+    }
+    if (sub === 'reports' && parts[5] === 'resolve' && parts.length === 6 && method === 'POST') {
+      const session = await requireGuildAccess(env, request, guildId);
+      const reports = (await env.GUILD_KV.get(`guild:${guildId}:reports`, 'json')) || [];
+      const report = reports.find((r) => r.id === parts[4]);
+      if (!report) throw new HttpError(404, 'Signalement introuvable.');
+      report.status = 'resolved';
+      report.resolvedBy = session.username;
+      report.resolvedAt = Date.now();
+      await env.GUILD_KV.put(`guild:${guildId}:reports`, JSON.stringify(reports));
+      return json({ ok: true }, env);
+    }
+
     // Inventaire des achats boutique d'un membre (roadmap n°156), ecrit par
     // le bot a chaque achat.
     if (sub === 'members' && parts[5] === 'inventory' && parts.length === 6 && method === 'GET') {

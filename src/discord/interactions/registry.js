@@ -14,6 +14,7 @@ const suggestionManager = require('../engagement/suggestionManager');
 const {
   createTicket, closeTicket, claimTicket, rateTicket, TICKET_CLOSE_ID, TICKET_CLAIM_ID,
 } = require('../support/ticketManager');
+const { handleReportCommand } = require('../moderation/reportMessage');
 const handlePollCreateButton = require('./buttons/pollCreateButton');
 const handlePollCreateModal = require('./modals/pollCreateModal');
 const {
@@ -126,6 +127,11 @@ async function routeInteraction(interaction) {
           .map((c) => ({ name: c.label.slice(0, 100), value: c.key }));
         await interaction.respond(filtered).catch(() => {});
       }
+      return;
+    }
+    // Signalement contextuel (roadmap n°147).
+    if (interaction.isMessageContextMenuCommand() && interaction.commandName === 'Signaler au staff') {
+      await handleReportCommand(interaction);
       return;
     }
     if (interaction.isChatInputCommand()) {

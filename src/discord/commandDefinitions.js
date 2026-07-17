@@ -1,4 +1,12 @@
-const { SlashCommandBuilder, PermissionFlagsBits, ChannelType } = require('discord.js');
+const {
+  SlashCommandBuilder, PermissionFlagsBits, ChannelType, ContextMenuCommandBuilder, ApplicationCommandType,
+} = require('discord.js');
+
+// Signalement par clic droit sur un message (roadmap n°147).
+const reportMessageCommand = new ContextMenuCommandBuilder()
+  .setName('Signaler au staff')
+  .setType(ApplicationCommandType.Message)
+  .toJSON();
 
 const setupCommand = new SlashCommandBuilder()
   .setName('setup')
@@ -315,6 +323,7 @@ const remindCommand = new SlashCommandBuilder()
   .toJSON();
 
 module.exports = [
+  reportMessageCommand,
   remindCommand,
   setupCommand, warnCommand, warningsCommand, clearwarnsCommand, timeoutCommand, tempbanCommand, unlockCommand, automodCommand,
   scheduleAnnouncementCommand, scheduleEventCommand, scheduledListCommand, scheduledCancelCommand,

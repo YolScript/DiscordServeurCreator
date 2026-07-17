@@ -875,6 +875,7 @@ const HOME_MODULES = [
   { parent: 'automatisations', section: 'tickets', icon: '🎫', label: 'Tickets', category: 'moderation' },
   { parent: 'auditlog', icon: '📋', label: "Logs d'audit", category: 'moderation' },
   { parent: 'automatisations', section: 'suggestions', icon: '💡', label: 'Suggestions', category: 'moderation' },
+  { parent: 'automatisations', section: 'signalements', icon: '🚩', label: 'Signalements', category: 'moderation' },
   // Integrations : connecter des services/bots externes.
   { parent: 'automatisations', section: 'bots', icon: '🧩', label: 'Bots complementaires', category: 'integrations' },
   { parent: 'automatisations', section: 'webhooks', icon: '🔗', label: 'Webhooks sortants', category: 'integrations' },
@@ -4140,6 +4141,21 @@ async function renderAutomationsPage(id, container = app) {
   }).join('') || '<p class="muted">Aucune suggestion pour le moment.</p>'}</div>
       `, { id: 'suggestions' })}
 
+      ${sectionHtml('Signalements', `
+        <p class="muted">Les membres signalent un message via clic droit → Applications → « Signaler au staff ». Tout arrive ici (et dans le journal de moderation).</p>
+        <div id="reports-list">${(await Api.reports(id).catch(() => [])).slice().reverse().slice(0, 30).map((r) => `
+          <div class="row" style="justify-content:space-between; margin-bottom:6px; ${r.status === 'resolved' ? 'opacity:0.55;' : ''}">
+            <span style="min-width:0; font-size:0.84rem;">
+              ${r.status === 'resolved' ? '✅' : '🚩'} <strong>${escapeHtml(r.authorTag)}</strong> — « ${escapeHtml(r.excerpt.slice(0, 120))} »
+              <span class="muted" style="font-size:0.74rem;">signale par ${escapeHtml(r.reporterTag)} le ${new Date(r.reportedAt).toLocaleString('fr-FR', { day: '2-digit', month: '2-digit', hour: '2-digit', minute: '2-digit' })}${r.resolvedBy ? ` · traite par ${escapeHtml(r.resolvedBy)}` : ''}</span>
+            </span>
+            <span style="flex:none; display:flex; gap:6px;">
+              <a class="btn secondary" href="https://discord.com/channels/${id}/${r.channelId}/${r.messageId}" target="_blank" rel="noopener">Voir</a>
+              ${r.status === 'open' ? `<button class="btn secondary report-resolve" data-report-id="${r.id}">Traite</button>` : ''}
+            </span>
+          </div>`).join('') || '<p class="muted">Aucun signalement. C\'est bon signe.</p>'}</div>
+      `, { id: 'signalements' })}
+
       ${sectionHtml('Parrainage', `
         <div id="referral-roles-list">${referralRoleRows}</div>
         <div class="row" style="margin-top:10px;">
@@ -4705,6 +4721,21 @@ async function renderAutomationsPage(id, container = app) {
   container.querySelectorAll('.delete-streamer').forEach((btn) => {
     btn.addEventListener('click', () => {
       undoableDelete(btn, 'Streamer retire.', () => Api.deleteStreamer(id, btn.dataset.user, btn.dataset.platform));
+    });
+  });
+
+  // Signalements (roadmap n°147) : marquer traite.
+  container.querySelectorAll('.report-resolve').forEach((btn) => {
+    btn.addEventListener('click', async () => {
+      btn.disabled = true;
+      try {
+        await Api.resolveReport(id, btn.dataset.reportId);
+        showToast('Signalement marque comme traite.');
+        await renderAutomationsPage(id, container);
+      } catch (err) {
+        showToast(err.message, 'error');
+        btn.disabled = false;
+      }
     });
   });
 
