@@ -42,7 +42,7 @@ import { logAudit, getAuditLog } from './auditLog.js';
 import {
   getAiConfig, setAiConfig, clearAiConfig, getAiConfigWithKey,
 } from './aiConfigStore.js';
-import { checkAiRateLimit } from './aiRateLimit.js';
+import { checkAiRateLimit, checkAiDailyGuildLimit } from './aiRateLimit.js';
 import { runAiTurn, resumeAfterConfirmation } from './aiOrchestrator.js';
 import { buildCalendarIcs } from './calendar.js';
 import {
@@ -129,6 +129,17 @@ async function requireGuildAccess(env, request, guildId) {
   const botGuildRes = await botFetch(env, `/guilds/${guildId}`);
   if (!botGuildRes.ok) throw new HttpError(404, "Le bot n'est pas present sur ce serveur.");
   return { ...session, viewerOnly };
+}
+
+// Combine les deux garde-fous IA (roadmap n°252) : anti-rafale par
+// utilisateur (aiRateLimit historique) + plafond quotidien par serveur
+// (config.aiDailyMessageLimit, optionnel).
+async function enforceAiLimits(env, guildId, userId) {
+  const rate = await checkAiRateLimit(env, guildId, userId);
+  if (!rate.allowed) throw new HttpError(429, `Trop de messages envoyes a l'assistant IA. Reessaie dans ${rate.retryAfterSeconds}s.`);
+  const config = await getGuildConfig(env, guildId);
+  const daily = await checkAiDailyGuildLimit(env, guildId, config?.aiDailyMessageLimit);
+  if (!daily.allowed) throw new HttpError(429, "Limite quotidienne de messages IA atteinte pour ce serveur. Reessaie demain ou augmente la limite dans les reglages.");
 }
 
 async function readJson(request) {
@@ -558,8 +569,7 @@ async function router(request, env) {
 
     if (sub === 'aichat' && parts.length === 4 && method === 'POST') {
       const session = await requireGuildAccess(env, request, guildId);
-      const rate = await checkAiRateLimit(env, guildId, session.userId);
-      if (!rate.allowed) throw new HttpError(429, `Trop de messages envoyes a l'assistant IA. Reessaie dans ${rate.retryAfterSeconds}s.`);
+      await enforceAiLimits(env, guildId, session.userId);
 
       const { messages, message } = await readJson(request);
       if (!Array.isArray(messages)) throw new HttpError(400, 'messages requis.');
@@ -586,8 +596,7 @@ async function router(request, env) {
     // sa vue approximative par cet etat, comme avec la route non-streaming.
     if (sub === 'aichat' && parts[4] === 'stream' && method === 'POST') {
       const session = await requireGuildAccess(env, request, guildId);
-      const rate = await checkAiRateLimit(env, guildId, session.userId);
-      if (!rate.allowed) throw new HttpError(429, `Trop de messages envoyes a l'assistant IA. Reessaie dans ${rate.retryAfterSeconds}s.`);
+      await enforceAiLimits(env, guildId, session.userId);
 
       const { messages, message } = await readJson(request);
       if (!Array.isArray(messages)) throw new HttpError(400, 'messages requis.');
@@ -625,8 +634,7 @@ async function router(request, env) {
 
     if (sub === 'aichat' && parts[4] === 'confirm' && method === 'POST') {
       const session = await requireGuildAccess(env, request, guildId);
-      const rate = await checkAiRateLimit(env, guildId, session.userId);
-      if (!rate.allowed) throw new HttpError(429, `Trop de messages envoyes a l'assistant IA. Reessaie dans ${rate.retryAfterSeconds}s.`);
+      await enforceAiLimits(env, guildId, session.userId);
 
       const { messages, pendingConfirmation, confirmed } = await readJson(request);
       if (!Array.isArray(messages) || !pendingConfirmation) throw new HttpError(400, 'messages et pendingConfirmation requis.');
@@ -655,6 +663,34 @@ async function router(request, env) {
       await requireGuildAccess(env, request, guildId);
       const roles = await botFetchJson(env, `/guilds/${guildId}/roles`);
       return json(roles, env);
+    }
+
+    // Nettoyage des overwrites orphelins (roadmap n°270) : supprime les
+    // permissions de salon qui ciblent un role SUPPRIME depuis (le detecteur
+    // d'incoherences du dashboard les signale deja, ceci les corrige en un
+    // clic). Les overwrites ciblant un MEMBRE (type 1) ne sont jamais
+    // touches ici : un membre absent du cache peut simplement avoir quitte
+    // temporairement, ce n'est pas forcement une erreur.
+    if (sub === 'permissions' && parts[4] === 'clean-orphans' && method === 'POST') {
+      const session = await requireGuildAccess(env, request, guildId);
+      const [channels, roles] = await Promise.all([
+        botFetchJson(env, `/guilds/${guildId}/channels`),
+        botFetchJson(env, `/guilds/${guildId}/roles`),
+      ]);
+      const roleIds = new Set(roles.map((r) => r.id));
+      let cleaned = 0;
+      for (const channel of channels) {
+        const orphans = (channel.permission_overwrites || []).filter((o) => o.type === 0 && !roleIds.has(o.id));
+        for (const orphan of orphans) {
+          // eslint-disable-next-line no-await-in-loop
+          const res = await botFetch(env, `/channels/${channel.id}/permissions/${orphan.id}`, { method: 'DELETE' });
+          if (res.ok) cleaned += 1;
+        }
+      }
+      if (cleaned) {
+        await logAudit(env, guildId, { title: 'Overwrites orphelins nettoyes', description: `${session.username} a supprime ${cleaned} permission(s) ciblant un role supprime.` });
+      }
+      return json({ ok: true, cleaned }, env);
     }
 
     if (sub === 'roles' && parts.length === 4 && method === 'POST') {
@@ -2054,6 +2090,47 @@ async function router(request, env) {
         await logAudit(env, guildId, { title: 'Embed edite', description: `${session.username} a edite un message dans <#${channelId}>.` });
         return json({ ok: true }, env);
       }
+    }
+
+    // Purge de messages par filtre (roadmap n°274) : recupere jusqu'a 100
+    // messages recents du salon, filtre cote worker (auteur/contenu/liens),
+    // puis supprime en masse. bulk-delete Discord exige 2-100 messages ET
+    // aucun de plus de 14 jours (limite API, pas une limite arbitraire d'ici) ;
+    // les messages plus vieux ou en solo tombent en suppression individuelle.
+    if (sub === 'channels' && parts[5] === 'purge' && parts.length === 6 && method === 'POST') {
+      const session = await requireGuildAccess(env, request, guildId);
+      const channelId = parts[4];
+      const { authorId, contains, linksOnly, limit } = await readJson(request);
+      const fetchLimit = Math.min(100, Math.max(1, Number(limit) || 100));
+      const messages = await botFetchJson(env, `/channels/${channelId}/messages?limit=${fetchLimit}`);
+      const fourteenDaysAgo = Date.now() - 14 * 86400000;
+      const containsLower = contains ? String(contains).toLowerCase() : null;
+      const matched = messages.filter((m) => {
+        if (authorId && m.author?.id !== authorId) return false;
+        if (containsLower && !(m.content || '').toLowerCase().includes(containsLower)) return false;
+        if (linksOnly && !/https?:\/\//i.test(m.content || '')) return false;
+        return true;
+      });
+      const recent = matched.filter((m) => new Date(m.timestamp).getTime() > fourteenDaysAgo);
+      const old = matched.filter((m) => new Date(m.timestamp).getTime() <= fourteenDaysAgo);
+      let deleted = 0;
+      if (recent.length >= 2) {
+        const res = await botFetch(env, `/channels/${channelId}/messages/bulk-delete`, {
+          method: 'POST',
+          body: JSON.stringify({ messages: recent.map((m) => m.id) }),
+        });
+        if (res.ok) deleted += recent.length;
+      } else if (recent.length === 1) {
+        const res = await botFetch(env, `/channels/${channelId}/messages/${recent[0].id}`, { method: 'DELETE' });
+        if (res.ok) deleted += 1;
+      }
+      for (const m of old) {
+        // eslint-disable-next-line no-await-in-loop
+        const res = await botFetch(env, `/channels/${channelId}/messages/${m.id}`, { method: 'DELETE' });
+        if (res.ok) deleted += 1;
+      }
+      await logAudit(env, guildId, { title: 'Purge de messages', description: `${session.username} a supprime ${deleted} message(s) dans <#${channelId}> (filtre applique).` });
+      return json({ ok: true, deleted, matched: matched.length }, env);
     }
 
     // Historique des embeds envoyes (roadmap n°130).

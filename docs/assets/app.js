@@ -94,6 +94,32 @@ app.addEventListener('click', async (e) => {
   }
 }, true);
 
+// Icone personnalisee par salon (roadmap n°254) : meme delegation en phase
+// de capture que le bouton copier-ID ci-dessus, pour la meme raison (le
+// bouton est imbrique dans .dp-channel qui a son propre click).
+app.addEventListener('click', async (e) => {
+  const btn = e.target.closest('.dp-channel-emoji-btn');
+  if (!btn) return;
+  e.stopPropagation();
+  e.preventDefault();
+  const channelId = btn.dataset.channelEmoji;
+  const current = paletteCtx.channels?.find((c) => c.id === channelId);
+  const answer = window.prompt(`Icone personnalisee pour #${current?.name || channelId} (un seul emoji, vide pour retirer) :`, '');
+  if (answer === null) return;
+  try {
+    const guildId = paletteCtx.guildId;
+    const config = await Api.config(guildId);
+    const channelEmojis = { ...(config?.channelEmojis || {}) };
+    if (answer.trim()) channelEmojis[channelId] = answer.trim().slice(0, 8);
+    else delete channelEmojis[channelId];
+    await Api.updateConfig(guildId, { channelEmojis });
+    showToast('Icone mise a jour.');
+    await renderPreviewPage(guildId);
+  } catch (err) {
+    showToast(err.message, 'error');
+  }
+}, true);
+
 // Champs d'URL (lien ou image) : accepte le glisser-deposer d'un lien ou
 // d'une image venant d'une page web, et le Ctrl+V d'une image copiee sur le
 // web (le navigateur fournit alors le HTML <img src=...> d'origine, dont on
@@ -1542,7 +1568,10 @@ function renderPreviewContent(id, { channels, config, roles, members }) {
 
   const categories = channels.filter((c) => c.type === 4).sort((a, b) => a.position - b.position);
   const uncategorized = channels.filter((c) => c.type !== 4 && !c.parent_id);
-  const channelIcon = (c) => (c.type === 2 ? '🔊' : c.type === 4 ? '' : '#');
+  // Icone personnalisee par salon (roadmap n°254), remplace l'icone
+  // generique (#, 🔊) quand elle est configuree.
+  const channelEmojis = config?.channelEmojis || {};
+  const channelIcon = (c) => channelEmojis[c.id] || (c.type === 2 ? '🔊' : c.type === 4 ? '' : '#');
 
   // Badges d'etat (roadmap n°141) : NSFW, slowmode et prive (deny
   // VIEW_CHANNEL sur @everyone = guildId) visibles directement en sidebar.
@@ -1563,6 +1592,7 @@ function renderPreviewContent(id, { channels, config, roles, members }) {
   const channelRow = (c) => `
     <div class="dp-channel" draggable="true" tabindex="0" role="button" aria-label="Salon ${escapeHtml(c.name)} (Alt+fleches pour reordonner)" data-channel="${c.id}" data-name="${escapeHtml(c.name)}" data-type="${c.type}">
       <span class="hash">${channelIcon(c)}</span> <span class="dp-channel-name">${escapeHtml(c.name)}</span>${channelBadges(c)}
+      <button type="button" class="dp-channel-emoji-btn" data-channel-emoji="${c.id}" title="Definir une icone personnalisee" aria-label="Definir une icone personnalisee pour ${escapeHtml(c.name)}">🏷️</button>
       <button type="button" class="dp-copy-id-btn" data-copy-id="${c.id}" title="Copier l'ID du salon" aria-label="Copier l'ID du salon ${escapeHtml(c.name)}">📋</button>
     </div>`;
 
@@ -3577,7 +3607,12 @@ async function renderPermissionsPage(id, container = app) {
   const channelCheckboxes = editableChannels.map((c) => `
     <label><input type="checkbox" value="${c.id}" class="perm-channel" /> ${c.type === 4 ? '📁' : c.type === 2 ? '🔊' : '#'} ${escapeHtml(c.name)}</label>
   `).join('');
-  const presetOptions = PERMISSION_PRESETS.map((p) => `<option value="${p.key}">${escapeHtml(p.label)}</option>`).join('');
+  // Presets personnalises nommes (roadmap n°264), en plus des presets fixes
+  // ci-dessus : l'admin compose sa propre combinaison de permissions et la
+  // reutilise ensuite comme n'importe quel preset integre.
+  const customPresets = config?.customPermissionPresets || [];
+  const presetOptions = PERMISSION_PRESETS.map((p) => `<option value="${p.key}">${escapeHtml(p.label)}</option>`).join('')
+    + (customPresets.length ? `<optgroup label="Mes presets">${customPresets.map((p, i) => `<option value="custom:${i}">📌 ${escapeHtml(p.name)}</option>`).join('')}</optgroup>` : '');
   const channelOptionsSimple = editableChannels.map((c) => `<option value="${c.id}">#${escapeHtml(c.name)}</option>`).join('');
   let dashboardAllowedUserIds = config?.dashboardAllowedUserIds || [];
   let dashboardViewerUserIds = config?.dashboardViewerUserIds || [];
@@ -3609,7 +3644,7 @@ async function renderPermissionsPage(id, container = app) {
     <div class="inner">
       ${quickJumpBarHtml([
     ['perm-bulk', 'Edition en masse'], ['perm-matrix', 'Matrice'], ['perm-viewas', 'Voir comme'],
-    ['perm-io', 'Export/Import'], ['perm-default', 'Par defaut'], ['perm-dashboard', 'Acces dashboard'],
+    ['perm-whocansee', 'Qui voit ce salon'], ['perm-io', 'Export/Import'], ['perm-default', 'Par defaut'], ['perm-dashboard', 'Acces dashboard'],
   ])}
       ${sectionHtml('Edition en masse', `
         <p class="muted">Choisis les salons, le role, et une action rapide a appliquer partout en un clic.</p>
@@ -3620,12 +3655,30 @@ async function renderPermissionsPage(id, container = app) {
         <label for="perm-preset">Action</label>
         <select id="perm-preset">${presetOptions}</select>
         <button class="btn" id="apply-bulk" style="margin-top:12px;">Appliquer</button>
+
+        <div class="dp-subsection-divider"></div>
+        <p class="dp-block-title">📌 Creer un preset personnalise (roadmap n°264)</p>
+        <p class="muted" style="font-size:0.78rem;">Compose une combinaison de permissions autorisees, nomme-la, reutilise-la ensuite comme un preset integre.</p>
+        <div class="creator-perm-chips" role="group" aria-label="Permissions du preset" id="custom-preset-chips">
+          ${['ViewChannel', 'SendMessages', 'ReadMessageHistory', 'Connect', 'Speak', 'ManageMessages', 'AttachFiles', 'EmbedLinks', 'AddReactions', 'MentionEveryone']
+    .map((k) => `<button type="button" class="creator-perm-chip" data-perm="${k}" aria-pressed="false" title="${escapeHtml(PERMISSION_DESCRIPTIONS[k] || '')}">${PERMISSION_LABELS[k]}</button>`).join('')}
+        </div>
+        <div class="row" style="gap:8px; margin-top:8px;">
+          <input type="text" id="custom-preset-name" placeholder="Nom du preset (ex: Salon staff)" maxlength="60" style="flex:1; margin:0;" />
+          <button class="btn secondary" id="custom-preset-save">Enregistrer</button>
+        </div>
+        ${customPresets.length ? `<div id="custom-preset-list" style="margin-top:10px;">${customPresets.map((p, i) => `
+          <div class="row" style="justify-content:space-between; margin-bottom:4px;">
+            <span class="muted" style="font-size:0.82rem;">📌 ${escapeHtml(p.name)} (${p.allow.length} permission(s))</span>
+            <button type="button" class="btn danger delete-custom-preset" data-index="${i}">Supprimer</button>
+          </div>`).join('')}</div>` : ''}
       `, { id: 'perm-bulk' })}
 
       ${permIssues.length ? sectionHtml('Incoherences detectees', `
         <p class="muted">${permIssues.length} probleme(s) de permissions repere(s) automatiquement :</p>
         ${permIssues.slice(0, 20).map((i) => `<div style="padding:3px 0; font-size:0.84rem;">⚠️ ${i}</div>`).join('')}
-        <p class="muted" style="margin-top:8px;">Corrige-les via l'edition en masse ci-dessus ou l'editeur de salons.</p>
+        <p class="muted" style="margin-top:8px;">Les incoherences "peut ecrire mais ne voit pas" se corrigent via l'edition en masse ci-dessus ou l'editeur de salons.</p>
+        ${permIssues.some((i) => i.includes('orpheline')) ? '<button type="button" class="btn danger secondary" id="clean-orphan-perms" style="margin-top:8px;">🧹 Nettoyer les overwrites orphelins (role supprime)</button>' : ''}
       `, { id: 'perm-issues' }) : ''}
 
       ${sectionHtml('Matrice salons × roles', `
@@ -3644,6 +3697,13 @@ async function renderPermissionsPage(id, container = app) {
         <select id="viewas-role"><option value="">— Choisir un role —</option>${roleOptions}</select>
         <div id="viewas-result" style="margin-top:10px; font-size:0.85rem;"></div>
       `, { id: 'perm-viewas' })}
+
+      ${sectionHtml('Qui peut voir ce salon', `
+        <p class="muted">Choisis un salon : la liste des roles qui le voient (roadmap n°266), resolue avec @everyone et les overwrites.</p>
+        <label for="whocansee-channel">Salon</label>
+        <select id="whocansee-channel"><option value="">— Choisir un salon —</option>${channelOptionsSimple}</select>
+        <div id="whocansee-result" style="margin-top:10px; font-size:0.85rem;"></div>
+      `, { id: 'perm-whocansee' })}
 
       ${sectionHtml('Export / Import (copier-coller)', `
         <p class="dp-block-title" style="margin-top:0;">📋 Copier vers un autre salon (roadmap n°265)</p>
@@ -3822,21 +3882,82 @@ async function renderPermissionsPage(id, container = app) {
     out.innerHTML = `<p class="muted">${escapeHtml(role.name)} voit ${visibleCount} salon(s) sur ${realChannels.length}.</p>${rows.join('')}`;
   });
 
+  document.getElementById('whocansee-channel').addEventListener('change', (e) => {
+    const out = document.getElementById('whocansee-result');
+    const channel = channels.find((c) => c.id === e.target.value);
+    if (!channel) { out.innerHTML = ''; return; }
+    const everyoneRole = roles.find((r) => r.id === id);
+    const seers = roles.filter((r) => r.name !== '@everyone' && roleCanSee(channel, r, everyoneRole));
+    const everyoneCanSee = roleCanSee(channel, everyoneRole, everyoneRole);
+    out.innerHTML = `
+      <p class="muted">${everyoneCanSee ? '🌍 @everyone voit ce salon (visible par defaut pour tout le monde).' : '🔒 @everyone NE voit PAS ce salon (prive par defaut).'}</p>
+      ${seers.length ? `<p class="muted" style="margin-top:6px;">Roles avec acces explicite ou herite :</p>${seers.map((r) => `<div style="padding:2px 0;"><span style="color:${r.color ? `#${r.color.toString(16).padStart(6, '0')}` : 'var(--text)'};">●</span> ${escapeHtml(r.name)}</div>`).join('')}` : ''}
+    `;
+  });
+
   document.getElementById('apply-bulk').addEventListener('click', async () => {
     const channelIds = [...container.querySelectorAll('.perm-channel:checked')].map((el) => el.value);
     const roleId = document.getElementById('perm-role').value;
-    const preset = PERMISSION_PRESETS.find((p) => p.key === document.getElementById('perm-preset').value);
-    if (channelIds.length === 0 || !roleId) {
+    const presetKey = document.getElementById('perm-preset').value;
+    const preset = presetKey.startsWith('custom:')
+      ? customPresets[Number(presetKey.slice(7))]
+      : PERMISSION_PRESETS.find((p) => p.key === presetKey);
+    if (channelIds.length === 0 || !roleId || !preset) {
       showToast('Choisis au moins un salon et un role.', 'error');
       return;
     }
     try {
-      const results = await Api.bulkPermissions(id, { channelIds, roleId, allow: preset.allow, deny: preset.deny });
+      const results = await Api.bulkPermissions(id, { channelIds, roleId, allow: preset.allow, deny: preset.deny || [] });
       const failed = results.filter((r) => !r.ok);
       showToast(failed.length ? `${failed.length} salon(s) en erreur.` : 'Permissions appliquees.', failed.length ? 'error' : 'success');
     } catch (err) {
       showToast(err.message, 'error');
     }
+  });
+
+  document.getElementById('clean-orphan-perms')?.addEventListener('click', async () => {
+    if (!window.confirm('Supprimer definitivement toutes les permissions ciblant un role supprime ? Action irreversible.')) return;
+    try {
+      const result = await Api.cleanOrphanPermissions(id);
+      showToast(result.cleaned ? `${result.cleaned} permission(s) orpheline(s) supprimee(s).` : 'Rien a nettoyer.');
+      await renderPermissionsPage(id, container);
+    } catch (err) {
+      showToast(err.message, 'error');
+    }
+  });
+
+  container.querySelectorAll('#custom-preset-chips .creator-perm-chip').forEach((chip) => {
+    chip.addEventListener('click', () => {
+      const active = chip.getAttribute('aria-pressed') !== 'true';
+      chip.setAttribute('aria-pressed', String(active));
+      chip.classList.toggle('active', active);
+    });
+  });
+  document.getElementById('custom-preset-save').addEventListener('click', async () => {
+    const name = document.getElementById('custom-preset-name').value.trim();
+    const allow = [...container.querySelectorAll('#custom-preset-chips .creator-perm-chip.active')].map((c) => c.dataset.perm);
+    if (!name) { showToast('Nom du preset requis.', 'error'); return; }
+    if (!allow.length) { showToast('Choisis au moins une permission.', 'error'); return; }
+    try {
+      const updated = [...customPresets, { name, allow, deny: [] }];
+      await Api.updateConfig(id, { customPermissionPresets: updated });
+      showToast('Preset enregistre.');
+      await renderPermissionsPage(id, container);
+    } catch (err) {
+      showToast(err.message, 'error');
+    }
+  });
+  container.querySelectorAll('.delete-custom-preset').forEach((btn) => {
+    btn.addEventListener('click', async () => {
+      try {
+        const updated = customPresets.filter((_, i) => i !== Number(btn.dataset.index));
+        await Api.updateConfig(id, { customPermissionPresets: updated });
+        showToast('Preset supprime.');
+        await renderPermissionsPage(id, container);
+      } catch (err) {
+        showToast(err.message, 'error');
+      }
+    });
   });
 
   document.getElementById('copyperm-btn').addEventListener('click', async () => {
@@ -5815,6 +5936,18 @@ async function renderSecurityPage(id, container = app) {
           <button class="btn secondary" id="slowmode-all-clear">Retirer partout</button>
         </div>
       `, { id: 'sec-lockdown' })}
+
+      ${sectionHtml('Purge de messages par filtre', `
+        <p class="muted">Supprime en masse les messages recents d'un salon (100 derniers maximum) correspondant a un filtre. Irreversible.</p>
+        <label for="purge-channel">Salon</label>
+        <select id="purge-channel">${currentChannels.filter((c) => c.type === 0).map((c) => `<option value="${c.id}">#${escapeHtml(c.name)}</option>`).join('')}</select>
+        <label for="purge-author">ID de l'auteur (optionnel — vide = tous les auteurs)</label>
+        <input type="text" id="purge-author" placeholder="ID Discord de l'auteur" />
+        <label for="purge-contains">Contient le texte (optionnel)</label>
+        <input type="text" id="purge-contains" placeholder="Mot ou expression" />
+        <label class="dp-toggle-row" style="margin-top:6px;"><span>Uniquement les messages avec un lien</span><input type="checkbox" id="purge-links-only" /></label>
+        <button class="btn danger" id="purge-btn" style="margin-top:10px;">🧹 Purger</button>
+      `, { id: 'sec-purge' })}
     </div>
   `;
 
@@ -6026,6 +6159,26 @@ async function renderSecurityPage(id, container = app) {
         }
       });
     });
+  });
+
+  document.getElementById('purge-btn').addEventListener('click', async () => {
+    const channelId = document.getElementById('purge-channel').value;
+    const authorId = document.getElementById('purge-author').value.trim() || undefined;
+    const contains = document.getElementById('purge-contains').value.trim() || undefined;
+    const linksOnly = document.getElementById('purge-links-only').checked;
+    if (!channelId) { showToast('Choisis un salon.', 'error'); return; }
+    if (!authorId && !contains && !linksOnly) { showToast('Choisis au moins un filtre (auteur, texte ou liens).', 'error'); return; }
+    if (!window.confirm('Supprimer les messages correspondants (100 derniers maximum) ? Action irreversible.')) return;
+    const btn = document.getElementById('purge-btn');
+    btn.disabled = true;
+    try {
+      const result = await Api.purgeMessages(id, channelId, { authorId, contains, linksOnly, limit: 100 });
+      showToast(`${result.deleted} message(s) supprime(s) sur ${result.matched} correspondant(s).`);
+    } catch (err) {
+      showToast(err.message, 'error');
+    } finally {
+      btn.disabled = false;
+    }
   });
 
   document.getElementById('lockdown-btn').addEventListener('click', async () => {
@@ -8227,7 +8380,10 @@ const AI_PROVIDERS = [
 
 async function renderAiConfigPage(guildId, container = app) {
   container.innerHTML = skeletonHtml();
-  const config = await Api.aiConfig(guildId).catch(() => null);
+  const [config, guildConfig] = await Promise.all([
+    Api.aiConfig(guildId).catch(() => null),
+    Api.config(guildId).catch(() => ({})),
+  ]);
 
   container.innerHTML = `
     <div class="inner">
@@ -8249,6 +8405,13 @@ async function renderAiConfigPage(guildId, container = app) {
           ${config?.hasKey ? '<button class="btn danger secondary" id="ai-clear">Retirer la cle</button>' : ''}
         </div>
       `, { alwaysOpen: true })}
+      ${sectionHtml('Limite d\'usage', `
+        <p class="dp-block-title">📉 Limite quotidienne (roadmap n°252)</p>
+        <p class="muted" style="margin:0 0 12px;">Nombre maximum de messages envoyes a l'assistant IA par jour, tous membres confondus. Utile pour plafonner le cout si la cle est partagee par toute la communaute.</p>
+        <label for="ai-daily-limit">Limite par jour (0 = illimite)</label>
+        <input type="number" id="ai-daily-limit" min="0" value="${guildConfig?.aiDailyMessageLimit || 0}" />
+        <button class="btn secondary" id="ai-save-limit" style="margin-top:8px;">Enregistrer</button>
+      `, { alwaysOpen: true })}
       ${sectionHtml('A propos', `
         <p class="dp-block-title">ℹ️ A propos</p>
         <p class="muted">
@@ -8269,6 +8432,16 @@ async function renderAiConfigPage(guildId, container = app) {
       await Api.saveAiConfig(guildId, provider, apiKey);
       showToast('Cle API enregistree.');
       await renderAiConfigPage(guildId, container);
+    } catch (err) {
+      showToast(err.message, 'error');
+    }
+  });
+
+  container.querySelector('#ai-save-limit').addEventListener('click', async () => {
+    try {
+      const limit = Math.max(0, Number(container.querySelector('#ai-daily-limit').value) || 0);
+      await Api.updateConfig(guildId, { aiDailyMessageLimit: limit });
+      showToast('Limite enregistree.');
     } catch (err) {
       showToast(err.message, 'error');
     }

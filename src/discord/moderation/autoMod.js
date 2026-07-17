@@ -73,16 +73,38 @@ async function maybeAutoSlowmode(message, modConfig) {
   });
 }
 
+// Contexte du message (roadmap n°277) : les 3 messages juste avant, pour que
+// le staff comprenne l'echange sans devoir chercher dans l'historique (le
+// message flag est TOUJOURS le plus recent au moment de la detection —
+// message-create — donc "apres" n'existe pas encore, seul "avant" a du sens
+// en pratique).
+async function messageContext(message) {
+  try {
+    const before = await message.channel.messages.fetch({ limit: 3, before: message.id });
+    return [...before.values()]
+      .reverse()
+      .map((m) => `**${m.author.tag}** : ${(m.content || '(sans texte)').slice(0, 150)}`)
+      .join('\n')
+      .slice(0, 1024) || null;
+  } catch {
+    return null;
+  }
+}
+
 async function takeAction(message, guildConfig, reason, modConfig) {
+  const context = await messageContext(message);
   await message.delete().catch(() => {});
   const warns = await warnStore.add(message.guild.id, message.author.id, {
     reason, moderatorId: message.client.user.id, source: 'automod',
   });
   await postModLog(message.guild, {
     title: 'Auto-moderation',
-    description: `Message de <@${message.author.id}> supprime dans <#${message.channel.id}>.`,
+    description: `Message de <@${message.author.id}> supprime dans <#${message.channel.id}> :\n> ${(message.content || '').slice(0, 500)}`,
     color: 0xe5484d,
-    fields: [{ name: 'Raison', value: reason }],
+    fields: [
+      { name: 'Raison', value: reason },
+      ...(context ? [{ name: 'Contexte (3 messages precedents)', value: context }] : []),
+    ],
   });
   await message.author.send(`Ton message a ete supprime sur **${message.guild.name}** : ${reason}`).catch(() => {});
 
