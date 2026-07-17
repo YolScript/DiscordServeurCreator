@@ -1292,12 +1292,16 @@ function wireAiHome(guildId, channels, rolesSorted) {
     chatEl.scrollTop = chatEl.scrollHeight;
   }
 
+  // Progression des actions groupees (roadmap n°133) : chaque outil execute
+  // dans le tour courant est numerote, le compteur se voit en direct.
+  let aiToolCount = 0;
   function appendAiTool(name) {
     const el = liveStreamEl();
     if (!el) return;
+    aiToolCount += 1;
     const note = document.createElement('div');
     note.className = 'dp-ai-tool-note';
-    note.textContent = `🔧 ${AI_TOOL_LABELS[name] || name}...`;
+    note.textContent = `🔧 Action ${aiToolCount} — ${AI_TOOL_LABELS[name] || name}...`;
     el.appendChild(note);
     chatEl.scrollTop = chatEl.scrollHeight;
   }
@@ -1309,6 +1313,7 @@ function wireAiHome(guildId, channels, rolesSorted) {
     input.value = '';
     aiConversation.push({ role: 'user', content: text });
     aiBusy = true;
+    aiToolCount = 0;
     refreshTail();
     try {
       const result = await Api.aiChatStream(guildId, aiConversation.slice(0, -1), text, {
