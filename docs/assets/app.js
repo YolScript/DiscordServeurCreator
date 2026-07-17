@@ -862,23 +862,54 @@ function savePinnedSections(pageKey, sids) {
 }
 function quickJumpBarHtml(entries, pageKey = 'default') {
   const pinned = getPinnedSections(pageKey);
-  const sorted = [...entries].sort((a, b) => Number(pinned.includes(b[0])) - Number(pinned.includes(a[0])));
-  return `
-    <div class="dp-quickjump" role="navigation" aria-label="Aller a une section" data-page-key="${pageKey}">
-      ${sorted.map(([sid, label, icon]) => {
+  const renderItem = ([sid, label, icon]) => {
     const isPinned = pinned.includes(sid);
     return `<span class="dp-quickjump-item${isPinned ? ' pinned' : ''}">
         <button type="button" class="dp-quickjump-btn" data-jump-to="${sid}">${icon ? `${icon} ` : ''}${escapeHtml(label)}</button>
         <button type="button" class="dp-quickjump-pin" data-pin-section="${sid}" title="${isPinned ? 'Desepingler' : 'Epingler en tete'}" aria-label="${isPinned ? 'Desepingler' : 'Epingler'} la section ${escapeHtml(label)}">${isPinned ? '📌' : '📍'}</button>
       </span>`;
-  }).join('')}
+  };
+  // Groupes thematiques (4e element du tuple) : les entrees epinglees
+  // restent en tete telles quelles, le reste s'affiche regroupe par theme
+  // avec un petit intitule au lieu d'une liste plate difficile a scanner.
+  const pinnedEntries = entries.filter((e) => pinned.includes(e[0]));
+  const restEntries = entries.filter((e) => !pinned.includes(e[0]));
+  let lastGroup = null;
+  const restHtml = restEntries.map((entry) => {
+    const groupLabel = entry[3];
+    const prefix = groupLabel && groupLabel !== lastGroup ? `<span class="dp-quickjump-group">${escapeHtml(groupLabel)}</span>` : '';
+    if (groupLabel) lastGroup = groupLabel;
+    return prefix + renderItem(entry);
+  }).join('');
+  return `
+    <div class="dp-quickjump" role="navigation" aria-label="Aller a une section" data-page-key="${pageKey}">
+      ${pinnedEntries.map(renderItem).join('')}${restHtml}
     </div>`;
+}
+// Onglets internes reels (roadmap "regroupement", suite) : .section-panel
+// n'est visible que via la classe .active (voir style.css) - un seul module
+// affiche a la fois, par design (cf. commentaire "un seul module affiche"
+// dans style.css). Les boutons de la quickjump bar doivent donc basculer
+// .active (pas seulement scroller), sinon cliquer un bouton autre que celui
+// deja actif au chargement ne fait rigoureusement rien.
+function markCurrentQuickJumpItem(container, sid) {
+  container.querySelectorAll('.dp-quickjump-item.current').forEach((el) => el.classList.remove('current'));
+  container.querySelector(`.dp-quickjump-btn[data-jump-to="${sid}"]`)?.closest('.dp-quickjump-item')?.classList.add('current');
+}
+function activateSection(container, sid) {
+  const target = document.getElementById(`section-${sid}`);
+  if (!target) return null;
+  container.querySelectorAll('.section-panel.active').forEach((p) => { if (p !== target) p.classList.remove('active'); });
+  target.classList.add('active');
+  markCurrentQuickJumpItem(container, sid);
+  return target;
 }
 function wireQuickJump(container) {
   container.querySelectorAll('.dp-quickjump-btn').forEach((btn) => {
     btn.addEventListener('click', () => {
-      const target = document.getElementById(`section-${btn.dataset.jumpTo}`);
+      const target = activateSection(container, btn.dataset.jumpTo);
       if (!target) return;
+      window.UISound?.select();
       target.scrollIntoView({ behavior: 'smooth', block: 'start' });
       target.classList.add('flash-highlight');
       setTimeout(() => target.classList.remove('flash-highlight'), 2400);
@@ -2954,6 +2985,7 @@ async function renderSettingsPanel(guildId, key, preselectSectionId, { fromBack 
     ? body.querySelector(`#section-${preselectSectionId}`)
     : body.querySelector('.section-panel');
   target?.classList.add('active');
+  if (target?.id) markCurrentQuickJumpItem(body, target.id.replace(/^section-/, ''));
 
   if (fromBack && scrollPositions.has(key)) {
     const savedTop = scrollPositions.get(key);
@@ -4076,8 +4108,11 @@ async function renderPermissionsPage(id, container = app) {
   container.innerHTML = `
     <div class="inner">
       ${quickJumpBarHtml([
-    ['perm-bulk', 'Edition en masse'], ['perm-topics', 'Topics en masse'], ['perm-matrix', 'Matrice'], ['perm-viewas', 'Voir comme'],
-    ['perm-whocansee', 'Qui voit ce salon'], ['perm-io', 'Export/Import'], ['perm-history', 'Historique'], ['perm-default', 'Par defaut'], ['perm-dashboard', 'Acces dashboard'],
+    ['perm-bulk', 'Edition en masse', null, 'Edition en masse'], ['perm-topics', 'Topics en masse', null, 'Edition en masse'],
+    ...(permIssues.length ? [['perm-issues', 'Incoherences', null, 'Edition en masse']] : []),
+    ['perm-matrix', 'Matrice', null, 'Analyse'], ['perm-viewas', 'Voir comme', null, 'Analyse'], ['perm-whocansee', 'Qui voit ce salon', null, 'Analyse'],
+    ['perm-io', 'Export/Import', null, 'Transfert'], ['perm-history', 'Historique', null, 'Transfert'],
+    ['perm-default', 'Par defaut', null, 'Reglages'], ['perm-dashboard', 'Acces dashboard', null, 'Reglages'],
   ], 'permissions')}
       ${sectionHtml('Edition en masse', `
         <p class="muted">Choisis les salons, le role, et une action rapide a appliquer partout en un clic.</p>
