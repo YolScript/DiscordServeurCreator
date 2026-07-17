@@ -18,5 +18,22 @@
       "sizes": "64x64",
       "type": "image/png"
     }
+  ],
+  "shortcuts": [
+    {
+      "name": "Generateur d'embed",
+      "url": "app.html?shortcut=embedbuilder",
+      "icons": [{ "src": "assets/favicon-64.png", "sizes": "64x64" }]
+    },
+    {
+      "name": "Tickets",
+      "url": "app.html?shortcut=tickets",
+      "icons": [{ "src": "assets/favicon-64.png", "sizes": "64x64" }]
+    },
+    {
+      "name": "Statistiques",
+      "url": "app.html?shortcut=stats",
+      "icons": [{ "src": "assets/favicon-64.png", "sizes": "64x64" }]
+    }
   ]
 }

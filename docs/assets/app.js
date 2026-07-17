@@ -7704,14 +7704,14 @@ async function init() {
   // Barre de navigation inferieure mobile (roadmap n°123) : 5 onglets fixes
   // en bas d'ecran, visibles uniquement en contexte tactile/etroit et quand
   // un serveur est ouvert.
+  // Demande explicite du user : les fonctions mobiles ne s'activent QUE sur
+  // telephone. Les media queries (hover/pointer) matchent sur certains PC
+  // tactiles, donc on se base sur l'appareil lui-meme (User-Agent).
+  const isPhone = navigator.userAgentData?.mobile
+    ?? /Android|iPhone|iPad|iPod|Mobile/i.test(navigator.userAgent);
+
   const tabbar = document.getElementById('mobile-tabbar');
   if (tabbar) {
-    // Demande explicite du user : la barre ne s'affiche QUE sur telephone.
-    // Les media queries (hover/pointer) matchent sur certains PC tactiles,
-    // donc on se base sur l'appareil lui-meme (User-Agent) ou une fenetre
-    // vraiment etroite.
-    const isPhone = navigator.userAgentData?.mobile
-      ?? /Android|iPhone|iPad|iPod|Mobile/i.test(navigator.userAgent);
     const updateTabbar = () => {
       tabbar.hidden = !(isPhone || window.innerWidth <= 700) || !guildId;
       document.body.classList.toggle('has-tabbar', !tabbar.hidden);
@@ -7730,6 +7730,33 @@ async function init() {
     });
     // renderPreviewPage / navigation ailleurs : re-evaluer a chaque rendu.
     window.__updateMobileTabbar = updateTabbar;
+  }
+
+  // Pull-to-refresh (roadmap n°125), telephone uniquement : tirer vers le
+  // bas tout en haut de la page pour recharger les donnees fraiches.
+  if (isPhone) {
+    let pullStart = null;
+    const appEl = document.getElementById('app');
+    document.addEventListener('touchstart', (e) => {
+      pullStart = (appEl?.scrollTop || 0) <= 2 && window.scrollY <= 2 && e.touches.length === 1
+        ? e.touches[0].clientY
+        : null;
+    }, { passive: true });
+    document.addEventListener('touchmove', (e) => {
+      if (pullStart === null) return;
+      const delta = e.touches[0].clientY - pullStart;
+      if (delta > 90 && !document.getElementById('dsc-ptr')) {
+        document.body.insertAdjacentHTML('afterbegin', '<div id="dsc-ptr" style="position:fixed; top:10px; left:50%; transform:translateX(-50%); z-index:200; background:var(--bg-elevated); border:1px solid var(--border-strong); border-radius:999px; padding:6px 14px; font-size:0.8rem;">↻ Relache pour actualiser</div>');
+      }
+    }, { passive: true });
+    document.addEventListener('touchend', (e) => {
+      const indicator = document.getElementById('dsc-ptr');
+      if (pullStart !== null && indicator && (e.changedTouches[0].clientY - pullStart) > 90) {
+        location.reload();
+      }
+      indicator?.remove();
+      pullStart = null;
+    }, { passive: true });
   }
 
   // Mode compact (roadmap n°111) : densite d'affichage reduite via une
@@ -7807,7 +7834,18 @@ async function init() {
   } catch { /* quota localStorage depasse, tant pis pour le cache */ }
   renderRail();
 
+  // Raccourcis PWA (roadmap n°179) : app.html?shortcut=embedbuilder|tickets|
+  // stats ouvre directement le module sur le dernier serveur consulte.
+  const shortcut = params.get('shortcut');
+  const shortcutGuild = guildId || localStorage.getItem('dsc-last-guild');
+  if (shortcut && shortcutGuild) {
+    if (shortcut === 'tickets') await renderSettingsPanel(shortcutGuild, 'automatisations', 'tickets');
+    else await renderSettingsPanel(shortcutGuild, shortcut);
+    return;
+  }
+
   if (guildId) {
+    localStorage.setItem('dsc-last-guild', guildId);
     await renderGuildDetail(guildId);
   } else {
     await renderGuildList();
