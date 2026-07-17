@@ -22,6 +22,12 @@ const CAPTCHA_IMAGE_MODAL = 'captcha_image_modal';
 const AGE_VERIFY_BUTTON = 'age_verify_button';
 const AGE_VERIFY_MODAL = 'age_verify_modal';
 
+// Panneau de controle des vocaux temporaires (roadmap n°187).
+const VOICE_CTRL_RENAME_BUTTON = 'voicectrl_rename';
+const VOICE_CTRL_RENAME_MODAL = 'voicectrl_rename_modal';
+const VOICE_CTRL_LOCK_BUTTON = 'voicectrl_lock';
+const VOICE_CTRL_LIMIT_BUTTON = 'voicectrl_limit';
+
 const buildGameSelectId = (pageIndex) => `${GAME_SELECT_PREFIX}${pageIndex}`;
 const buildGamePseudoModalId = (gameRoleId) => `${GAME_PSEUDO_MODAL_PREFIX}${gameRoleId}`;
 const buildGamePseudoButtonId = (gameRoleId) => `${GAME_PSEUDO_BUTTON_PREFIX}${gameRoleId}`;
@@ -54,6 +60,12 @@ module.exports = {
   SHOP_BUY_PREFIX,
   CAPTCHA_IMAGE_VERIFY,
   CAPTCHA_IMAGE_MODAL,
+  AGE_VERIFY_BUTTON,
+  AGE_VERIFY_MODAL,
+  VOICE_CTRL_RENAME_BUTTON,
+  VOICE_CTRL_RENAME_MODAL,
+  VOICE_CTRL_LOCK_BUTTON,
+  VOICE_CTRL_LIMIT_BUTTON,
   buildGameSelectId,
   buildGamePseudoModalId,
   buildGamePseudoButtonId,

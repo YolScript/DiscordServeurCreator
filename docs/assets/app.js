@@ -5097,6 +5097,229 @@ async function renderAutomationsPage(id, container = app) {
   });
 }
 
+// Export "aperçu Discord" de la structure (roadmap n°020, redessine sur
+// demande explicite du user) : un vrai mockup 3 colonnes (salons / messages
+// / membres) avec avatars et pseudos PLACEHOLDER — jamais de vraies donnees
+// de membre, seuls les salons/roles/couleurs viennent du serveur reel.
+const MOCKUP_FAKE_NAMES = [
+  'Alex_92', 'Julie.k', 'MaxPower', 'Nova_', 'Sacha.TTV', 'Lea_exe', 'Theo91', 'Camille.gg',
+  'Yanis_FR', 'Zoe', 'Lucas92', 'Manon_', 'Ryu', 'Chloe.dev', 'Nathan', 'Emma_YT',
+  'Hugo', 'Sarah.k', 'Enzo_92', 'Ines', 'Tom_TTV', 'Lina', 'Noah.gg', 'Jade_',
+];
+function mockupSeedColor(str) {
+  let hash = 0;
+  for (let i = 0; i < str.length; i += 1) hash = (hash * 31 + str.charCodeAt(i)) >>> 0;
+  return `hsl(${hash % 360}, 58%, 52%)`;
+}
+function mockupRoundedRect(ctx, x, y, w, h, r) {
+  ctx.beginPath();
+  ctx.moveTo(x + r, y);
+  ctx.arcTo(x + w, y, x + w, y + h, r);
+  ctx.arcTo(x + w, y + h, x, y + h, r);
+  ctx.arcTo(x, y + h, x, y, r);
+  ctx.arcTo(x, y, x + w, y, r);
+  ctx.closePath();
+}
+function mockupAvatar(ctx, cx, cy, radius, name, opacity, online) {
+  ctx.save();
+  ctx.globalAlpha = opacity;
+  ctx.beginPath();
+  ctx.arc(cx, cy, radius, 0, Math.PI * 2);
+  ctx.fillStyle = mockupSeedColor(name);
+  ctx.fill();
+  ctx.fillStyle = 'rgba(255,255,255,0.92)';
+  ctx.font = `${Math.round(radius * 0.85)}px sans-serif`;
+  ctx.textAlign = 'center';
+  ctx.textBaseline = 'middle';
+  ctx.fillText(name.slice(0, 1).toUpperCase(), cx, cy + 1);
+  ctx.restore();
+  if (online) {
+    ctx.beginPath();
+    ctx.arc(cx + radius * 0.72, cy + radius * 0.72, radius * 0.34, 0, Math.PI * 2);
+    ctx.fillStyle = '#171013';
+    ctx.fill();
+    ctx.beginPath();
+    ctx.arc(cx + radius * 0.72, cy + radius * 0.72, radius * 0.22, 0, Math.PI * 2);
+    ctx.fillStyle = '#35c48a';
+    ctx.fill();
+  }
+  ctx.textAlign = 'left';
+  ctx.textBaseline = 'alphabetic';
+}
+const MOCKUP_MESSAGES = [
+  'Salut tout le monde ! 👋',
+  'Quelqu\'un a le lien du reglement ?',
+  'GG pour le stream d\'hier soir 🎉',
+  'N\'oubliez pas de recuperer vos roles dans #roles',
+  'Le giveaway se termine ce soir, tentez votre chance !',
+];
+
+async function exportStructureMockup(guildName, channels, structRoles, realMemberCount) {
+  let nameIdx = 0;
+  const nextFakeName = () => MOCKUP_FAKE_NAMES[(nameIdx++) % MOCKUP_FAKE_NAMES.length];
+
+  const categories = channels.filter((c) => c.type === 4).sort((a, b) => a.position - b.position);
+  const lines = [];
+  channels.filter((c) => c.type !== 4 && !c.parent_id).sort((a, b) => a.position - b.position)
+    .forEach((c) => lines.push({ text: c.name, indent: 0, kind: 'channel', voice: c.type === 2 }));
+  categories.forEach((cat) => {
+    lines.push({ text: cat.name.toUpperCase(), kind: 'cat' });
+    channels.filter((c) => c.parent_id === cat.id).sort((a, b) => a.position - b.position)
+      .forEach((c) => lines.push({ text: c.name, indent: 1, kind: 'channel', voice: c.type === 2 }));
+  });
+  const rolesSorted = structRoles.filter((r) => r.name !== '@everyone').sort((a, b) => b.position - a.position);
+  const activeChannel = channels.find((c) => c.type === 0) || { name: 'general', topic: '' };
+
+  // Groupes de membres factices : jusqu'a 5 roles hauts + un groupe "En
+  // ligne" sans role special + un groupe "Hors ligne" grise.
+  const memberGroups = [];
+  rolesSorted.slice(0, 5).forEach((r, i) => {
+    const count = Math.max(1, 4 - i);
+    memberGroups.push({
+      label: r.name.toUpperCase(), color: r.color ? `#${r.color.toString(16).padStart(6, '0')}` : '#c9beb8',
+      online: true, members: Array.from({ length: count }, () => nextFakeName()),
+    });
+  });
+  memberGroups.push({
+    label: 'EN LIGNE', color: '#c9beb8', online: true,
+    members: Array.from({ length: 4 }, () => nextFakeName()),
+  });
+  const offlineCount = Math.max(2, Math.min(9, (realMemberCount || 20) - nameIdx));
+  memberGroups.push({
+    label: 'HORS LIGNE', color: '#75696f', online: false,
+    members: Array.from({ length: offlineCount }, () => nextFakeName()),
+  });
+
+  const SIDEBAR_W = 240;
+  const MEMBERS_W = 240;
+  const CHAT_W = 640;
+  const WIDTH = SIDEBAR_W + CHAT_W + MEMBERS_W;
+  const ROW_H = 30;
+  const sidebarContentH = 56 + lines.length * ROW_H + 20;
+  const membersContentH = 56 + memberGroups.reduce((sum, g) => sum + 26 + g.members.length * 30, 0) + 20;
+  const chatContentH = 56 + MOCKUP_MESSAGES.length * 62 + 40;
+  const HEIGHT = Math.max(sidebarContentH, membersContentH, chatContentH, 480);
+
+  const canvas = document.createElement('canvas');
+  canvas.width = WIDTH;
+  canvas.height = HEIGHT;
+  const ctx = canvas.getContext('2d');
+
+  // Fond general (zone message) + colonnes laterales legerement plus sombres.
+  ctx.fillStyle = '#1c1517';
+  ctx.fillRect(0, 0, WIDTH, HEIGHT);
+  ctx.fillStyle = '#171013';
+  ctx.fillRect(0, 0, SIDEBAR_W, HEIGHT);
+  ctx.fillRect(SIDEBAR_W + CHAT_W, 0, MEMBERS_W, HEIGHT);
+
+  // --- Colonne salons ---
+  ctx.fillStyle = '#221a1c';
+  ctx.fillRect(0, 0, SIDEBAR_W, 56);
+  ctx.strokeStyle = 'rgba(255,255,255,0.06)';
+  ctx.beginPath(); ctx.moveTo(0, 56); ctx.lineTo(SIDEBAR_W, 56); ctx.stroke();
+  ctx.fillStyle = '#f0e7e3';
+  ctx.font = 'bold 15px sans-serif';
+  ctx.fillText(guildName.slice(0, 24), 16, 34);
+  ctx.fillStyle = '#a5958f';
+  ctx.font = '11px sans-serif';
+  ctx.fillText('▾', SIDEBAR_W - 24, 34);
+
+  let y = 78;
+  lines.forEach((l) => {
+    if (l.kind === 'cat') {
+      ctx.fillStyle = '#8f7f87';
+      ctx.font = 'bold 11px sans-serif';
+      ctx.fillText(`▾  ${l.text.slice(0, 26)}`, 14, y);
+    } else {
+      const active = l.text === activeChannel.name;
+      if (active) {
+        mockupRoundedRect(ctx, 8, y - 18, SIDEBAR_W - 16, 26, 6);
+        ctx.fillStyle = 'rgba(201,122,92,0.16)';
+        ctx.fill();
+      }
+      ctx.fillStyle = active ? '#f0e7e3' : '#a5958f';
+      ctx.font = '13px sans-serif';
+      ctx.fillText(`${l.voice ? '🔊' : '#'}  ${l.text.slice(0, 24)}`, 18 + l.indent * 14, y);
+    }
+    y += ROW_H;
+  });
+
+  // --- Colonne centrale (messages) ---
+  const chatX = SIDEBAR_W;
+  ctx.fillStyle = '#221a1c';
+  ctx.fillRect(chatX, 0, CHAT_W, 56);
+  ctx.strokeStyle = 'rgba(255,255,255,0.06)';
+  ctx.beginPath(); ctx.moveTo(chatX, 56); ctx.lineTo(chatX + CHAT_W, 56); ctx.stroke();
+  ctx.fillStyle = '#f0e7e3';
+  ctx.font = 'bold 15px sans-serif';
+  ctx.fillText(`# ${activeChannel.name}`, chatX + 20, 34);
+  if (activeChannel.topic) {
+    ctx.fillStyle = '#8f7f87';
+    ctx.font = '12px sans-serif';
+    ctx.fillText(activeChannel.topic.slice(0, 60), chatX + 200, 34);
+  }
+
+  let my = 92;
+  let msgHour = 14;
+  MOCKUP_MESSAGES.forEach((messageText) => {
+    const author = nextFakeName();
+    const role = rolesSorted[Math.floor(Math.random() * Math.max(1, Math.min(rolesSorted.length, 5)))];
+    mockupAvatar(ctx, chatX + 38, my - 4, 18, author, 1, false);
+    ctx.fillStyle = role?.color ? `#${role.color.toString(16).padStart(6, '0')}` : '#e0a97e';
+    ctx.font = 'bold 13px sans-serif';
+    ctx.fillText(author, chatX + 66, my - 6);
+    const authorWidth = ctx.measureText(author).width;
+    ctx.fillStyle = '#6f6266';
+    ctx.font = '11px sans-serif';
+    ctx.fillText(`Aujourd'hui à ${String(msgHour).padStart(2, '0')}:${String((msgHour * 7) % 60).padStart(2, '0')}`, chatX + 74 + authorWidth, my - 6);
+    ctx.fillStyle = '#d8cec9';
+    ctx.font = '14px sans-serif';
+    ctx.fillText(messageText, chatX + 66, my + 14);
+    my += 62;
+    msgHour += 1;
+  });
+
+  // --- Colonne membres ---
+  const membersX = SIDEBAR_W + CHAT_W;
+  ctx.fillStyle = '#221a1c';
+  ctx.fillRect(membersX, 0, MEMBERS_W, 56);
+  ctx.strokeStyle = 'rgba(255,255,255,0.06)';
+  ctx.beginPath(); ctx.moveTo(membersX, 56); ctx.lineTo(membersX + MEMBERS_W, 56); ctx.stroke();
+  ctx.fillStyle = '#f0e7e3';
+  ctx.font = 'bold 13px sans-serif';
+  ctx.fillText(`MEMBRES — ${realMemberCount || memberGroups.reduce((s, g) => s + g.members.length, 0)}`, membersX + 16, 34);
+
+  let gy = 76;
+  memberGroups.forEach((group) => {
+    ctx.fillStyle = group.color;
+    ctx.font = 'bold 11px sans-serif';
+    ctx.fillText(`${group.label} — ${group.members.length}`, membersX + 16, gy);
+    gy += 22;
+    group.members.forEach((name) => {
+      mockupAvatar(ctx, membersX + 26, gy - 6, 12, name, group.online ? 1 : 0.45, group.online);
+      ctx.fillStyle = group.online ? group.color : 'rgba(201,190,184,0.45)';
+      ctx.font = '13px sans-serif';
+      ctx.fillText(name, membersX + 44, gy - 2);
+      gy += 30;
+    });
+    gy += 10;
+  });
+
+  return new Promise((resolve) => {
+    canvas.toBlob((blob) => {
+      const url = URL.createObjectURL(blob);
+      const a = document.createElement('a');
+      a.href = url;
+      a.download = `structure-discord-${guildName.replace(/[^a-z0-9]/gi, '-').toLowerCase()}.png`;
+      document.body.appendChild(a);
+      a.click();
+      a.remove();
+      URL.revokeObjectURL(url);
+      resolve();
+    });
+  });
+}
+
 /* ---------- Pages: securite ---------- */
 
 async function renderSecurityPage(id, container = app) {
@@ -5253,61 +5476,9 @@ async function renderSecurityPage(id, container = app) {
       [channels, structRoles] = await Promise.all([Api.channels(id).catch(() => []), Api.roles(id).catch(() => [])]);
     }
     const guildName = allGuilds.find((g) => g.guildId === id)?.name || 'Serveur';
-    const categories = channels.filter((c) => c.type === 4).sort((a, b) => a.position - b.position);
-    const lines = [];
-    channels.filter((c) => c.type !== 4 && !c.parent_id).forEach((c) => lines.push({ text: `${c.type === 2 ? '🔊' : '#'} ${c.name}`, indent: 0, kind: 'channel' }));
-    categories.forEach((cat) => {
-      lines.push({ text: cat.name.toUpperCase(), indent: 0, kind: 'cat' });
-      channels.filter((c) => c.parent_id === cat.id).sort((a, b) => a.position - b.position)
-        .forEach((c) => lines.push({ text: `${c.type === 2 ? '🔊' : '#'} ${c.name}`, indent: 1, kind: 'channel' }));
-    });
-    const rolesSorted = structRoles.filter((r) => r.name !== '@everyone').sort((a, b) => b.position - a.position);
-    const rowH = 24;
-    const height = Math.max(lines.length, rolesSorted.length) * rowH + 100;
-    const canvas = document.createElement('canvas');
-    canvas.width = 900;
-    canvas.height = height;
-    const ctx = canvas.getContext('2d');
-    ctx.fillStyle = '#171013';
-    ctx.fillRect(0, 0, 900, height);
-    ctx.fillStyle = '#c97a5c';
-    ctx.fillRect(0, 0, 900, 4);
-    ctx.fillStyle = '#f0e7e3';
-    ctx.font = 'bold 20px sans-serif';
-    ctx.fillText(guildName.slice(0, 50), 24, 42);
-    ctx.font = 'bold 12px sans-serif';
-    ctx.fillStyle = '#a5958f';
-    ctx.fillText('SALONS', 24, 72);
-    ctx.fillText(`ROLES (${rolesSorted.length})`, 560, 72);
-    let y = 98;
-    lines.forEach((l) => {
-      ctx.font = l.kind === 'cat' ? 'bold 13px sans-serif' : '14px sans-serif';
-      ctx.fillStyle = l.kind === 'cat' ? '#a5958f' : '#e6dbd6';
-      ctx.fillText(l.text.slice(0, 42), 24 + l.indent * 18, y);
-      y += rowH;
-    });
-    y = 98;
-    rolesSorted.forEach((r) => {
-      ctx.fillStyle = r.color ? `#${r.color.toString(16).padStart(6, '0')}` : '#99aab5';
-      ctx.beginPath();
-      ctx.arc(566, y - 5, 5, 0, Math.PI * 2);
-      ctx.fill();
-      ctx.fillStyle = '#e6dbd6';
-      ctx.font = '14px sans-serif';
-      ctx.fillText(r.name.slice(0, 34), 582, y);
-      y += rowH;
-    });
-    canvas.toBlob((blob) => {
-      const url = URL.createObjectURL(blob);
-      const a = document.createElement('a');
-      a.href = url;
-      a.download = `structure-${guildName.replace(/[^a-z0-9]/gi, '-').toLowerCase()}.png`;
-      document.body.appendChild(a);
-      a.click();
-      a.remove();
-      URL.revokeObjectURL(url);
-      showToast('Image de la structure telechargee.');
-    });
+    const memberCount = allGuilds.find((g) => g.guildId === id)?.memberCount;
+    await exportStructureMockup(guildName, channels, structRoles, memberCount);
+    showToast('Aperçu Discord de la structure telecharge.');
   });
 
   const structureDropzone = document.getElementById('structure-dropzone');
