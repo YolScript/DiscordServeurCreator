@@ -507,6 +507,37 @@ const PERMISSION_LABELS = {
   ManageRoles: 'Gerer les roles', ManageWebhooks: 'Gerer les webhooks', ModerateMembers: 'Moderer (timeout)',
 };
 
+// Explications en francais de chaque permission au survol (roadmap n°269) :
+// le libelle seul (PERMISSION_LABELS) ne dit pas toujours ce que la
+// permission autorise concretement, surtout pour un admin peu technique.
+const PERMISSION_DESCRIPTIONS = {
+  CreateInstantInvite: 'Genere des liens d\'invitation pour faire rejoindre de nouveaux membres.',
+  KickMembers: 'Retire un membre du serveur (il peut revenir avec une nouvelle invitation).',
+  BanMembers: "Retire un membre et l'empeche de revenir tant qu'il n'est pas debanni.",
+  Administrator: 'Contourne TOUTES les restrictions de permissions, y compris celles des salons. A reserver au staff de confiance absolu.',
+  ManageChannels: 'Creer, modifier, supprimer des salons et categories, changer leurs permissions.',
+  ManageGuild: "Modifier le nom, la region, les parametres generaux et l'apparence du serveur.",
+  AddReactions: 'Ajouter de nouvelles reactions emoji sur les messages.',
+  ViewAuditLog: "Consulter l'historique des actions de moderation et de configuration.",
+  ViewChannel: 'Voir le salon dans la liste et lire son contenu.',
+  SendMessages: 'Envoyer des messages texte dans le salon.',
+  ManageMessages: "Supprimer ou epingler les messages des AUTRES membres.",
+  EmbedLinks: 'Les liens colles se transforment automatiquement en aperçu enrichi.',
+  AttachFiles: 'Envoyer des images, videos et autres fichiers.',
+  ReadMessageHistory: "Voir les messages envoyes avant d'avoir rejoint ou d'etre connecte.",
+  MentionEveryone: 'Utiliser @everyone, @here et mentionner tous les roles, meme non-mentionnables.',
+  Connect: 'Rejoindre les salons vocaux.',
+  Speak: 'Parler une fois connecte a un salon vocal (sans ca, coupe automatiquement).',
+  MuteMembers: 'Couper le micro des autres membres en vocal, a distance.',
+  DeafenMembers: "Couper l'audio des autres membres en vocal, a distance.",
+  MoveMembers: "Deplacer un membre d'un salon vocal a un autre.",
+  ChangeNickname: 'Modifier son propre pseudo sur le serveur.',
+  ManageNicknames: 'Modifier le pseudo des AUTRES membres.',
+  ManageRoles: "Creer des roles et gerer les permissions des roles positionnes EN DESSOUS du sien.",
+  ManageWebhooks: 'Creer, modifier et supprimer les webhooks (integrations externes).',
+  ModerateMembers: 'Reduire un membre au silence temporairement (timeout), sans le bannir.',
+};
+
 function decodeRolePermissions(permStr) {
   const mask = BigInt(permStr || '0');
   if (mask & PERMISSION_BITS.Administrator) return ['Administrateur (toutes permissions)'];
@@ -1521,6 +1552,11 @@ function renderPreviewContent(id, { channels, config, roles, members }) {
     if (c.rate_limit_per_user > 0) badges.push(`<span class="dp-ch-badge" title="Slowmode : ${c.rate_limit_per_user}s entre chaque message">🐌</span>`);
     const everyone = (c.permission_overwrites || []).find((o) => o.id === id);
     if (everyone && (BigInt(everyone.deny || 0) & 1024n) === 1024n) badges.push('<span class="dp-ch-badge" title="Salon prive (invisible pour @everyone)">🔒</span>');
+    // Overwrites cibles sur un MEMBRE precis (type 1, vs 0 = role) sont
+    // souvent des exceptions ponctuelles oubliees (roadmap n°267) : plus
+    // difficiles a auditer qu'une permission par role, d'ou le signalement.
+    const memberOverwrites = (c.permission_overwrites || []).filter((o) => o.type === 1).length;
+    if (memberOverwrites > 0) badges.push(`<span class="dp-ch-badge" title="${memberOverwrites} permission(s) ciblant un membre precis (pas un role) — a verifier">👤${memberOverwrites}</span>`);
     return badges.join('');
   };
 
@@ -1575,7 +1611,7 @@ function renderPreviewContent(id, { channels, config, roles, members }) {
         <div class="dp-roles-panel">
           <div class="dp-roles-header${rolesSorted.length >= 230 ? ' near-limit' : ''}" title="${rolesSorted.length >= 230 ? 'Limite Discord : 250 roles par serveur' : ''}">
             <span style="flex:1;">Roles — ${rolesSorted.length}</span>
-            <button type="button" class="dp-pin-btn" id="dp-roles-sort-members" title="Trier par nombre de membres" aria-pressed="false" style="opacity:1;">🔢</button>
+            <button type="button" class="dp-pin-btn" id="dp-roles-sort-members" data-sort-mode="default" title="Trier par nombre de membres" style="opacity:1;">🔢</button>
             <button type="button" class="dp-pin-btn" id="dp-pin-right" title="Epingler le panneau (toujours visible)" aria-pressed="false">📌</button>
           </div>
           <div class="dp-sidebar-search">
@@ -1749,27 +1785,49 @@ function renderPreviewContent(id, { channels, config, roles, members }) {
     }
   });
 
-  // Tri des roles par nombre de membres (roadmap n°197) : reordonnancement
-  // DOM uniquement (rien n'est persiste), re-clic = retour a l'ordre Discord.
+  // Tri des roles : ordre Discord -> nombre de membres (n°197) -> vue palette
+  // par teinte de couleur (n°262) -> retour a l'ordre Discord. Reordonnancement
+  // DOM uniquement, rien n'est persiste.
+  const roleHue = (colorInt) => {
+    if (!colorInt) return 361; // pas de couleur -> relegue en fin de palette
+    const r = ((colorInt >> 16) & 255) / 255;
+    const g = ((colorInt >> 8) & 255) / 255;
+    const b = (colorInt & 255) / 255;
+    const max = Math.max(r, g, b);
+    const min = Math.min(r, g, b);
+    if (max === min) return 0;
+    const d = max - min;
+    let h;
+    if (max === r) h = ((g - b) / d) % 6;
+    else if (max === g) h = (b - r) / d + 2;
+    else h = (r - g) / d + 4;
+    return h * 60;
+  };
+  const SORT_MODES = ['default', 'members', 'color'];
+  const SORT_LABELS = { default: 'Trier par nombre de membres', members: 'Trier par couleur (vue palette)', color: "Revenir a l'ordre Discord" };
   document.getElementById('dp-roles-sort-members')?.addEventListener('click', (e) => {
     e.stopPropagation();
     const btn = e.currentTarget;
-    const byMembers = btn.getAttribute('aria-pressed') !== 'true';
-    btn.setAttribute('aria-pressed', String(byMembers));
-    btn.title = byMembers ? 'Revenir a l\'ordre Discord' : 'Trier par nombre de membres';
+    const mode = SORT_MODES[(SORT_MODES.indexOf(btn.dataset.sortMode) + 1) % SORT_MODES.length];
+    btn.dataset.sortMode = mode;
+    btn.title = SORT_LABELS[mode];
+    btn.textContent = mode === 'color' ? '🎨' : '🔢';
     const list = app.querySelector('.dp-roles-list');
     if (!list) return;
     const rows = [...list.querySelectorAll('.dp-role-row[data-role]')];
     const countFor = (roleId) => (members || []).filter((m) => (m.roles || []).includes(roleId)).length;
-    const sortedRows = byMembers
+    const colorFor = (roleId) => rolesSorted.find((r) => r.id === roleId)?.color || 0;
+    const sortedRows = mode === 'members'
       ? rows.slice().sort((a, b) => countFor(b.dataset.role) - countFor(a.dataset.role))
-      : rows.slice().sort((a, b) => {
-        const ra = rolesSorted.findIndex((r) => r.id === a.dataset.role);
-        const rb = rolesSorted.findIndex((r) => r.id === b.dataset.role);
-        return ra - rb;
-      });
+      : mode === 'color'
+        ? rows.slice().sort((a, b) => roleHue(colorFor(a.dataset.role)) - roleHue(colorFor(b.dataset.role)))
+        : rows.slice().sort((a, b) => {
+          const ra = rolesSorted.findIndex((r) => r.id === a.dataset.role);
+          const rb = rolesSorted.findIndex((r) => r.id === b.dataset.role);
+          return ra - rb;
+        });
     sortedRows.forEach((row) => list.appendChild(row));
-    showToast(byMembers ? 'Roles tries par nombre de membres.' : 'Ordre Discord retabli.');
+    showToast(mode === 'members' ? 'Roles tries par nombre de membres.' : mode === 'color' ? 'Vue palette : roles tries par couleur.' : 'Ordre Discord retabli.');
   });
 
   app.querySelectorAll('.dp-role-row').forEach((row) => {
@@ -3092,7 +3150,7 @@ function roleActionDetailHtml(key, ctx) {
         <p class="muted" style="margin:0 0 10px;">Coche ou decoche pour ajouter/retirer une permission a ce role.</p>
         <div class="dp-perm-checklist">
           ${Object.entries(PERMISSION_BITS).map(([permName, bit]) => `
-            <label class="dp-toggle-row" style="margin-top:6px;">
+            <label class="dp-toggle-row" style="margin-top:6px;" title="${escapeHtml(PERMISSION_DESCRIPTIONS[permName] || '')}">
               <span>${escapeHtml(PERMISSION_LABELS[permName] || permName)}</span>
               <input type="checkbox" class="dp-role-perm-check" data-perm="${permName}" ${(mask & bit) ? 'checked' : ''} />
             </label>
@@ -3588,6 +3646,15 @@ async function renderPermissionsPage(id, container = app) {
       `, { id: 'perm-viewas' })}
 
       ${sectionHtml('Export / Import (copier-coller)', `
+        <p class="dp-block-title" style="margin-top:0;">📋 Copier vers un autre salon (roadmap n°265)</p>
+        <div class="row" style="gap:8px; flex-wrap:wrap; align-items:center;">
+          <select id="copyperm-source" aria-label="Salon source">${channelOptionsSimple}</select>
+          <span aria-hidden="true">→</span>
+          <select id="copyperm-target" aria-label="Salon cible">${channelOptionsSimple}</select>
+          <button class="btn secondary" id="copyperm-btn">Copier les permissions</button>
+        </div>
+        <div class="dp-subsection-divider"></div>
+        <p class="dp-block-title">🧾 Export / Import JSON (avance, entre serveurs)</p>
         <label for="export-channel">Salon a exporter</label>
         <select id="export-channel">${channelOptionsSimple}</select>
         <button class="btn secondary" id="export-btn" style="margin-top:8px;">Exporter</button>
@@ -3767,6 +3834,20 @@ async function renderPermissionsPage(id, container = app) {
       const results = await Api.bulkPermissions(id, { channelIds, roleId, allow: preset.allow, deny: preset.deny });
       const failed = results.filter((r) => !r.ok);
       showToast(failed.length ? `${failed.length} salon(s) en erreur.` : 'Permissions appliquees.', failed.length ? 'error' : 'success');
+    } catch (err) {
+      showToast(err.message, 'error');
+    }
+  });
+
+  document.getElementById('copyperm-btn').addEventListener('click', async () => {
+    const sourceId = document.getElementById('copyperm-source').value;
+    const targetId = document.getElementById('copyperm-target').value;
+    if (!sourceId || !targetId) { showToast('Choisis un salon source et un salon cible.', 'error'); return; }
+    if (sourceId === targetId) { showToast('Choisis deux salons differents.', 'error'); return; }
+    try {
+      const data = await Api.exportPermissions(id, sourceId);
+      await Api.importPermissions(id, targetId, data.permissionOverwrites);
+      showToast('Permissions copiees.');
     } catch (err) {
       showToast(err.message, 'error');
     }
@@ -4383,8 +4464,10 @@ async function renderAutomationsPage(id, container = app) {
         <label class="dp-toggle-row" style="margin-top:6px;"><span>Bloquer tous les liens</span><input type="checkbox" id="am-links" ${modConfig.blockLinks ? 'checked' : ''} /></label>
         <label for="am-spam-threshold">Seuil anti-spam (messages)</label>
         <input type="number" id="am-spam-threshold" value="${modConfig.spamMessageThreshold}" min="1" />
-        <label for="am-banned-words">Mots bannis (separes par des virgules, prefixe "re:" pour une regex)</label>
+        <label for="am-banned-words">Mots bannis (separes par des virgules, prefixe "re:" pour une regex) — le message est SUPPRIME</label>
         <textarea id="am-banned-words">${escapeHtml((modConfig.bannedWords || []).join(', '))}</textarea>
+        <label for="am-alert-keywords">Mots surveilles (separes par des virgules) — alerte le staff en modlog, le message N'EST PAS supprime (roadmap n°276)</label>
+        <textarea id="am-alert-keywords" placeholder="suicide, arnaque, scam">${escapeHtml((modConfig.alertKeywords || []).join(', '))}</textarea>
         <label for="am-link-whitelist">Domaines autorises meme si "Bloquer tous les liens" est actif (separes par des virgules)</label>
         <textarea id="am-link-whitelist" placeholder="youtube.com, twitch.tv">${escapeHtml((modConfig.linkWhitelist || []).join(', '))}</textarea>
         <label class="dp-toggle-row" style="margin-top:6px;"><span>Anti-raid actif</span><input type="checkbox" id="am-antiraid" ${modConfig.antiRaidEnabled ? 'checked' : ''} /></label>
@@ -4398,6 +4481,12 @@ async function renderAutomationsPage(id, container = app) {
         <label for="am-slowmode-threshold">Seuil du slowmode (messages par 10 s dans un salon)</label>
         <input type="number" id="am-slowmode-threshold" value="${modConfig.autoSlowmodeMsgPer10s ?? 20}" min="5" />
         <button class="btn" id="save-modconfig" style="margin-top:12px;">Enregistrer</button>
+
+        <div class="dp-subsection-divider"></div>
+        <p class="dp-block-title">📝 Motifs de sanction (roadmap n°272)</p>
+        <p class="muted" style="font-size:0.78rem;">Suggeres par autocompletion dans le champ "raison" de /warn, /timeout et /tempban — un par ligne. Vide = liste par defaut.</p>
+        <textarea id="am-sanction-reasons" placeholder="Spam&#10;Propos injurieux ou insultants&#10;Contenu NSFW hors salon dedie">${escapeHtml((config?.sanctionReasonPresets || []).join('\n'))}</textarea>
+        <button class="btn secondary" id="save-sanction-reasons" style="margin-top:8px;">Enregistrer les motifs</button>
       `, { id: 'automod' })}
 
       ${sectionHtml('Roles de niveau (XP)', `
@@ -4859,6 +4948,7 @@ async function renderAutomationsPage(id, container = app) {
         blockLinks: document.getElementById('am-links').checked,
         spamMessageThreshold: Number(document.getElementById('am-spam-threshold').value) || 5,
         bannedWords: document.getElementById('am-banned-words').value.split(',').map((w) => w.trim()).filter(Boolean),
+        alertKeywords: document.getElementById('am-alert-keywords').value.split(',').map((w) => w.trim()).filter(Boolean),
         linkWhitelist: document.getElementById('am-link-whitelist').value.split(',').map((w) => w.trim()).filter(Boolean),
         antiRaidEnabled: document.getElementById('am-antiraid').checked,
         antiRaidJoinThreshold: Number(document.getElementById('am-antiraid-threshold').value) || 8,
@@ -4868,6 +4958,17 @@ async function renderAutomationsPage(id, container = app) {
         autoSlowmodeMsgPer10s: Math.max(5, Number(document.getElementById('am-slowmode-threshold').value) || 20),
       });
       showToast('Auto-moderation enregistree.');
+    } catch (err) {
+      showToast(err.message, 'error');
+    }
+  });
+
+  document.getElementById('save-sanction-reasons').addEventListener('click', async () => {
+    try {
+      const sanctionReasonPresets = document.getElementById('am-sanction-reasons').value
+        .split('\n').map((l) => l.trim()).filter(Boolean).slice(0, 25);
+      await Api.updateConfig(id, { sanctionReasonPresets });
+      showToast('Motifs de sanction enregistres.');
     } catch (err) {
       showToast(err.message, 'error');
     }
@@ -6272,13 +6373,13 @@ async function renderCreatorPage(id, container = app) {
         <p class="muted">Cree un role rapidement, puis attribue-le : choisis le role, les membres sont detectes automatiquement, un petit + suffit.</p>
         <div class="row" style="gap:8px; flex-wrap:wrap; margin-bottom:8px;">
           <input type="text" id="creator-role-name" placeholder="Nom du nouveau role" aria-label="Nom du nouveau role" maxlength="100" style="flex:2; min-width:160px; margin:0;" />
-          <input type="color" id="creator-role-color" value="#5865f2" aria-label="Couleur du role" style="flex:none;" class="dp-role-color-input" />
+          <input type="color" id="creator-role-color" value="${DISCORD_ROLE_COLORS[Math.floor(Math.random() * DISCORD_ROLE_COLORS.length)]}" aria-label="Couleur du role" style="flex:none;" class="dp-role-color-input" />
           <button type="button" class="btn secondary" id="creator-role-create">➕ Creer le role</button>
         </div>
         <p class="muted" style="font-size:0.78rem; margin:0 0 6px;">Permissions du nouveau role (optionnel) :</p>
         <div class="creator-perm-chips" role="group" aria-label="Permissions du nouveau role">
           ${['KickMembers', 'BanMembers', 'ModerateMembers', 'ManageMessages', 'ManageChannels', 'ManageRoles', 'ManageNicknames', 'MentionEveryone', 'ViewAuditLog', 'ManageWebhooks', 'Administrator']
-    .map((k) => `<button type="button" class="creator-perm-chip" data-perm="${k}" aria-pressed="false">${PERMISSION_LABELS[k]}</button>`).join('')}
+    .map((k) => `<button type="button" class="creator-perm-chip" data-perm="${k}" aria-pressed="false" title="${escapeHtml(PERMISSION_DESCRIPTIONS[k] || '')}">${PERMISSION_LABELS[k]}</button>`).join('')}
         </div>
         <label for="creator-assign-role">Role a attribuer</label>
         <select id="creator-assign-role">${assignableRoles.map((r) => `<option value="${r.id}">${escapeHtml(r.name)}</option>`).join('')}</select>

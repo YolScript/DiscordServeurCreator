@@ -49,7 +49,7 @@ const warnCommand = new SlashCommandBuilder()
   .setDescription('Avertit un membre.')
   .setDefaultMemberPermissions(PermissionFlagsBits.ModerateMembers)
   .addUserOption((o) => o.setName('membre').setDescription('Membre a avertir').setRequired(true))
-  .addStringOption((o) => o.setName('raison').setDescription('Raison de l\'avertissement').setRequired(true))
+  .addStringOption((o) => o.setName('raison').setDescription('Raison de l\'avertissement').setRequired(true).setAutocomplete(true))
   .toJSON();
 
 const warningsCommand = new SlashCommandBuilder()
@@ -72,7 +72,7 @@ const timeoutCommand = new SlashCommandBuilder()
   .setDefaultMemberPermissions(PermissionFlagsBits.ModerateMembers)
   .addUserOption((o) => o.setName('membre').setDescription('Membre a timeout').setRequired(true))
   .addIntegerOption((o) => o.setName('minutes').setDescription('Duree en minutes').setRequired(true).setMinValue(1).setMaxValue(40320))
-  .addStringOption((o) => o.setName('raison').setDescription('Raison').setRequired(false))
+  .addStringOption((o) => o.setName('raison').setDescription('Raison').setRequired(false).setAutocomplete(true))
   .toJSON();
 
 const tempbanCommand = new SlashCommandBuilder()
@@ -81,7 +81,7 @@ const tempbanCommand = new SlashCommandBuilder()
   .setDefaultMemberPermissions(PermissionFlagsBits.BanMembers)
   .addUserOption((o) => o.setName('membre').setDescription('Membre a bannir').setRequired(true))
   .addIntegerOption((o) => o.setName('duree_heures').setDescription('Duree du ban en heures').setRequired(true).setMinValue(1))
-  .addStringOption((o) => o.setName('raison').setDescription('Raison').setRequired(false))
+  .addStringOption((o) => o.setName('raison').setDescription('Raison').setRequired(false).setAutocomplete(true))
   .toJSON();
 
 const unlockCommand = new SlashCommandBuilder()
