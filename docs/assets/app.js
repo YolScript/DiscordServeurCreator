@@ -4215,6 +4215,12 @@ async function renderAutomationsPage(id, container = app) {
           <select id="new-scheduled-channel">${textChannelOptions}</select>
           <label for="new-scheduled-message">Message</label>
           <textarea id="new-scheduled-message"></textarea>
+          <label for="new-scheduled-mention">Mentionner (roadmap n°185)</label>
+          <select id="new-scheduled-mention">
+            <option value="">Personne</option>
+            <option value="@everyone">@everyone (tout le serveur)</option>
+            ${roles.filter((r) => r.name !== '@everyone').map((r) => `<option value="<@&${r.id}>">@${escapeHtml(r.name)}</option>`).join('')}
+          </select>
           <label for="new-scheduled-date">Date et heure</label>
           <input type="datetime-local" id="new-scheduled-date" />
           <label class="dp-toggle-row" style="margin-top:10px;">
@@ -4936,10 +4942,17 @@ async function renderAutomationsPage(id, container = app) {
 
   document.getElementById('add-scheduled').addEventListener('click', async () => {
     const channelId = document.getElementById('new-scheduled-channel').value;
-    const message = document.getElementById('new-scheduled-message').value.trim();
+    let message = document.getElementById('new-scheduled-message').value.trim();
     const dateVal = document.getElementById('new-scheduled-date').value;
     const daily = document.getElementById('new-scheduled-daily').checked;
     if (!channelId || !message || !dateVal) { showToast('Salon, message et date requis.', 'error'); return; }
+    // Mention avec garde-fou (roadmap n°185).
+    const mention = document.getElementById('new-scheduled-mention').value;
+    if (mention === '@everyone' || /@everyone/.test(message)) {
+      const membersCount = allGuilds.find((g) => g.guildId === id)?.memberCount;
+      if (!window.confirm(`⚠️ Ce message notifiera TOUT le serveur${membersCount ? ` (${membersCount} membres)` : ''}${daily ? ', CHAQUE JOUR' : ''}. Confirmer ?`)) return;
+    }
+    if (mention && !message.includes(mention)) message = `${mention} ${message}`;
     try {
       await Api.addScheduled(id, {
         channelId, message, runAt: new Date(dateVal).getTime(), repeatIntervalMs: daily ? 86400000 : undefined,
