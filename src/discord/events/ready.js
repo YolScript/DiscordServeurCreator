@@ -23,6 +23,7 @@ const generationSync = require('../automation/generationSync');
 const reminderManager = require('../automation/reminderManager');
 const rssWatcher = require('../automation/rssWatcher');
 const dailyPoll = require('../engagement/dailyPoll');
+const countdownChannel = require('../automation/countdownChannel');
 const logger = require('../../shared/logger');
 
 client.once(Events.ClientReady, async (readyClient) => {
@@ -72,4 +73,5 @@ client.once(Events.ClientReady, async (readyClient) => {
   reminderManager.start();
   rssWatcher.start();
   dailyPoll.start();
+  countdownChannel.start();
 });

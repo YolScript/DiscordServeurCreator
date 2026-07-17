@@ -1239,6 +1239,40 @@ async function router(request, env) {
       return json(channel, env);
     }
 
+    // Compte a rebours (roadmap n°186) : salon vocal verrouille dont le nom
+    // affiche J-N jusqu'a une date ; le bot le renomme chaque heure.
+    if (sub === 'countdown-channel' && parts.length === 4 && method === 'POST') {
+      const session = await requireGuildAccess(env, request, guildId);
+      const { label, targetAt } = await readJson(request);
+      if (!label?.trim() || !Number.isFinite(Number(targetAt))) throw new HttpError(400, 'label et targetAt requis.');
+      if (Number(targetAt) < Date.now()) throw new HttpError(400, 'La date cible est deja passee.');
+      const config = (await getGuildConfig(env, guildId)) || {};
+      const days = Math.ceil((Number(targetAt) - Date.now()) / 86400000);
+      const channel = await botFetchJson(env, `/guilds/${guildId}/channels`, {
+        method: 'POST',
+        body: JSON.stringify({
+          name: `🗓️ ${label.trim().slice(0, 60)} J-${days}`,
+          type: 2,
+          permission_overwrites: [{ id: guildId, type: 0, deny: bitmaskFromNames(['Connect']), allow: '0' }],
+        }),
+      });
+      await putGuildConfig(env, guildId, {
+        ...config,
+        countdown: { channelId: channel.id, label: label.trim().slice(0, 60), targetAt: Number(targetAt) },
+      });
+      await logAudit(env, guildId, { title: 'Compte a rebours cree', description: `${session.username} a cree le compte a rebours "${label.trim()}".` });
+      return json(channel, env);
+    }
+    if (sub === 'countdown-channel' && parts.length === 4 && method === 'DELETE') {
+      const session = await requireGuildAccess(env, request, guildId);
+      const config = (await getGuildConfig(env, guildId)) || {};
+      if (config.countdown?.channelId) await botFetch(env, `/channels/${config.countdown.channelId}`, { method: 'DELETE' }).catch(() => {});
+      delete config.countdown;
+      await putGuildConfig(env, guildId, config);
+      await logAudit(env, guildId, { title: 'Compte a rebours supprime', description: `${session.username} a retire le compte a rebours.` });
+      return json({ ok: true }, env);
+    }
+
     if (sub === 'channels' && parts.length === 5) {
       const session = await requireGuildAccess(env, request, guildId);
       const channelId = parts[4];

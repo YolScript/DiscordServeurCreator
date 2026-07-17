@@ -4224,6 +4224,17 @@ async function renderAutomationsPage(id, container = app) {
           <button class="btn secondary" id="add-scheduled" style="margin-top:8px;">Programmer</button>
         </div>
 
+        <h2 style="margin-top:18px; font-size:0.85rem;">🗓️ Compte a rebours</h2>
+        ${config?.countdown
+    ? `<p class="muted">Salon actif : <strong>${escapeHtml(config.countdown.label)}</strong> — echeance le ${new Date(config.countdown.targetAt).toLocaleDateString('fr-FR')}. Le nom du salon se met a jour chaque heure, puis il est nettoye 2 jours apres la date.</p>
+           <button class="btn danger" id="delete-countdown">Retirer le compte a rebours</button>`
+    : `<p class="muted">Cree un salon vocal verrouille dont le nom affiche « J-N » jusqu'a ton evenement.</p>
+           <div class="row" style="gap:8px; flex-wrap:wrap;">
+             <input type="text" id="countdown-label" maxlength="60" placeholder="Ex : Grand tournoi" aria-label="Nom de l'evenement" style="width:200px; margin:0;" />
+             <input type="date" id="countdown-date" aria-label="Date de l'evenement" style="margin:0;" />
+             <button class="btn secondary" id="create-countdown">Creer</button>
+           </div>`}
+
         <h2 style="margin-top:18px; font-size:0.85rem;">☀️ Question du jour</h2>
         <p class="muted">Chaque jour a l'heure choisie, le bot poste une question de ta liste (rotation) sous forme de sondage Oui/Non/Sans avis.</p>
         <div class="dp-form-grid">
@@ -4793,6 +4804,30 @@ async function renderAutomationsPage(id, container = app) {
         btn.disabled = false;
       }
     });
+  });
+
+  // Compte a rebours (roadmap n°186).
+  document.getElementById('create-countdown')?.addEventListener('click', async () => {
+    const label = document.getElementById('countdown-label').value.trim();
+    const dateVal = document.getElementById('countdown-date').value;
+    if (!label || !dateVal) { showToast('Nom et date requis.', 'error'); return; }
+    try {
+      await Api.createCountdownChannel(id, label, new Date(`${dateVal}T20:00:00`).getTime());
+      showToast('Salon compte a rebours cree en haut du serveur.');
+      await renderAutomationsPage(id, container);
+    } catch (err) {
+      showToast(err.message, 'error');
+    }
+  });
+  document.getElementById('delete-countdown')?.addEventListener('click', async () => {
+    if (!window.confirm('Retirer le compte a rebours ? Le salon sera supprime.')) return;
+    try {
+      await Api.deleteCountdownChannel(id);
+      showToast('Compte a rebours retire.');
+      await renderAutomationsPage(id, container);
+    } catch (err) {
+      showToast(err.message, 'error');
+    }
   });
 
   // Question du jour (roadmap n°162) : heure saisie en LOCAL, stockee en UTC
