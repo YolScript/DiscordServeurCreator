@@ -141,6 +141,24 @@ h1, h2, h3 { font-weight: 600; letter-spacing: -0.01em; text-wrap: balance; }
 
 .num, .guild-summary .todo-count, .progress-gauge + .todo-count { font-variant-numeric: tabular-nums; }
 
+/* Audit complet prefers-reduced-motion (n°208) : filet de securite global
+   qui neutralise TOUTE animation/transition CSS du site (view transitions
+   incluses), pas seulement les deux animations ciblees ci-dessous. Duree
+   quasi nulle plutot que "none" : aucun script du dashboard n'ecoute
+   transitionend/animationend, donc rien ne depend de la duree, mais garder
+   les animations "presentes" evite de casser un futur ajout qui s'y fierait. */
+@media (prefers-reduced-motion: reduce) {
+  *, *::before, *::after {
+    animation-duration: 0.01ms !important;
+    animation-iteration-count: 1 !important;
+    transition-duration: 0.01ms !important;
+    scroll-behavior: auto !important;
+  }
+  ::view-transition-group(*), ::view-transition-old(*), ::view-transition-new(*) {
+    animation-duration: 0.01ms !important;
+  }
+}
+
 /* Reordonnancement/apparition anime des listes (liste de serveurs, entree
    en cascade). Un seul point de verite pour prefers-reduced-motion : toute
    classe qui anime une liste doit passer par ces deux regles. */
