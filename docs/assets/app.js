@@ -862,30 +862,16 @@ function savePinnedSections(pageKey, sids) {
 }
 function quickJumpBarHtml(entries, pageKey = 'default') {
   const pinned = getPinnedSections(pageKey);
-  const renderItem = ([sid, label, icon]) => {
+  const sorted = [...entries].sort((a, b) => Number(pinned.includes(b[0])) - Number(pinned.includes(a[0])));
+  return `
+    <div class="dp-quickjump" role="navigation" aria-label="Aller a une section" data-page-key="${pageKey}">
+      ${sorted.map(([sid, label, icon]) => {
     const isPinned = pinned.includes(sid);
     return `<span class="dp-quickjump-item${isPinned ? ' pinned' : ''}">
         <button type="button" class="dp-quickjump-btn" data-jump-to="${sid}">${icon ? `${icon} ` : ''}${escapeHtml(label)}</button>
         <button type="button" class="dp-quickjump-pin" data-pin-section="${sid}" title="${isPinned ? 'Desepingler' : 'Epingler en tete'}" aria-label="${isPinned ? 'Desepingler' : 'Epingler'} la section ${escapeHtml(label)}">${isPinned ? '📌' : '📍'}</button>
       </span>`;
-  };
-  // Groupes thematiques (4e element du tuple, roadmap "regroupement n°1") :
-  // les entrees epinglees restent en tete telles quelles (comportement
-  // existant), le reste s'affiche regroupe par theme avec un petit intitule,
-  // au lieu d'une liste plate homogene difficile a scanner sur les pages a
-  // beaucoup de sous-sections (permissions, automatisations).
-  const pinnedEntries = entries.filter((e) => pinned.includes(e[0]));
-  const restEntries = entries.filter((e) => !pinned.includes(e[0]));
-  let lastGroup = null;
-  const restHtml = restEntries.map((entry) => {
-    const groupLabel = entry[3];
-    const prefix = groupLabel && groupLabel !== lastGroup ? `<span class="dp-quickjump-group">${escapeHtml(groupLabel)}</span>` : '';
-    if (groupLabel) lastGroup = groupLabel;
-    return prefix + renderItem(entry);
-  }).join('');
-  return `
-    <div class="dp-quickjump" role="navigation" aria-label="Aller a une section" data-page-key="${pageKey}">
-      ${pinnedEntries.map(renderItem).join('')}${restHtml}
+  }).join('')}
     </div>`;
 }
 function wireQuickJump(container) {
@@ -4090,10 +4076,8 @@ async function renderPermissionsPage(id, container = app) {
   container.innerHTML = `
     <div class="inner">
       ${quickJumpBarHtml([
-    ['perm-bulk', 'Edition en masse', null, 'Edition en masse'], ['perm-topics', 'Topics en masse', null, 'Edition en masse'],
-    ['perm-matrix', 'Matrice', null, 'Analyse'], ['perm-viewas', 'Voir comme', null, 'Analyse'], ['perm-whocansee', 'Qui voit ce salon', null, 'Analyse'],
-    ['perm-io', 'Export/Import', null, 'Transfert'], ['perm-history', 'Historique', null, 'Transfert'],
-    ['perm-default', 'Par defaut', null, 'Reglages'], ['perm-dashboard', 'Acces dashboard', null, 'Reglages'],
+    ['perm-bulk', 'Edition en masse'], ['perm-topics', 'Topics en masse'], ['perm-matrix', 'Matrice'], ['perm-viewas', 'Voir comme'],
+    ['perm-whocansee', 'Qui voit ce salon'], ['perm-io', 'Export/Import'], ['perm-history', 'Historique'], ['perm-default', 'Par defaut'], ['perm-dashboard', 'Acces dashboard'],
   ], 'permissions')}
       ${sectionHtml('Edition en masse', `
         <p class="muted">Choisis les salons, le role, et une action rapide a appliquer partout en un clic.</p>
@@ -4208,7 +4192,6 @@ async function renderPermissionsPage(id, container = app) {
 
       ${sectionHtml('Acces au dashboard (au-dela d\'Administrator Discord)', `
         <p class="muted">Donne acces a ce dashboard a des membres specifiques (par ID Discord) meme s'ils n'ont pas la permission Administrator sur le serveur. Ils pourront tout configurer ici, comme un administrateur du dashboard.</p>
-        <p class="muted" style="font-size:0.78rem;">💡 Ceci gere qui peut ouvrir ce dashboard — pas les roles Discord eux-memes (couleur, fusion, permissions du serveur) : clique un role dans la colonne de droite pour ca. Pour retrouver un membre precis et verifier ses acces, <button type="button" class="btn secondary" id="perm-dashboard-goto-memberlookup" style="display:inline; padding:2px 8px; font-size:0.78rem;">🔎 Recherche de membres</button>.</p>
         <div id="dashboard-access-list">${dashboardAccessRows(dashboardAllowedUserIds)}</div>
         <div class="row" style="margin-top:10px;">
           <input type="text" id="new-dashboard-access-id" placeholder="ID Discord du membre" aria-label="ID Discord du membre (acces complet)" style="flex:1;" />
@@ -4225,11 +4208,6 @@ async function renderPermissionsPage(id, container = app) {
     </div>
   `;
   wireQuickJump(container);
-
-  document.getElementById('perm-dashboard-goto-memberlookup')?.addEventListener('click', () => {
-    window.UISound?.select();
-    withViewTransition(() => renderSettingsPanel(id, 'memberlookup'));
-  });
 
   // Pre-remplissage apres un drop role -> salon (roadmap n°016).
   if (permPrefill) {
@@ -5000,19 +4978,11 @@ async function renderAutomationsPage(id, container = app) {
   container.innerHTML = `
     <div class="inner">
       ${quickJumpBarHtml([
-    // Regroupe par les memes 7 categories que la grille d'accueil (roadmap
-    // "regroupement" n°1/4/6/7) plutot qu'une liste plate de 18 entrees
-    // melangeant administration/moderation/integrations/creation/fun.
-    ['arrivee', 'Bot & role auto', null, 'Administration'], ['streamers', 'Streamers', null, 'Administration'],
-    ['service', 'Service staff', null, 'Administration'], ['regles', 'Regles', null, 'Administration'],
-    ['autoreact', 'Reactions auto', null, 'Administration'],
-    ['cooldowns', 'Cooldowns', null, 'Moderation'], ['automod', 'Auto-mod', null, 'Moderation'],
-    ['contestations', 'Contestations', null, 'Moderation'], ['tickets', 'Tickets', null, 'Moderation'],
-    ['suggestions', 'Suggestions', null, 'Moderation'], ['signalements', 'Signalements', null, 'Moderation'],
-    ['bots', 'Bots', null, 'Integrations'], ['webhooks', 'Webhooks', null, 'Integrations'],
-    ['rss', 'RSS', null, 'Integrations'], ['notifications', 'Notifications push', null, 'Integrations'],
-    ['annonces', 'Annonces', null, 'Creation'],
-    ['economie', 'Economie', null, 'Fun'], ['niveaux', 'Niveaux', null, 'Fun'], ['parrainage', 'Parrainage', null, 'Fun'],
+    ['streamers', 'Streamers'], ['annonces', 'Annonces'], ['regles', 'Regles'], ['cooldowns', 'Cooldowns'],
+    ['automod', 'Auto-mod'], ['contestations', 'Contestations'], ['service', 'Service staff'], ['tickets', 'Tickets'], ['suggestions', 'Suggestions'],
+    ['signalements', 'Signalements'], ['economie', 'Economie'], ['niveaux', 'Niveaux'], ['parrainage', 'Parrainage'],
+    ['bots', 'Bots'], ['webhooks', 'Webhooks'], ['rss', 'RSS'], ['arrivee', 'Bot & role auto'],
+    ['autoreact', 'Reactions auto'], ['notifications', 'Notifications push'],
   ], 'automatisations')}
       ${sectionHtml('Bots complementaires', `
         <p class="muted">Ajoute des modules complementaires a ce serveur en invitant ces bots.</p>
@@ -5024,7 +4994,6 @@ async function renderAutomationsPage(id, container = app) {
       `, { id: 'bots' })}
 
       ${sectionHtml('Arrivee & statut du bot', `
-        <p class="muted" style="font-size:0.78rem;">Ceci configure le comportement du bot sur CE serveur. Pour verifier s'il est en ligne (uptime, ping, version — commun a tous les serveurs), <button type="button" class="btn secondary" id="arrivee-goto-botstatus" style="display:inline; padding:2px 8px; font-size:0.78rem;">🤖 Statut du bot</button>.</p>
         <label for="auto-role-select">Role attribue automatiquement a l'arrivee (en plus du reglement)</label>
         <select id="auto-role-select">
           <option value="">Aucun</option>
@@ -5203,7 +5172,6 @@ async function renderAutomationsPage(id, container = app) {
       `, { id: 'cooldowns' })}
 
       ${sectionHtml('Auto-moderation', `
-        <p class="muted" style="font-size:0.78rem;">Pour une reaction personnalisee a un evenement precis (mot-cle, arrivee d'un membre), voir aussi <button type="button" class="dp-quickjump-btn" data-jump-to="regles" style="display:inline; vertical-align:baseline;">⚡ Regles si → alors</button>.</p>
         <label class="dp-toggle-row"><span>Auto-moderation active</span><input type="checkbox" id="am-enabled" ${modConfig.autoModEnabled ? 'checked' : ''} /></label>
         <label class="dp-toggle-row" style="margin-top:6px;"><span>Bloquer les liens d'invitation Discord</span><input type="checkbox" id="am-invites" ${modConfig.blockInvites ? 'checked' : ''} /></label>
         <label class="dp-toggle-row" style="margin-top:6px;"><span>Bloquer tous les liens</span><input type="checkbox" id="am-links" ${modConfig.blockLinks ? 'checked' : ''} /></label>
@@ -5497,7 +5465,7 @@ async function renderAutomationsPage(id, container = app) {
       `, { id: 'annonces' })}
 
       ${sectionHtml('Regles si → alors', `
-        <p class="muted">Quand un evenement se produit, le bot agit automatiquement. 10 regles maximum. Pour des reactions automatiques a des comportements abusifs plutot qu'a un mot-cle precis, voir aussi <button type="button" class="dp-quickjump-btn" data-jump-to="automod" style="display:inline; vertical-align:baseline;">🚫 Auto-moderation</button>.</p>
+        <p class="muted">Quand un evenement se produit, le bot agit automatiquement. 10 regles maximum.</p>
         <div id="rules-list">${(config?.autoRules || []).map((r) => {
     const trigLabel = r.trigger?.type === 'member_join' ? 'Un membre arrive' : `Message contenant « ${escapeHtml(r.trigger?.keyword || '')} »${r.trigger?.channelId ? ` dans #${escapeHtml(channels.find((c) => c.id === r.trigger.channelId)?.name || '?')}` : ''}`;
     const actLabel = r.action?.type === 'add_role'
@@ -5561,7 +5529,6 @@ async function renderAutomationsPage(id, container = app) {
 
       ${sectionHtml('Service (Staff en service)', `
         <p class="muted">Le salon vocal SERVICE STAFF (categorie 🛡️ Staff) sert d'interrupteur : un membre du staff qui s'y connecte est immediatement deconnecte et bascule son statut "en service", qui revele la categorie Staff et les categories/salons choisis ci-dessous.</p>
-        <p class="muted" style="font-size:0.78rem;">💡 Pour masquer/reveler un salon ou une categorie precis selon le service (sans passer par la liste ci-dessous), utilise directement le bouton 🛡️ « Service staff » dans le menu ⋮ de ce salon/categorie, a gauche.</p>
 
         <label>Roles consideres comme "staff" (peuvent basculer leur statut de service)</label>
         <div class="channel-picker" style="max-height:160px">
@@ -5628,11 +5595,6 @@ async function renderAutomationsPage(id, container = app) {
     </div>
   `;
   wireQuickJump(container);
-
-  document.getElementById('arrivee-goto-botstatus')?.addEventListener('click', () => {
-    window.UISound?.select();
-    withViewTransition(() => renderSettingsPanel(id, 'botstatus'));
-  });
 
   document.getElementById('save-service-config').addEventListener('click', async () => {
     const btn = document.getElementById('save-service-config');
@@ -7380,7 +7342,6 @@ async function renderAuditLogPage(id, container = app) {
     <div class="inner">
       ${sectionHtml("Logs d'audit", `
         <p class="muted">Historique des actions de moderation et de configuration (200 dernieres).</p>
-        <p class="muted" style="font-size:0.78rem;">💡 Ces logs se remplissent une fois qu'un salon "Journal de moderation" est choisi (module Createur de salons &amp; roles).</p>
         <div class="row" style="gap:8px; flex-wrap:wrap; margin-bottom:10px;">
           <input type="text" id="audit-search" placeholder="Rechercher (titre, auteur, action...)" aria-label="Rechercher dans les logs d'audit" style="flex:2; min-width:180px; margin:0;" />
           <select id="audit-action" aria-label="Filtrer par type d'action" style="flex:1; min-width:150px;">
