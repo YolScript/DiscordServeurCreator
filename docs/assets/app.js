@@ -1099,6 +1099,10 @@ const COOLDOWN_COMMANDS = [
   'pay', 'ticket', 'rank', 'leaderboard', 'invites', 'shop',
 ];
 
+// Charte d'icones des 7 categories - verifier qu'un nouvel emoji ne double
+// pas deja un des 7 ci-dessous (deja distincts entre eux malgre des themes
+// proches, ex: securite=verrou vs moderation=bouclier) avant d'en ajouter
+// un a HOME_MODULES.
 const HOME_CATEGORIES = [
   { id: 'administration', icon: '🛠️', label: 'Administration' },
   { id: 'securite', icon: '🔒', label: 'Securite' },
@@ -5594,7 +5598,7 @@ async function renderAutomationsPage(id, container = app) {
           <input type="text" id="new-canned-name" placeholder="Nom court (ex: bienvenue-ticket)" aria-label="Nom de la reponse" maxlength="50" style="width:220px; margin:0;" />
           <button class="btn secondary" id="add-canned">Ajouter</button>
         </div>
-        <textarea id="new-canned-text" maxlength="1900" placeholder="Texte de la reponse..." style="margin-top:6px;"></textarea>
+        <textarea id="new-canned-text" maxlength="1900" placeholder="Texte de la reponse..." style="margin-top:6px;" data-charcount></textarea>
 
         <label class="dp-toggle-row" style="margin-top:18px;"><span>Assignation automatique equitable (roadmap n°306, au staff en service ayant le moins de tickets ouverts)</span><input type="checkbox" id="auto-assign-tickets" ${config?.autoAssignTickets ? 'checked' : ''} /></label>
         <label style="margin-top:18px;" for="max-open-tickets">Tickets ouverts simultanes maximum par membre (roadmap n°313)</label>
