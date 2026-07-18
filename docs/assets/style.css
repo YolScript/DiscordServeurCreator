@@ -34,8 +34,8 @@
   --shadow: 0 1px 2px rgba(0, 0, 0, 0.3), 0 24px 60px -24px rgba(0, 0, 0, 0.65);
   --glow-accent: 0 0 0 1px var(--accent-glow), 0 0 32px rgba(173, 89, 64, 0.2);
   --panel-blur: blur(6px);
-  --font-display: -apple-system, "Segoe UI Semibold", "Segoe UI", Roboto, Helvetica, Arial, sans-serif;
-  --font-body: -apple-system, "Segoe UI", Roboto, Helvetica, Arial, sans-serif;
+  --font-display: -apple-system, "Segoe UI Semibold", "Segoe UI", Roboto, "Noto Sans", Ubuntu, Cantarell, Helvetica, Arial, sans-serif;
+  --font-body: -apple-system, "Segoe UI", Roboto, "Noto Sans", Ubuntu, Cantarell, Helvetica, Arial, sans-serif;
   --font-mono: ui-monospace, "JetBrains Mono", "SF Mono", Consolas, "Roboto Mono", monospace;
 }
 
@@ -365,6 +365,9 @@ html, body { height: 100%; }
 
 /* ---------- Buttons ---------- */
 
+/* 3 variantes reelles : .btn seul (primaire, accent plein), .btn.secondary
+   (contour, action neutre), .btn.danger (rouge, action destructive). Pas
+   de 4e variante "ghost" - secondary en tient lieu. */
 .btn {
   display: inline-flex;
   align-items: center;
@@ -688,7 +691,7 @@ input::placeholder, textarea::placeholder { color: var(--text-faint); }
 
 .game-role-row { display: flex; align-items: center; justify-content: space-between; gap: 12px; padding: 10px 0; border-bottom: 1px solid var(--border); }
 .game-role-row:last-child { border-bottom: none; }
-.swatch { width: 10px; height: 10px; border-radius: 2px; display: inline-block; margin-right: 10px; flex: none; }
+.swatch { width: 10px; height: 10px; border-radius: var(--radius-sm); display: inline-block; margin-right: 10px; flex: none; }
 
 .char-counter {
   display: block; text-align: right; font-size: 0.72rem; color: var(--text-faint);
@@ -740,7 +743,7 @@ input::placeholder, textarea::placeholder { color: var(--text-faint); }
 
 /* ---------- Utility ---------- */
 
-.muted { color: var(--text-muted); font-size: 0.85rem; }
+.muted { color: var(--text-muted); font-size: 0.85rem; font-variant-numeric: tabular-nums; }
 .row { display: flex; gap: 10px; align-items: center; flex-wrap: wrap; font-variant-numeric: tabular-nums; }
 /* Feedback au survol uniquement sur les lignes de liste "reelles" (celles
    avec une action de suppression), pas sur les .row purement layout
@@ -751,6 +754,16 @@ input::placeholder, textarea::placeholder { color: var(--text-faint); }
 }
 .row:has(> .btn.danger):hover { background: var(--bg-input); }
 .spacer { flex: 1; }
+
+/* Utilitaires d'espacement (roadmap "visuel", item audit des style=""
+   inline) : couvrent les 3 valeurs de margin-top les plus repetees en
+   inline dans app.js (41/39/13 occurrences). Pas encore appliquees aux
+   appels existants - beaucoup ont deja un attribut class="" a fusionner
+   au cas par cas, pas un remplacement mecanique sans risque en masse.
+   Disponibles pour les prochains ajouts et une migration progressive. */
+.mt-8 { margin-top: 8px; }
+.mt-10 { margin-top: 10px; }
+.mt-12 { margin-top: 12px; }
 
 /* ---------- Module (grille de cartes + un seul module affiche) ---------- */
 
@@ -821,7 +834,7 @@ input::placeholder, textarea::placeholder { color: var(--text-faint); }
 }
 .dp-category .chevron { transition: transform 0.15s ease; font-size: 0.65rem; }
 .dp-category.collapsed .chevron { transform: rotate(-90deg); }
-.dp-category-name { flex: 1; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.dp-category-name { flex: 1; min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
 .dp-category-count {
   flex: none; font-size: 0.66rem; font-weight: 700; color: var(--text-faint);
   background: var(--bg-input); border-radius: 999px; padding: 1px 6px; letter-spacing: 0;
@@ -1152,7 +1165,7 @@ h2 { font-size: 0.85rem; font-weight: 700; margin: 18px 0 0; color: var(--text);
   padding: 16px; margin-bottom: 14px;
 }
 .dp-block > label:first-child { margin-top: 0; }
-.dp-block-title { color: var(--text); font-weight: 700; font-size: 0.85rem; margin: 0 0 12px; }
+.dp-block-title { color: var(--text); font-weight: 700; font-size: 0.85rem; margin: 0 0 12px; line-height: 1.3; }
 .dp-subsection-divider { border-top: 1px solid var(--border); margin: 20px 0 16px; }
 .dp-block.danger { border-color: rgba(229, 72, 77, 0.35); background: rgba(229, 72, 77, 0.06); }
 .dp-block.danger .muted { color: #b3898a; }
