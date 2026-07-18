@@ -8375,7 +8375,7 @@ async function renderStatsPage(id, container = app) {
     ['stats-participation', 'Participation'], ['stats-misc', 'Autres indicateurs'],
   ], 'stats')}
       ${sectionHtml('Membres', `
-        <p class="muted">Evolution du nombre de membres (${stats.length} jour(s) enregistre(s)${firstDate ? `, depuis le ${firstDate}` : ''}). ${memberTrendHtml}</p>
+        <p class="muted">Evolution du nombre de membres (${stats.length} jour(s) enregistre(s)${firstDate ? `, depuis le ${firstDate}` : ''}). ${memberTrendHtml} Pour approfondir un membre precis, voir <button type="button" class="btn secondary" id="stats-goto-memberlookup" style="display:inline; padding:2px 8px; font-size:0.78rem;">🔎 Recherche de membres</button>.</p>
         ${lineChartSvg(memberPoints, { color: 'var(--accent)', annotations: growthAnnotations })}
         ${lastDate ? `<p class="muted" style="margin-top:8px;">Dernier releve : ${lastDate} — ${memberPoints[memberPoints.length - 1]} membre(s)</p>` : ''}
         <button type="button" class="btn secondary chart-export-png" data-chart="membres" style="margin-top:6px;">🖼️ Exporter en PNG</button>
@@ -8476,6 +8476,11 @@ async function renderStatsPage(id, container = app) {
     </div>
   `;
   wireQuickJump(container);
+
+  document.getElementById('stats-goto-memberlookup')?.addEventListener('click', () => {
+    window.UISound?.select();
+    withViewTransition(() => renderSettingsPanel(id, 'memberlookup'));
+  });
 
   // Bascule 7/30 jours pour le top salons (roadmap n°324).
   container.querySelectorAll('.top-channels-period').forEach((btn) => {
@@ -10116,6 +10121,7 @@ async function renderTemplatesPage(guildId, container = app) {
     <div class="inner">
       ${sectionHtml('Templates reutilisables', `
         <p class="muted">Un template est une copie vivante de la structure d'un serveur (roles, salons, permissions, textes) : elle reste a jour automatiquement et peut etre appliquee a n'importe quel nouveau serveur via la commande /setup (menu deroulant avec recherche).</p>
+        <p class="muted" style="font-size:0.78rem;">Pour partager un resume lisible de ta config sans creer de template, voir <button type="button" class="btn secondary" id="templates-goto-copyconfig" style="display:inline; padding:2px 8px; font-size:0.78rem;">📋 Copier ma config</button> (Securite).</p>
         <div id="templates-list">${rows}</div>
         <div class="row" style="margin-top:10px;">
           <input type="text" id="new-template-name" placeholder="Nom du template" style="flex:1;" />
@@ -10135,6 +10141,10 @@ async function renderTemplatesPage(guildId, container = app) {
     } catch (err) {
       showToast(err.message, 'error');
     }
+  });
+  document.getElementById('templates-goto-copyconfig')?.addEventListener('click', () => {
+    window.UISound?.select();
+    withViewTransition(() => renderSettingsPanel(guildId, 'securite', 'sec-copy-config'));
   });
   container.querySelectorAll('.delete-template').forEach((btn) => {
     btn.addEventListener('click', () => {
