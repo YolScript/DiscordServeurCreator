@@ -27,6 +27,9 @@ export async function handleCallback(request, env) {
   const state = url.searchParams.get('state');
   const cookies = parseCookies(request);
 
+  if (url.searchParams.get('error')) {
+    return new Response('Autorisation Discord refusee ou annulee. Tu peux fermer cette page et reessayer depuis le dashboard.', { status: 400 });
+  }
   if (!code || !state || state !== cookies.oauth_state) {
     return new Response('Etat OAuth2 invalide ou expire, reessaie de te connecter.', { status: 400 });
   }

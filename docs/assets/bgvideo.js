@@ -27,3 +27,24 @@
     }, 3000);
   });
 }());
+
+// Bouton de coupure manuelle de la video (partage entre app.html et
+// index.html, qui ont chacun leur propre #video-toggle-btn) : n'importe
+// quel opt-out utilisateur reste independant du check prefers-reduced-motion
+// retire ci-dessus, cf commentaire en tete de fichier.
+(function () {
+  const btn = document.getElementById('video-toggle-btn');
+  if (!btn) return;
+  const applyVideoState = () => {
+    const off = localStorage.getItem('bgVideoOff') === '1';
+    document.body.classList.toggle('bg-video-off', off);
+    btn.classList.toggle('is-off', off);
+    btn.title = off ? 'Reactiver la video de fond' : 'Couper la video de fond';
+  };
+  applyVideoState();
+  btn.addEventListener('click', () => {
+    localStorage.setItem('bgVideoOff', localStorage.getItem('bgVideoOff') === '1' ? '0' : '1');
+    applyVideoState();
+    window.UISound?.click();
+  });
+}());

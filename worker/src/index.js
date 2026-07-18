@@ -380,7 +380,7 @@ async function router(request, env) {
       const previewRoles = allRoles
         .filter((r) => baseRoleIds.has(r.id))
         .sort((a, b) => b.position - a.position)
-        .map((r) => ({ name: r.name, color: `#${(r.color || 0).toString(16).padStart(6, '0')}` }));
+        .map((r) => ({ name: r.name, color: r.color ? `#${r.color.toString(16).padStart(6, '0')}` : '#99aab5' }));
 
       const excludedCategoryIds = new Set([
         sourceConfig.staffCategoryId, sourceConfig.gamesCategoryId, sourceConfig.ticketCategoryId,

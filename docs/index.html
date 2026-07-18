@@ -4,9 +4,11 @@
   <meta charset="utf-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1" />
   <title>Discord Serveur Creator — Bot Discord de creation et gestion de serveur</title>
-  <meta name="description" content="Discord Serveur Creator genere automatiquement la structure complete de ton serveur Discord (salons, roles, permissions, reglement) puis le gere au quotidien : moderation, economie, tickets, roles de jeu, et un assistant IA integre au dashboard." />
+  <meta name="description" content="Bot Discord qui genere automatiquement salons, roles et reglement, puis gere moderation, economie, roles de jeu et assistant IA depuis un dashboard web." />
   <link rel="canonical" href="https://yolscript.github.io/DiscordServeurCreator/" />
   <meta name="robots" content="index, follow" />
+  <meta name="theme-color" content="#1a1013" />
+  <link rel="manifest" href="manifest.webmanifest" />
 
   <meta property="og:type" content="website" />
   <meta property="og:site_name" content="Discord Serveur Creator" />
@@ -20,7 +22,9 @@
   <meta name="twitter:image" content="https://yolscript.github.io/DiscordServeurCreator/assets/logo-512.png" />
 
   <link rel="icon" type="image/png" href="assets/favicon-64.png?v=3" />
-  <link rel="stylesheet" href="assets/style.css?v=53" />
+  <link rel="stylesheet" href="assets/style.css?v=54" />
+  <link rel="preload" as="image" href="assets/bg-video-poster.jpg?v=3" />
+  <!-- Ce bloc FAQPage duplique le texte visible dans .faq-list plus bas : les deux sont a mettre a jour ensemble. -->
   <script type="application/ld+json">
   {
     "@context": "https://schema.org",
@@ -73,68 +77,74 @@
   </script>
   <script>
     (function () {
-      var t = localStorage.getItem('theme');
-      if (t) document.documentElement.setAttribute('data-theme', t);
+      try {
+        var t = localStorage.getItem('theme');
+        if (!t && window.matchMedia && window.matchMedia('(prefers-color-scheme: light)').matches) t = 'light';
+        if (t) document.documentElement.setAttribute('data-theme', t);
+      } catch (e) { /* localStorage indisponible (navigation privee stricte) */ }
     }());
   </script>
 </head>
 <body>
-  <div class="bg-video-wrap">
+  <!-- poster = 1re image visible avant lecture : a regenerer depuis la video si bg-video.mp4 est remplace, pour rester visuellement coherent avec elle -->
+  <div class="bg-video-wrap" aria-hidden="true">
     <video class="bg-video" autoplay muted loop playsinline poster="assets/bg-video-poster.jpg?v=3">
       <source src="assets/bg-video.mp4?v=3" type="video/mp4" />
     </video>
     <div class="bg-overlay"></div>
   </div>
-  <div class="auth-shell">
+  <header class="auth-shell">
     <div class="auth-box">
       <div class="brand" title="Discord Serveur Creator">
         <picture>
           <source srcset="assets/logo-512.webp?v=3" type="image/webp" />
-          <img class="brand-icon" src="assets/logo-512.png?v=3" alt="Discord Serveur Creator" width="44" height="44" />
+          <img class="brand-icon" src="assets/logo-512.png?v=3" alt="" width="44" height="44" />
         </picture>
         <h1 class="brand-text">Discord Serveur Creator</h1>
       </div>
       <p class="lede">Panel d'administration des serveurs generes par le bot.</p>
       <div class="card">
-        <p style="margin-top:0;">Connecte-toi avec ton compte Discord pour gerer tes serveurs.</p>
-        <button class="btn" id="login-btn" style="width: 100%;">Se connecter avec Discord</button>
-        <a class="btn secondary" href="app.html?demo=1" style="width: 100%; margin-top:8px; text-align:center; display:block; box-sizing:border-box;">🎭 Essayer la demo (sans Discord)</a>
+        <h2 style="margin:0 0 20px; font-size:1rem;">Connecte-toi avec ton compte Discord pour gerer tes serveurs.</h2>
+        <button class="btn" id="login-btn">Se connecter avec Discord</button>
+        <p class="muted" style="margin:8px 0 0; font-size:0.78rem;">Tu seras redirige vers Discord pour autoriser l'acces, puis renvoye ici.</p>
+        <a class="btn secondary" href="app.html?demo=1">🎭 Essayer la demo (sans Discord)</a>
       </div>
-      <p class="muted" id="status"></p>
+      <a class="scroll-hint" href="#landing-features-title" aria-label="Decouvrir les fonctionnalites plus bas">↓</a>
     </div>
-  </div>
+    <button type="button" class="video-toggle" id="video-toggle-btn" title="Couper la video de fond" aria-label="Couper la video de fond" style="position:fixed; top:16px; right:16px; z-index:5;">🎬</button>
+  </header>
 
   <main class="landing">
     <section class="landing-section" aria-labelledby="landing-features-title">
       <h2 id="landing-features-title">Fonctionnalites</h2>
       <div class="feature-grid">
         <div class="feature-card">
-          <span class="feature-icon">🪄</span>
+          <span class="feature-icon" aria-hidden="true">🪄</span>
           <h3>Generation automatique</h3>
           <p>Salons, roles, permissions et reglement recrees en un clic depuis un template vivant, toujours a jour.</p>
         </div>
         <div class="feature-card">
-          <span class="feature-icon">🎮</span>
+          <span class="feature-icon" aria-hidden="true">🎮</span>
           <h3>Roles de jeu dynamiques</h3>
           <p>Detection automatique des jeux joues par les membres, creation de roles et salons dedies sans configuration.</p>
         </div>
         <div class="feature-card">
-          <span class="feature-icon">🛡️</span>
+          <span class="feature-icon" aria-hidden="true">🛡️</span>
           <h3>Moderation integree</h3>
           <p>Anti-bot (captcha), verification d'age, detection anti-raid, roles +16/-16 et logs d'audit complets.</p>
         </div>
         <div class="feature-card">
-          <span class="feature-icon">💰</span>
+          <span class="feature-icon" aria-hidden="true">💰</span>
           <h3>Economie virtuelle</h3>
           <p>Monnaie du serveur, boutique, classement et recompenses journalieres pour dynamiser la communaute.</p>
         </div>
         <div class="feature-card">
-          <span class="feature-icon">🎫</span>
+          <span class="feature-icon" aria-hidden="true">🎫</span>
           <h3>Support par tickets</h3>
           <p>Systeme de tickets pour l'assistance aux membres, directement depuis le serveur Discord.</p>
         </div>
         <div class="feature-card">
-          <span class="feature-icon">🤖</span>
+          <span class="feature-icon" aria-hidden="true">🤖</span>
           <h3>Assistant IA</h3>
           <p>Configuration du serveur par simple conversation, connecte a Claude, GPT ou Gemini au choix.</p>
         </div>
@@ -152,7 +162,7 @@
         <div class="step">
           <span class="step-num">2</span>
           <h3>Genere la structure</h3>
-          <p>Lance la generation depuis le dashboard : salons, roles et reglement sont crees automatiquement.</p>
+          <p>Lance la generation depuis le dashboard : salons, roles et reglement sont crees automatiquement en quelques secondes.</p>
         </div>
         <div class="step">
           <span class="step-num">3</span>
@@ -165,27 +175,27 @@
     <section class="landing-section" aria-labelledby="landing-faq-title">
       <h2 id="landing-faq-title">Questions frequentes</h2>
       <div class="faq-list">
-        <details class="faq-item">
+        <details class="faq-item" id="faq-creation-automatique">
           <summary>Comment creer automatiquement un serveur Discord avec ce bot ?</summary>
           <p>Invite le bot sur un serveur Discord existant, puis lance <code>/setup</code> ou clique sur "Generer le serveur" depuis le dashboard web : les salons, roles, permissions et le reglement sont crees automatiquement en quelques secondes, a partir d'un template vivant.</p>
         </details>
-        <details class="faq-item">
+        <details class="faq-item" id="faq-gratuit">
           <summary>Le bot Discord Serveur Creator est-il gratuit ?</summary>
           <p>Oui, l'utilisation de base (generation de serveur, moderation, roles de jeu, dashboard) est gratuite.</p>
         </details>
-        <details class="faq-item">
+        <details class="faq-item" id="faq-roles-jeu">
           <summary>Comment fonctionnent les roles de jeu automatiques sur Discord ?</summary>
           <p>Le bot detecte les jeux joues par les membres via leur statut Discord et cree automatiquement un role et un salon dedies pour chaque jeu, sans configuration manuelle.</p>
         </details>
-        <details class="faq-item">
+        <details class="faq-item" id="faq-moderation">
           <summary>Quelles fonctionnalites de moderation sont incluses ?</summary>
           <p>Verification anti-bot (captcha), verification d'age a l'acceptation du reglement, detection anti-raid, logs d'audit et roles +16/-16 automatiques.</p>
         </details>
-        <details class="faq-item">
+        <details class="faq-item" id="faq-multi-serveurs">
           <summary>Peut-on gerer plusieurs serveurs Discord depuis un seul dashboard ?</summary>
           <p>Oui, le dashboard web liste tous les serveurs ou le bot est present et ou tu es administrateur, et permet de basculer entre eux sans se reconnecter.</p>
         </details>
-        <details class="faq-item">
+        <details class="faq-item" id="faq-assistant-ia">
           <summary>Le bot propose-t-il un assistant IA ?</summary>
           <p>Oui, un assistant IA (Claude, GPT ou Gemini au choix) est integre au dashboard pour automatiser des taches de configuration par simple conversation.</p>
         </details>
@@ -194,23 +204,44 @@
 
     <footer class="landing-footer">
       <p>Discord Serveur Creator — bot de creation et gestion automatique de serveurs Discord.</p>
+      <p><a href="status.html">Statut du bot</a> · <a href="leaderboard.html">Classement</a></p>
+      <a class="btn secondary" href="#login-btn">↑ Retour a la connexion</a>
     </footer>
   </main>
 
   <script src="assets/config.js?v=5" defer></script>
-  <script src="assets/sounds.js?v=1" defer></script>
   <script src="assets/api.js?v=19" defer></script>
   <script src="assets/microinteractions.js?v=1" defer></script>
   <script>
     document.addEventListener('DOMContentLoaded', () => {
-      document.getElementById('login-btn').addEventListener('click', () => {
+      const loginBtn = document.getElementById('login-btn');
+      const loginBtnOriginalText = loginBtn.textContent;
+      loginBtn.addEventListener('click', () => {
+        loginBtn.disabled = true;
+        loginBtn.textContent = 'Redirection vers Discord...';
         window.location.href = `${window.API_BASE_URL}/auth/login`;
+        // Filet de securite : si la redirection est bloquee (bloqueur de
+        // pop-up, extension), on redonne la main plutot que de laisser le
+        // bouton bloque indefiniment sur "Redirection...".
+        setTimeout(() => {
+          loginBtn.disabled = false;
+          loginBtn.textContent = loginBtnOriginalText;
+          showToast("La redirection vers Discord n'a pas demarre, reessaie.", 'error');
+        }, 4000);
       });
 
       // Si deja connecte, saute directement au dashboard.
-      Api.me().then(() => { window.location.href = 'app.html'; }).catch(() => {});
+      Api.me().then(() => { window.location.href = 'app.html'; }).catch((err) => {
+        if (err && err.message !== 'Non connecte.') {
+          showToast('Connexion au serveur instable, reessaie dans un instant si besoin.', 'error');
+        }
+      });
+
+      if ('serviceWorker' in navigator) {
+        navigator.serviceWorker.register('sw.js').catch(() => {});
+      }
     });
   </script>
-  <script src="assets/bgvideo.js?v=4"></script>
+  <script src="assets/bgvideo.js?v=4" defer></script>
 </body>
 </html>

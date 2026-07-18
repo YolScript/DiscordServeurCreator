@@ -10253,74 +10253,137 @@ const GEN_STEP_ICONS = {
   reglement: '📜', config: '⚙️', gameroles: '🎮', structures: '🏗️', done: '✅', error: '❌',
 };
 
+let lastSelectedTemplateKey = null;
+
 async function renderGenerateChoice(guildId, guildName) {
   app.innerHTML = skeletonHtml();
-  const savedTemplates = await Api.templates().catch(() => []);
+  let savedTemplates = [];
+  try {
+    savedTemplates = await Api.templates();
+  } catch (err) {
+    console.error('Api.templates', err);
+    showToast('Impossible de charger tes templates personnalises (reseau). Le template officiel reste disponible.', 'error');
+  }
+  savedTemplates.sort((a, b) => a.name.localeCompare(b.name, 'fr'));
+  const titleGuild = guildName ? `"${escapeHtml(guildName)}"` : 'ce serveur';
   const templateOptions = [
     { key: 'live', label: 'ServeurCreator (a jour)' },
     ...savedTemplates.map((t) => ({ key: `live:${t.id}`, label: t.name })),
   ];
+  const initialKey = templateOptions.some((t) => t.key === lastSelectedTemplateKey)
+    ? lastSelectedTemplateKey
+    : 'live';
 
   app.innerHTML = `
     <div class="inner wide fill">
-      ${sectionHtml(`Generer "${escapeHtml(guildName)}"`, `
-        <p class="dp-panel-title">🪄 Generer "${escapeHtml(guildName)}"</p>
-        <p class="muted">Choisis un template : sa structure (roles, salons, permissions, textes) sera recreee en direct sur ce serveur.</p>
+      ${sectionHtml('', `
+        <h2 class="dp-panel-title" id="gen-title" tabindex="-1">Generer ${titleGuild}</h2>
+        <p class="muted">Choisis un template : sa structure (roles, salons, permissions, reglement) sera recreee sur ce serveur. Les salons cliquables de l'apercu (reglement, arrivee-depart, roles, support) montrent le message qui sera poste dedans.</p>
         <div class="gen-layout">
           <div class="gen-layout-form">
             <label for="gen-template">Template</label>
-            <select id="gen-template">
-              ${templateOptions.map((t) => `<option value="${t.key}">${escapeHtml(t.label)}</option>`).join('')}
+            <select id="gen-template" aria-describedby="gen-template-preview-desc">
+              <optgroup label="Template officiel">
+                <option value="live">ServeurCreator (a jour)</option>
+              </optgroup>
+              ${savedTemplates.length ? `<optgroup label="Mes templates">
+                ${savedTemplates.map((t) => `<option value="live:${t.id}">${escapeHtml(t.name)}</option>`).join('')}
+              </optgroup>` : ''}
             </select>
-            <label for="gen-reglement">Texte du reglement (optionnel, sinon celui du template)</label>
-            <textarea id="gen-reglement" placeholder="Laisse vide pour utiliser le reglement du template"></textarea>
+            <span id="gen-template-preview-desc" class="sr-only">L'apercu a droite se met a jour selon le template choisi ci-dessus.</span>
+            <label for="gen-reglement">Texte du reglement</label>
+            <textarea id="gen-reglement" placeholder="Laisse vide pour utiliser le reglement du template" maxlength="4096" data-charcount></textarea>
             <div class="row" style="margin-top:16px;">
-              <button class="btn secondary" id="gen-cancel">Annuler</button>
+              <button class="btn secondary" id="gen-cancel">Retour</button>
               <button class="btn" id="gen-launch">🪄 Lancer la generation</button>
             </div>
           </div>
-          <div class="gen-preview-mock" id="gen-template-preview">
+          <div class="gen-preview-mock" id="gen-template-preview" aria-live="polite">
             <div class="gen-preview-mock-placeholder"><p class="muted">Chargement de l'apercu...</p></div>
           </div>
         </div>
       `, { alwaysOpen: true })}
     </div>
   `;
+  document.getElementById('gen-title').focus();
 
   const templateSelect = document.getElementById('gen-template');
+  const reglementInput = document.getElementById('gen-reglement');
   const previewEl = document.getElementById('gen-template-preview');
+  templateSelect.value = initialKey;
+  lastSelectedTemplateKey = initialKey;
 
+  const previewCache = new Map();
+  let previewRequestId = 0;
   async function loadPreview() {
     const key = templateSelect.value;
+    lastSelectedTemplateKey = key;
+    const requestId = ++previewRequestId;
+    if (previewCache.has(key)) {
+      previewEl.innerHTML = templatePreviewHtml(previewCache.get(key));
+      wireTemplatePreview(previewEl, previewCache.get(key));
+      return;
+    }
     previewEl.innerHTML = '<div class="gen-preview-mock-placeholder"><p class="muted">Chargement de l\'apercu...</p></div>';
     try {
       const preview = await Api.templatePreview(key);
+      if (requestId !== previewRequestId || !document.body.contains(previewEl)) return;
+      previewCache.set(key, preview);
       previewEl.innerHTML = templatePreviewHtml(preview);
       wireTemplatePreview(previewEl, preview);
     } catch (err) {
-      previewEl.innerHTML = `<div class="gen-preview-mock-placeholder"><p class="muted">🪄 Apercu indisponible<br>(${escapeHtml(err.message)})</p></div>`;
+      if (requestId !== previewRequestId || !document.body.contains(previewEl)) return;
+      console.error('templatePreview', err);
+      previewEl.innerHTML = `<div class="gen-preview-mock-placeholder"><p class="muted">Apercu indisponible pour le moment.<br><button type="button" class="btn secondary" id="gen-preview-retry" style="margin-top:10px;">Reessayer</button></p></div>`;
+      document.getElementById('gen-preview-retry')?.addEventListener('click', loadPreview);
     }
   }
-  templateSelect.addEventListener('change', loadPreview);
+  let previewDebounce = null;
+  templateSelect.addEventListener('change', () => {
+    clearTimeout(previewDebounce);
+    previewDebounce = setTimeout(loadPreview, 150);
+  });
   loadPreview();
 
-  document.getElementById('gen-cancel').addEventListener('click', () => {
+  function confirmDiscardReglement() {
+    if (!reglementInput.value.trim()) return true;
+    return window.confirm('Le texte de reglement saisi sera perdu. Continuer ?');
+  }
+
+  function goBack() {
+    if (!confirmDiscardReglement()) return;
+    document.removeEventListener('keydown', onKeyDown);
     withViewTransition(() => renderGuildList());
-  });
+  }
+  function onKeyDown(e) {
+    if (e.key !== 'Escape') return;
+    if (!document.getElementById('gen-cancel')) { document.removeEventListener('keydown', onKeyDown); return; }
+    goBack();
+  }
+  document.addEventListener('keydown', onKeyDown);
+
+  document.getElementById('gen-cancel').addEventListener('click', goBack);
   document.getElementById('gen-launch').addEventListener('click', async () => {
-    const templateKey = document.getElementById('gen-template').value;
-    const reglementText = document.getElementById('gen-reglement').value.trim();
+    if (!window.confirm(`Lancer la generation sur ${titleGuild} ? Les salons et roles du template seront (re)crees sur ce serveur.`)) return;
+    const templateKey = templateSelect.value;
+    const reglementText = reglementInput.value.trim();
     const btn = document.getElementById('gen-launch');
     const originalHtml = btn.innerHTML;
     btn.disabled = true;
+    btn.setAttribute('aria-busy', 'true');
+    templateSelect.disabled = true;
     btn.innerHTML = '<span class="spinner"></span> Generation...';
     try {
       await Api.generateServer(guildId, templateKey, reglementText || undefined);
+      document.removeEventListener('keydown', onKeyDown);
       withViewTransition(() => renderGenerationScreen(guildId, guildName));
     } catch (err) {
       showToast(err.message, 'error');
       btn.disabled = false;
+      btn.removeAttribute('aria-busy');
+      templateSelect.disabled = false;
       btn.innerHTML = originalHtml;
+      btn.focus();
     }
   });
 }
@@ -10337,12 +10400,12 @@ function templatePreviewChannelKind(ch, preview) {
 function templatePreviewChanHtml(ch, preview) {
   const kind = templatePreviewChannelKind(ch, preview);
   const clickable = kind ? ' clickable' : '';
-  const attrs = kind ? ` data-chan-kind="${kind}"` : '';
+  const attrs = kind ? ` data-chan-kind="${kind}" role="button" tabindex="0"` : '';
   return `
     <div class="tplprev-chan-wrap">
-      <div class="tplprev-chan${clickable}"${attrs}>
+      <div class="tplprev-chan${clickable}"${attrs} title="${escapeHtml(ch.name)}">
         <span class="tplprev-chan-icon">${ch.type === 'voice' ? '🔊' : '#'}</span>${escapeHtml(ch.name)}
-        ${ch.auto ? '<span class="tplprev-auto-badge">auto</span>' : ''}
+        ${ch.auto ? `<span class="tplprev-auto-badge" title="Cree automatiquement a la generation, pas copie du template">auto</span>` : ''}
       </div>
     </div>
   `;
@@ -10351,7 +10414,7 @@ function templatePreviewChanHtml(ch, preview) {
 function templatePreviewCategoryHtml(c, preview) {
   return `
     <div class="tplprev-cat${c.auto ? ' auto' : ''}">${escapeHtml(c.name)}${c.auto ? '<span class="tplprev-auto-badge">auto</span>' : ''}</div>
-    ${c.channels.map((ch) => templatePreviewChanHtml(ch, preview)).join('')}
+    ${c.channels.length ? c.channels.map((ch) => templatePreviewChanHtml(ch, preview)).join('') : '<p class="tplprev-empty-cat">Categorie vide</p>'}
   `;
 }
 
@@ -10364,19 +10427,19 @@ function templatePreviewHtml(preview) {
   const totalChannels = [...categories, ...autoCategories].reduce((n, c) => n + c.channels.length, 0);
   return `
     <div class="tplprev-head">
-      ${preview.guildIconUrl ? `<img class="tplprev-icon" src="${preview.guildIconUrl}" alt="" />` : '<span class="tplprev-icon tplprev-icon-fallback">🪄</span>'}
+      ${preview.guildIconUrl ? `<img class="tplprev-icon" src="${preview.guildIconUrl}" alt="" width="28" height="28" loading="lazy" />` : '<span class="tplprev-icon tplprev-icon-fallback">🪄</span>'}
       <strong>${escapeHtml(preview.label || 'Template')}</strong>
     </div>
     <div class="tplprev-body">
       <div class="tplprev-roles-block">
-        <p class="tplprev-subtitle">Roles (${roles.length})</p>
+        <p class="tplprev-subtitle">Roles (${roles.length}${gameRoles.length ? ` + ${gameRoles.length} de jeu = ${roles.length + gameRoles.length} au total` : ''})</p>
         <div class="tplprev-roles">
-          ${roles.length ? roles.map((r) => `<span class="tplprev-role-chip" style="--rc:${escapeHtml(r.color)}">${escapeHtml(r.name)}</span>`).join('') : '<span class="muted">Aucun</span>'}
+          ${roles.length ? roles.map((r) => `<span class="tplprev-role-chip" style="--rc:${escapeHtml(r.color)}" title="Couleur ${escapeHtml(r.color)}">${escapeHtml(r.name)}</span>`).join('') : '<span class="muted">Aucun</span>'}
         </div>
         ${gameRoles.length ? `
           <p class="tplprev-subtitle" style="margin-top:14px;">Roles de jeu (${gameRoles.length})</p>
           <div class="tplprev-roles">
-            ${gameRoles.map((r) => `<span class="tplprev-role-chip" style="--rc:${escapeHtml(r.color)}">${escapeHtml(r.name)}</span>`).join('')}
+            ${gameRoles.map((r) => `<span class="tplprev-role-chip game" style="--rc:${escapeHtml(r.color)}" title="Couleur ${escapeHtml(r.color)}">${escapeHtml(r.name)}</span>`).join('')}
           </div>
         ` : ''}
       </div>
@@ -10400,7 +10463,7 @@ function templatePreviewEmbedHtml(kind, preview) {
       ? escapeHtml(content.reglementText)
       : '<em>(texte par defaut du bot : regles de respect, anti-spam, moderation...)</em>';
     return `
-      <div class="tplprev-embed" style="--ec:#e63946">
+      <div class="tplprev-embed" style="--ec:var(--danger)">
         <div class="tplprev-embed-title">Reglement du serveur</div>
         <div class="tplprev-embed-desc">${desc}</div>
       </div>
@@ -10411,7 +10474,7 @@ function templatePreviewEmbedHtml(kind, preview) {
     const welcomeRaw = content.welcomeMessageTemplate || 'Bienvenue {user} sur {server} !';
     const welcome = escapeHtml(welcomeRaw.replace(/\{user\}/g, '@NouveauMembre').replace(/\{server\}/g, preview.label || 'ce serveur'));
     return `
-      <div class="tplprev-embed" style="--ec:#30a46c">
+      <div class="tplprev-embed" style="--ec:var(--success)">
         <div class="tplprev-embed-author">NouveauMembre</div>
         <div class="tplprev-embed-title">👋 Nouveau membre</div>
         <div class="tplprev-embed-desc">${welcome}</div>
@@ -10439,28 +10502,35 @@ function templatePreviewEmbedHtml(kind, preview) {
 }
 
 function wireTemplatePreview(previewEl, preview) {
+  function toggleEmbed(el) {
+    const wrap = el.closest('.tplprev-chan-wrap');
+    const already = wrap.querySelector('.tplprev-embed-panel');
+    previewEl.querySelectorAll('.tplprev-embed-panel').forEach((p) => p.remove());
+    previewEl.querySelectorAll('.tplprev-chan.active').forEach((c) => c.classList.remove('active'));
+    if (already) return;
+    el.classList.add('active');
+    const panel = document.createElement('div');
+    panel.className = 'tplprev-embed-panel';
+    panel.innerHTML = templatePreviewEmbedHtml(el.dataset.chanKind, preview);
+    wrap.appendChild(panel);
+  }
   previewEl.querySelectorAll('.tplprev-chan.clickable').forEach((el) => {
-    el.addEventListener('click', () => {
-      const wrap = el.closest('.tplprev-chan-wrap');
-      const already = wrap.querySelector('.tplprev-embed-panel');
-      previewEl.querySelectorAll('.tplprev-embed-panel').forEach((p) => p.remove());
-      previewEl.querySelectorAll('.tplprev-chan.active').forEach((c) => c.classList.remove('active'));
-      if (already) return;
-      el.classList.add('active');
-      const panel = document.createElement('div');
-      panel.className = 'tplprev-embed-panel';
-      panel.innerHTML = templatePreviewEmbedHtml(el.dataset.chanKind, preview);
-      wrap.appendChild(panel);
+    el.addEventListener('click', () => toggleEmbed(el));
+    el.addEventListener('keydown', (e) => {
+      if (e.key !== 'Enter' && e.key !== ' ') return;
+      e.preventDefault();
+      toggleEmbed(el);
     });
   });
 }
 
 function renderGenerationScreen(guildId, guildName) {
+  const titleGuild = guildName ? `"${escapeHtml(guildName)}"` : 'ce serveur';
   app.innerHTML = `
     <div class="inner">
-      ${sectionHtml(`Generation de "${escapeHtml(guildName)}"`, `
-        <p class="dp-panel-title">🪄 Generation de "${escapeHtml(guildName)}"</p>
-        <div class="gen-status running" id="gen-status">
+      ${sectionHtml('', `
+        <h2 class="dp-panel-title" id="gen-title" tabindex="-1">🪄 Generation de ${titleGuild}</h2>
+        <div class="gen-status running" id="gen-status" role="status" aria-live="polite">
           <span class="gen-status-dot"></span>
           <span id="gen-status-text">En file d'attente...</span>
         </div>
@@ -10469,6 +10539,7 @@ function renderGenerationScreen(guildId, guildName) {
       `, { alwaysOpen: true })}
     </div>
   `;
+  document.getElementById('gen-title').focus();
 
   const timelineEl = document.getElementById('gen-timeline');
   const statusEl = document.getElementById('gen-status');
@@ -10770,21 +10841,7 @@ async function init() {
     searchInput.focus();
   });
 
-  const videoToggleBtn = document.getElementById('video-toggle-btn');
-  if (videoToggleBtn) {
-    const applyVideoState = () => {
-      const off = localStorage.getItem('bgVideoOff') === '1';
-      document.body.classList.toggle('bg-video-off', off);
-      videoToggleBtn.classList.toggle('is-off', off);
-      videoToggleBtn.title = off ? 'Reactiver la video de fond' : 'Couper la video de fond';
-    };
-    applyVideoState();
-    videoToggleBtn.addEventListener('click', () => {
-      localStorage.setItem('bgVideoOff', localStorage.getItem('bgVideoOff') === '1' ? '0' : '1');
-      applyVideoState();
-      window.UISound?.click();
-    });
-  }
+  // Coupure manuelle de la video (#video-toggle-btn) : geree par assets/bgvideo.js, partagee avec index.html.
 
   // Barre de navigation inferieure mobile (roadmap n°123) : 5 onglets fixes
   // en bas d'ecran, visibles uniquement en contexte tactile/etroit et quand
