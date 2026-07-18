@@ -1122,6 +1122,14 @@ const HOME_MODULES = [
   { parent: 'securite', section: 'sec-export', icon: '💾', label: 'Export / Restauration', category: 'securite' },
   { parent: 'securite', section: 'sec-snapshots', icon: '📸', label: 'Snapshots automatiques', category: 'securite' },
   { parent: 'securite', section: 'sec-lockdown', icon: '🔒', label: 'Lockdown', category: 'securite' },
+  { parent: 'securite', section: 'sec-copy-config', icon: '📋', label: 'Copier ma config', category: 'securite' },
+  { parent: 'securite', section: 'sec-config-export', icon: '🧾', label: 'Configuration complete', category: 'securite' },
+  { parent: 'securite', section: 'sec-webhook-scan', icon: '🔎', label: 'Scan des webhooks', category: 'securite' },
+  { parent: 'securite', section: 'sec-trash', icon: '🗑️', label: 'Corbeille', category: 'securite' },
+  { parent: 'securite', section: 'sec-purge', icon: '🧹', label: 'Purge de messages', category: 'securite' },
+  { parent: 'securite', section: 'sec-autocleanup', icon: '🧽', label: 'Nettoyage programme', category: 'securite' },
+  { parent: 'securite', section: 'sec-protected-ids', icon: '🛂', label: 'Liste blanche', category: 'securite' },
+  { parent: 'securite', section: 'sec-maintenance', icon: '🚧', label: 'Mode maintenance', category: 'securite' },
   // Moderation : surveillance et gestion du comportement des membres.
   { parent: 'automatisations', section: 'cooldowns', icon: '⏳', label: 'Cooldowns commandes', category: 'moderation', since: '2026-07-17' },
   { parent: 'automatisations', section: 'automod', icon: '🚫', label: 'Auto-moderation', category: 'moderation' },
@@ -6754,6 +6762,13 @@ async function renderSecurityPage(id, container = app) {
 
   container.innerHTML = `
     <div class="inner">
+      ${quickJumpBarHtml([
+    ['sec-export', 'Export / Restauration'], ['sec-copy-config', 'Copier ma config'], ['sec-config-export', 'Configuration complete'],
+    ...(dangerousOnEveryone.length ? [['sec-everyone-danger', 'Alerte @everyone']] : []),
+    ['sec-webhook-scan', 'Scan des webhooks'], ['sec-snapshots', 'Snapshots automatiques'], ['sec-trash', 'Corbeille'],
+    ['sec-lockdown', 'Lockdown'], ['sec-purge', 'Purge de messages'], ['sec-autocleanup', 'Nettoyage programme'],
+    ['sec-protected-ids', 'Liste blanche'], ['sec-maintenance', 'Mode maintenance'],
+  ], 'securite')}
       ${sectionHtml('Export / Restauration manuelle', `
         <p class="muted">Exporte la structure (noms/couleurs des roles, categories, salons) en fichier JSON. La restauration est additive : elle recree uniquement ce qui manque, sans jamais toucher a l'existant.</p>
         <button class="btn secondary" id="export-structure">⬇️ Telecharger la structure (.json)</button>
@@ -6879,6 +6894,7 @@ async function renderSecurityPage(id, container = app) {
       `, { id: 'sec-maintenance' })}
     </div>
   `;
+  wireQuickJump(container);
 
   // Mode lent global (roadmap n°198).
   const applySlowmodeAll = async (seconds) => {
