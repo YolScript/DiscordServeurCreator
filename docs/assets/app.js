@@ -7748,7 +7748,7 @@ async function renderCreatorPage(id, container = app) {
       `, { alwaysOpen: true })}
 
       ${sectionHtml('Roles', `
-        <p class="muted">Cree un role rapidement, puis attribue-le : choisis le role, les membres sont detectes automatiquement, un petit + suffit.</p>
+        <p class="muted">Cree un role rapidement, puis attribue-le : choisis le role, les membres sont detectes automatiquement, un petit + suffit. Pour un role de jeu (detecte automatiquement) ou des roles-reaction, voir <button type="button" class="btn secondary" id="creator-goto-jeux" style="display:inline; padding:2px 8px; font-size:0.78rem;">🎮 Roles de jeu</button>.</p>
         <div class="row" style="gap:8px; flex-wrap:wrap; margin-bottom:8px;">
           <input type="text" id="creator-role-name" placeholder="Nom du nouveau role" aria-label="Nom du nouveau role" maxlength="100" style="flex:2; min-width:160px; margin:0;" />
           <input type="color" id="creator-role-color" value="${DISCORD_ROLE_COLORS[Math.floor(Math.random() * DISCORD_ROLE_COLORS.length)]}" aria-label="Couleur du role" style="flex:none;" class="dp-role-color-input" />
@@ -7766,6 +7766,11 @@ async function renderCreatorPage(id, container = app) {
       `, { alwaysOpen: true })}
     </div>
   `;
+
+  document.getElementById('creator-goto-jeux')?.addEventListener('click', () => {
+    window.UISound?.select();
+    withViewTransition(() => renderSettingsPanel(id, 'jeux'));
+  });
 
   // Templates de serveur (roadmap n°143) : application additive confirmee.
   container.querySelectorAll('.apply-template-btn').forEach((btn) => {
