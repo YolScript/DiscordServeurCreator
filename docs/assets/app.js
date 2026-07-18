@@ -5147,6 +5147,7 @@ async function renderAutomationsPage(id, container = app) {
         </div>
 
         <h2 style="margin-top:18px; font-size:0.85rem;">👋 Bonus de bienvenue (roadmap n°427)</h2>
+        <p class="muted" style="font-size:0.78rem;">Pour le role automatique donne a l'arrivee, voir <button type="button" class="dp-quickjump-btn" data-jump-to="arrivee" style="display:inline; vertical-align:baseline;">👋 Arrivee &amp; statut du bot</button>.</p>
         <label for="welcome-bonus">Montant offert a l'arrivee d'un nouveau membre (0 = desactive)</label>
         <input type="number" id="welcome-bonus" value="${config?.welcomeBonusAmount || 0}" min="0" />
         <button class="btn secondary" id="save-welcome-bonus" style="margin-top:8px;">Enregistrer</button>
@@ -5366,6 +5367,7 @@ async function renderAutomationsPage(id, container = app) {
       `, { id: 'signalements' })}
 
       ${sectionHtml('Parrainage', `
+        <p class="muted" style="font-size:0.78rem;">Pour voir qui a parraine qui sur la fiche d'un membre precis, voir <button type="button" class="btn secondary" id="parrainage-goto-memberlookup" style="display:inline; padding:2px 8px; font-size:0.78rem;">🔎 Recherche de membres</button>.</p>
         <div id="referral-roles-list">${referralRoleRows}</div>
         <div class="row" style="margin-top:10px;">
           <input type="number" id="new-referral-count" placeholder="Nb invitations" aria-label="Nombre d'invitations" min="1" style="width:130px;" />
@@ -5620,6 +5622,10 @@ async function renderAutomationsPage(id, container = app) {
   document.getElementById('bots-goto-customcommands')?.addEventListener('click', () => {
     window.UISound?.select();
     withViewTransition(() => renderSettingsPanel(id, 'customcommands'));
+  });
+  document.getElementById('parrainage-goto-memberlookup')?.addEventListener('click', () => {
+    window.UISound?.select();
+    withViewTransition(() => renderSettingsPanel(id, 'memberlookup'));
   });
 
   document.getElementById('save-service-config').addEventListener('click', async () => {
