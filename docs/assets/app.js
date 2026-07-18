@@ -10674,6 +10674,9 @@ async function init() {
 
   // Couleur d'accent personnalisable (roadmap n°181) : double-clic sur le
   // bouton theme ouvre un color picker, la couleur remplace --accent.
+  // DEFAULT_ACCENT lu depuis la CSS plutot que reduplique en dur : reste
+  // synchronise si la couleur d'accent par defaut change un jour cote CSS.
+  const DEFAULT_ACCENT = (getComputedStyle(document.documentElement).getPropertyValue('--accent').trim() || '#ad5940').toLowerCase();
   const accentPicker = document.createElement('input');
   accentPicker.type = 'color';
   accentPicker.style.display = 'none';
@@ -10691,11 +10694,11 @@ async function init() {
   };
   if (localStorage.getItem('dsc-accent')) applyCustomAccent(localStorage.getItem('dsc-accent'));
   themeToggleBtn?.addEventListener('dblclick', () => {
-    accentPicker.value = localStorage.getItem('dsc-accent') || '#ad5940';
+    accentPicker.value = localStorage.getItem('dsc-accent') || DEFAULT_ACCENT;
     accentPicker.click();
   });
   accentPicker.addEventListener('change', () => {
-    if (accentPicker.value === '#ad5940') {
+    if (accentPicker.value.toLowerCase() === DEFAULT_ACCENT) {
       // Couleur par defaut re-choisie = retour aux accents du theme.
       localStorage.removeItem('dsc-accent');
       ['--accent', '--accent-hover', '--accent-soft', '--accent-glow'].forEach((v) => document.documentElement.style.removeProperty(v));

@@ -1,7 +1,12 @@
 :root {
   /* Poste de controle : glass panels flottant au-dessus de la video de
      fond. Void/graphite en base, Blurple reserve aux confirmations
-     d'action reelles (cf design/dashboard-redesign-brief.md). */
+     d'action reelles (cf design/dashboard-redesign-brief.md).
+     Palette de reference (7 couleurs de base + variantes -soft en rgba) :
+     --accent = ton de marque du theme (seul a varier entre dark/cold/amoled/light) ;
+     --danger/--success/--warning = semantique fixe, volontairement IDENTIQUE
+     sur tous les themes (rouge/vert/ambre universellement reconnaissables) ;
+     les *-soft sont la meme teinte a faible opacite pour fonds de badge/banniere. */
   --void: #0d0709;
   --bg: #0d0709;
   --bg-sidebar: #1a1013;
@@ -16,7 +21,7 @@
   --accent-hover: #c97655;
   --accent-soft: rgba(173, 89, 64, 0.16);
   --accent-glow: rgba(173, 89, 64, 0.38);
-  --accent-rose: #a65c60;
+  --accent-rose: #a65c60; /* second ton pour degrades (ex: .progress-gauge-fill), pas un accent independant */
   --danger: #ef5c5c;
   --danger-soft: rgba(239, 92, 92, 0.12);
   --success: #35c48a;
@@ -30,6 +35,7 @@
   --glow-accent: 0 0 0 1px var(--accent-glow), 0 0 32px rgba(173, 89, 64, 0.2);
   --panel-blur: blur(6px);
   --font-display: -apple-system, "Segoe UI Semibold", "Segoe UI", Roboto, Helvetica, Arial, sans-serif;
+  --font-body: -apple-system, "Segoe UI", Roboto, Helvetica, Arial, sans-serif;
   --font-mono: ui-monospace, "JetBrains Mono", "SF Mono", Consolas, "Roboto Mono", monospace;
 }
 
@@ -99,7 +105,7 @@ select:focus-visible, summary:focus-visible, [tabindex]:focus-visible,
 
 body {
   margin: 0;
-  font-family: -apple-system, "Segoe UI", Roboto, Helvetica, Arial, sans-serif;
+  font-family: var(--font-body);
   font-size: 15px;
   line-height: 1.55;
   background: transparent;
@@ -672,7 +678,7 @@ input::placeholder, textarea::placeholder { color: var(--text-faint); }
 .preset-chip {
   display: inline-flex; align-items: center; gap: 6px;
   background: transparent; color: var(--text-muted); border: 1px solid var(--border-strong);
-  border-radius: 100px; padding: 6px 13px; font-size: 0.82rem; font-family: inherit; cursor: pointer;
+  border-radius: 100px; padding: 6px 13px; font-size: 0.82rem; font-weight: 500; font-family: inherit; cursor: pointer;
   transition: border-color 0.12s ease, color 0.12s ease;
 }
 .preset-chip:hover { border-color: var(--accent); color: var(--accent); }
@@ -910,6 +916,13 @@ input::placeholder, textarea::placeholder { color: var(--text-faint); }
   display: flex; align-items: center; justify-content: center; font-size: 1.1rem;
 }
 .dp-panel-heading-title { color: var(--text); font-weight: 700; font-size: 0.95rem; }
+
+/* Aucune regle h2 globale n'existait : chaque sous-titre de section dans
+   app.js reproduisait le meme style en inline (margin-top:18px;
+   font-size:0.85rem;, 21+ occurrences). Fixe la convention par defaut ici -
+   les styles inline existants restent identiques visuellement (meme valeur),
+   les futurs h2 sans style inline heritent d'un rendu correct. */
+h2 { font-size: 0.85rem; font-weight: 700; margin: 18px 0 0; color: var(--text); }
 .dp-panel-heading-sub {
   color: var(--text-muted); font-size: 0.78rem; margin-top: 1px; overflow: hidden;
   text-overflow: ellipsis; white-space: nowrap; max-width: 60vw;
@@ -1019,7 +1032,7 @@ input::placeholder, textarea::placeholder { color: var(--text-faint); }
 .tplprev-embed-desc { white-space: pre-wrap; line-height: 1.45; max-height: 160px; overflow-y: auto; scrollbar-width: none; }
 .tplprev-embed-desc::-webkit-scrollbar { display: none; }
 .tplprev-embed-fields { display: flex; gap: 20px; margin-top: 8px; }
-.tplprev-embed-field-name { font-weight: 700; font-size: 0.68rem; text-transform: uppercase; color: var(--text-muted); }
+.tplprev-embed-field-name { font-weight: 700; font-size: 0.68rem; text-transform: uppercase; letter-spacing: 0.02em; color: var(--text-muted); }
 .tplprev-embed-field-value { font-size: 0.8rem; color: var(--text); margin-top: 2px; }
 .tplprev-embed-hint, .tplprev-embed-note { margin: 6px 2px 0; font-size: 0.74rem; color: var(--text-faint); font-style: italic; }
 .tplprev-embed-note { padding: 8px 0; }
