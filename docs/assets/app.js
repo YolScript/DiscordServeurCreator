@@ -1118,6 +1118,7 @@ const HOME_MODULES = [
   { parent: 'automatisations', section: 'arrivee', icon: '👋', label: 'Arrivee & statut du bot', category: 'administration' },
   { parent: 'automatisations', section: 'streamers', icon: '📺', label: 'Streamers lies', category: 'administration' },
   { parent: 'automatisations', section: 'service', icon: '🚨', label: 'Service (staff)', category: 'administration' },
+  { parent: 'automatisations', section: 'autoreact', icon: '📌', label: 'Reactions automatiques', category: 'administration' },
   // Securite : sauvegarde, restauration, verrouillage d'urgence.
   { parent: 'securite', section: 'sec-export', icon: '💾', label: 'Export / Restauration', category: 'securite' },
   { parent: 'securite', section: 'sec-snapshots', icon: '📸', label: 'Snapshots automatiques', category: 'securite' },
@@ -1137,6 +1138,7 @@ const HOME_MODULES = [
   { parent: 'auditlog', icon: '📋', label: "Logs d'audit", category: 'moderation' },
   { parent: 'automatisations', section: 'suggestions', icon: '💡', label: 'Suggestions', category: 'moderation' },
   { parent: 'automatisations', section: 'signalements', icon: '🚩', label: 'Signalements', category: 'moderation' },
+  { parent: 'automatisations', section: 'contestations', icon: '⚖️', label: 'Contestations de sanction', category: 'moderation' },
   // Integrations : connecter des services/bots externes.
   { parent: 'automatisations', section: 'bots', icon: '🧩', label: 'Bots complementaires', category: 'integrations' },
   { parent: 'automatisations', section: 'webhooks', icon: '🔗', label: 'Webhooks sortants', category: 'integrations' },
@@ -1168,6 +1170,7 @@ const HOME_MODULES = [
   { parent: 'stats', section: 'stats-participation', icon: '🗳️', label: 'Participation', category: 'statistiques' },
   { parent: 'stats', section: 'stats-misc', icon: 'ℹ️', label: 'Autres indicateurs', category: 'statistiques' },
   { parent: 'botstatus', icon: '🤖', label: 'Statut du bot', category: 'statistiques' },
+  { parent: 'memberlookup', section: 'inactive-members', icon: '💤', label: 'Membres inactifs', category: 'statistiques' },
   { parent: 'memberlookup', icon: '🔎', label: 'Recherche de membres', category: 'statistiques' },
 ];
 
@@ -5158,7 +5161,7 @@ async function renderAutomationsPage(id, container = app) {
       `, { id: 'economie' })}
 
       ${sectionHtml('Cooldowns par commande', `
-        <p class="muted">Delai minimum (en secondes) entre deux utilisations de la meme commande par un membre. 0 = pas de limite. Les commandes de moderation/configuration (staff uniquement) ne sont pas concernees.</p>
+        <p class="muted">Delai minimum (en secondes) entre deux utilisations de la meme commande par un membre. 0 = pas de limite. Les commandes de moderation/configuration (staff uniquement) ne sont pas concernees. Pour un garde-fou anti-spam plus large (pas commande par commande), voir <button type="button" class="dp-quickjump-btn" data-jump-to="automod" style="display:inline; vertical-align:baseline;">🚫 Auto-moderation</button>.</p>
         <div class="dp-form-grid">
           ${COOLDOWN_COMMANDS.map((cmd) => `
             <div>
@@ -5170,6 +5173,7 @@ async function renderAutomationsPage(id, container = app) {
       `, { id: 'cooldowns' })}
 
       ${sectionHtml('Auto-moderation', `
+        <p class="muted" style="font-size:0.78rem;">Pour une reaction a un evenement precis (mot-cle, arrivee d'un membre) plutot qu'un filtre general, voir <button type="button" class="dp-quickjump-btn" data-jump-to="regles" style="display:inline; vertical-align:baseline;">⚡ Regles si → alors</button>. Pour limiter une commande precise, voir <button type="button" class="dp-quickjump-btn" data-jump-to="cooldowns" style="display:inline; vertical-align:baseline;">⏳ Cooldowns</button>.</p>
         <label class="dp-toggle-row"><span>Auto-moderation active</span><input type="checkbox" id="am-enabled" ${modConfig.autoModEnabled ? 'checked' : ''} /></label>
         <label class="dp-toggle-row" style="margin-top:6px;"><span>Bloquer les liens d'invitation Discord</span><input type="checkbox" id="am-invites" ${modConfig.blockInvites ? 'checked' : ''} /></label>
         <label class="dp-toggle-row" style="margin-top:6px;"><span>Bloquer tous les liens</span><input type="checkbox" id="am-links" ${modConfig.blockLinks ? 'checked' : ''} /></label>
@@ -5340,7 +5344,7 @@ async function renderAutomationsPage(id, container = app) {
       `, { id: 'suggestions' })}
 
       ${sectionHtml('Signalements', `
-        <p class="muted">Les membres signalent un message via clic droit → Applications → « Signaler au staff ». Tout arrive ici (et dans le journal de moderation).</p>
+        <p class="muted">Les membres signalent un message via clic droit → Applications → « Signaler au staff ». Tout arrive ici (et dans le journal de moderation). Si un signalement necessite un suivi individuel, ouvre plutot un <button type="button" class="dp-quickjump-btn" data-jump-to="tickets" style="display:inline; vertical-align:baseline;">🎫 Ticket</button> avec le membre.</p>
         <div id="reports-list">${(await Api.reports(id).catch(() => [])).slice().reverse().slice(0, 30).map((r) => `
           <div class="row" style="justify-content:space-between; margin-bottom:6px; ${r.status === 'resolved' ? 'opacity:0.55;' : ''}">
             <span style="min-width:0; font-size:0.84rem;">
@@ -5463,7 +5467,7 @@ async function renderAutomationsPage(id, container = app) {
       `, { id: 'annonces' })}
 
       ${sectionHtml('Regles si → alors', `
-        <p class="muted">Quand un evenement se produit, le bot agit automatiquement. 10 regles maximum.</p>
+        <p class="muted">Quand un evenement se produit, le bot agit automatiquement. 10 regles maximum. Pour un filtre general (spam, liens, mots bannis) plutot qu'un evenement precis, voir <button type="button" class="dp-quickjump-btn" data-jump-to="automod" style="display:inline; vertical-align:baseline;">🚫 Auto-moderation</button>.</p>
         <div id="rules-list">${(config?.autoRules || []).map((r) => {
     const trigLabel = r.trigger?.type === 'member_join' ? 'Un membre arrive' : `Message contenant « ${escapeHtml(r.trigger?.keyword || '')} »${r.trigger?.channelId ? ` dans #${escapeHtml(channels.find((c) => c.id === r.trigger.channelId)?.name || '?')}` : ''}`;
     const actLabel = r.action?.type === 'add_role'
@@ -5558,6 +5562,7 @@ async function renderAutomationsPage(id, container = app) {
       `, { id: 'service' })}
 
       ${sectionHtml('Tickets', `
+        <p class="muted" style="font-size:0.78rem;">Voir aussi <button type="button" class="dp-quickjump-btn" data-jump-to="signalements" style="display:inline; vertical-align:baseline;">🚩 Signalements</button> (origine possible d'un ticket) et <button type="button" class="dp-quickjump-btn" data-jump-to="contestations" style="display:inline; vertical-align:baseline;">⚖️ Contestations de sanction</button>.</p>
         <label>Roles autorises a voir/repondre aux tickets (si non limite au service)</label>
         <div class="channel-picker" style="max-height:160px">
           ${roles.filter((r) => r.name !== '@everyone').map((r) => `
