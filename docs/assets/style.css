@@ -894,6 +894,13 @@ input::placeholder, textarea::placeholder { color: var(--text-faint); }
 .dp-channel-lock-btn:hover { color: var(--accent); background: var(--bg-input); }
 .dp-channel-lock-btn.locked { opacity: 1; color: var(--accent); }
 
+/* Sans ecran tactile, ces 3 boutons ne se revelent qu'au survol souris
+   (opacity:0 par defaut) - sur tactile, aucun survol n'existe, ils restent
+   invisibles et donc injoignables. Toujours visibles sur tactile. */
+@media (hover: none) and (pointer: coarse) {
+  .dp-channel-emoji-btn, .dp-channel-pin-btn, .dp-channel-lock-btn { opacity: 1; }
+}
+
 /* Apercu de salon au survol prolonge (roadmap n°256). */
 .dp-channel-preview-bubble {
   position: fixed; z-index: 500; max-width: 260px; padding: 10px 12px; border-radius: 8px;
@@ -1355,6 +1362,13 @@ mark {
     --text-faint: #7a6469;
     --accent-hover: #a85436;
     --shadow: 0 1px 2px rgba(60,20,25,0.05), 0 24px 50px -24px rgba(60,20,25,0.22);
+    /* success/warning/danger assombris pour ce theme : les valeurs de base
+       (calees sur le fond sombre, ratio WCAG 6-9:1) tombent a ~2:1 sur ce
+       fond clair - bien sous les 4.5:1 requis (AA, texte normal). Verifie
+       par calcul de contraste WCAG reel, pas une estimation visuelle. */
+    --success: #207653;
+    --warning: #886423;
+    --danger: #b34545;
   }
 }
 
@@ -1366,6 +1380,10 @@ mark {
   --text: #1c1417; --text-muted: #6b5459; --text-faint: #7a6469;
   --accent-hover: #a85436;
   --shadow: 0 1px 2px rgba(60,20,25,0.05), 0 24px 50px -24px rgba(60,20,25,0.22);
+  /* Cf. commentaire equivalent sous prefers-color-scheme: light. */
+  --success: #207653;
+  --warning: #886423;
+  --danger: #b34545;
 }
 :root[data-theme="dark"] {
   --void: #0d0709; --bg: #0d0709;
