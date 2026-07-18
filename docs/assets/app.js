@@ -4189,6 +4189,7 @@ async function renderPermissionsPage(id, container = app) {
 
       ${sectionHtml('Acces au dashboard (au-dela d\'Administrator Discord)', `
         <p class="muted">Donne acces a ce dashboard a des membres specifiques (par ID Discord) meme s'ils n'ont pas la permission Administrator sur le serveur. Ils pourront tout configurer ici, comme un administrateur du dashboard.</p>
+        <p class="muted" style="font-size:0.78rem;">💡 Ceci gere qui peut ouvrir ce dashboard — pas les roles Discord eux-memes (couleur, fusion, permissions) : clique un role dans la colonne de droite pour ca. Pour retrouver un membre precis, voir <button type="button" class="btn secondary" id="perm-dashboard-goto-memberlookup" style="display:inline; padding:2px 8px; font-size:0.78rem;">🔎 Recherche de membres</button>.</p>
         <div id="dashboard-access-list">${dashboardAccessRows(dashboardAllowedUserIds)}</div>
         <div class="row" style="margin-top:10px;">
           <input type="text" id="new-dashboard-access-id" placeholder="ID Discord du membre" aria-label="ID Discord du membre (acces complet)" style="flex:1;" />
@@ -4205,6 +4206,11 @@ async function renderPermissionsPage(id, container = app) {
     </div>
   `;
   wireQuickJump(container);
+
+  document.getElementById('perm-dashboard-goto-memberlookup')?.addEventListener('click', () => {
+    window.UISound?.select();
+    withViewTransition(() => renderSettingsPanel(id, 'memberlookup'));
+  });
 
   // Pre-remplissage apres un drop role -> salon (roadmap n°016).
   if (permPrefill) {
@@ -4986,7 +4992,7 @@ async function renderAutomationsPage(id, container = app) {
     ['autoreact', 'Reactions auto'], ['notifications', 'Notifications push'],
   ], 'automatisations')}
       ${sectionHtml('Bots complementaires', `
-        <p class="muted">Ajoute des modules complementaires a ce serveur en invitant ces bots.</p>
+        <p class="muted">Ajoute des modules complementaires a ce serveur en invitant ces bots. Pour etendre ServeurCreator lui-meme sans bot tiers, voir <button type="button" class="btn secondary" id="bots-goto-customcommands" style="display:inline; padding:2px 8px; font-size:0.78rem;">💻 Commandes personnalisees</button>.</p>
         <div class="row">
           <a class="btn secondary" href="https://discord.com/oauth2/authorize?client_id=1526016642411135107&permissions=286262288&scope=bot" target="_blank" rel="noopener">➕ Ajouter FortniteParty</a>
           <button class="btn secondary" id="copy-bot-invite" title="Copier le lien pour inviter ServeurCreator sur un autre serveur">🔗 Copier le lien d'invitation de ServeurCreator</button>
@@ -4995,6 +5001,7 @@ async function renderAutomationsPage(id, container = app) {
       `, { id: 'bots' })}
 
       ${sectionHtml('Arrivee & statut du bot', `
+        <p class="muted" style="font-size:0.78rem;">Ceci configure le comportement du bot sur CE serveur. Pour verifier s'il est en ligne (uptime, ping, commun a tous les serveurs), voir <button type="button" class="btn secondary" id="arrivee-goto-botstatus" style="display:inline; padding:2px 8px; font-size:0.78rem;">🤖 Statut du bot</button>.</p>
         <label for="auto-role-select">Role attribue automatiquement a l'arrivee (en plus du reglement)</label>
         <select id="auto-role-select">
           <option value="">Aucun</option>
@@ -5064,7 +5071,7 @@ async function renderAutomationsPage(id, container = app) {
       `, { id: 'autoreact' })}
 
       ${sectionHtml('Notifications push', `
-        <p class="muted">Recois une notification directement sur cet appareil (navigateur) pour : nouveau ticket, giveaway termine, bot hors ligne. Rien n'est envoye si tu ne l'actives pas.</p>
+        <p class="muted">Recois une notification directement sur cet appareil (navigateur) pour : nouveau ticket, giveaway termine, bot hors ligne. Rien n'est envoye si tu ne l'actives pas. Pour poster un message a une date precise, voir <button type="button" class="dp-quickjump-btn" data-jump-to="annonces" style="display:inline; vertical-align:baseline;">📅 Annonces programmees</button>.</p>
         <button class="btn secondary" id="push-toggle-btn" disabled>Verification du support du navigateur...</button>
         <p class="muted" id="push-status" style="font-size:0.78rem; margin-top:8px;"></p>
       `, { id: 'notifications' })}
@@ -5097,7 +5104,7 @@ async function renderAutomationsPage(id, container = app) {
       `, { id: 'webhooks' })}
 
       ${sectionHtml('Flux RSS', `
-        <p class="muted">Chaque nouvel article d'un flux RSS/Atom est poste dans le salon choisi (verification toutes les 10 minutes).</p>
+        <p class="muted">Chaque nouvel article d'un flux RSS/Atom est poste dans le salon choisi (verification toutes les 10 minutes). Pour suivre un compte Twitch/YouTube precis, voir <button type="button" class="dp-quickjump-btn" data-jump-to="streamers" style="display:inline; vertical-align:baseline;">📺 Streamers lies</button>.</p>
         <div id="rss-feeds-list">${(config?.rssFeeds || []).map((f, i) => `
           <div class="row" data-index="${i}" style="justify-content:space-between; margin-bottom:6px;">
             <span style="overflow:hidden; text-overflow:ellipsis; white-space:nowrap;">${escapeHtml(f.url)} → <span class="muted">${escapeHtml(channelName(f.channelId))}</span></span>
@@ -5150,7 +5157,7 @@ async function renderAutomationsPage(id, container = app) {
         <button class="btn secondary" id="save-wealth-cap" style="margin-top:8px;">Enregistrer</button>
 
         <h2 style="margin-top:18px; font-size:0.85rem;">🎟️ Loterie hebdomadaire (roadmap n°496)</h2>
-        <p class="muted">Chaque /daily reclame achete automatiquement 1 ticket. Un gagnant tire au sort chaque semaine remporte la cagnotte.</p>
+        <p class="muted">Chaque /daily reclame achete automatiquement 1 ticket. Un gagnant tire au sort chaque semaine remporte la cagnotte. Pour un tirage au sort ponctuel (pas automatique/hebdomadaire), voir <button type="button" class="btn secondary" id="economie-goto-giveaways" style="display:inline; padding:2px 8px; font-size:0.78rem;">🎉 Giveaways</button>.</p>
         <label class="dp-toggle-row"><span>Loterie active</span><input type="checkbox" id="lottery-enabled" ${config?.lotteryEnabled ? 'checked' : ''} /></label>
         <label for="lottery-ticket-price">Prix du ticket (deduit du solde a chaque /daily si active)</label>
         <input type="number" id="lottery-ticket-price" value="${config?.lotteryTicketPrice ?? 10}" min="0" />
@@ -5371,6 +5378,7 @@ async function renderAutomationsPage(id, container = app) {
       `, { id: 'parrainage' })}
 
       ${sectionHtml('Streamers lies', `
+        <p class="muted" style="font-size:0.78rem;">Pour suivre un blog/site externe (pas Twitch/YouTube), voir <button type="button" class="dp-quickjump-btn" data-jump-to="rss" style="display:inline; vertical-align:baseline;">📰 Flux RSS</button>.</p>
         <div id="streamers-list">${streamerRows}</div>
         <div class="row" style="margin-top:10px;">
           <input type="text" id="new-streamer-user" placeholder="ID Discord" aria-label="ID Discord" style="width:160px;" />
@@ -5401,6 +5409,7 @@ async function renderAutomationsPage(id, container = app) {
       `, { id: 'streamers' })}
 
       ${sectionHtml('Annonces programmees', `
+        <p class="muted" style="font-size:0.78rem;">Pour une alerte navigateur (pas un message Discord), voir <button type="button" class="dp-quickjump-btn" data-jump-to="notifications" style="display:inline; vertical-align:baseline;">🔔 Notifications push</button>.</p>
         <label class="dp-toggle-row" style="margin-bottom:12px;">
           <span>Publication croisee automatique (les messages des salons d'annonces sont publies vers les serveurs abonnes)</span>
           <input type="checkbox" id="auto-crosspost-toggle" ${config?.autoCrosspost ? 'checked' : ''} />
@@ -5531,6 +5540,7 @@ async function renderAutomationsPage(id, container = app) {
 
       ${sectionHtml('Service (Staff en service)', `
         <p class="muted">Le salon vocal SERVICE STAFF (categorie 🛡️ Staff) sert d'interrupteur : un membre du staff qui s'y connecte est immediatement deconnecte et bascule son statut "en service", qui revele la categorie Staff et les categories/salons choisis ci-dessous.</p>
+        <p class="muted" style="font-size:0.78rem;">💡 Pour masquer/reveler un salon ou une categorie precis sans passer par les listes ci-dessous, utilise le bouton 🛡️ « Service staff » dans le menu ⋮ de ce salon/categorie, a gauche.</p>
 
         <label>Roles consideres comme "staff" (peuvent basculer leur statut de service)</label>
         <div class="channel-picker" style="max-height:160px">
@@ -5598,6 +5608,19 @@ async function renderAutomationsPage(id, container = app) {
     </div>
   `;
   wireQuickJump(container);
+
+  document.getElementById('arrivee-goto-botstatus')?.addEventListener('click', () => {
+    window.UISound?.select();
+    withViewTransition(() => renderSettingsPanel(id, 'botstatus'));
+  });
+  document.getElementById('economie-goto-giveaways')?.addEventListener('click', () => {
+    window.UISound?.select();
+    withViewTransition(() => renderSettingsPanel(id, 'giveaways'));
+  });
+  document.getElementById('bots-goto-customcommands')?.addEventListener('click', () => {
+    window.UISound?.select();
+    withViewTransition(() => renderSettingsPanel(id, 'customcommands'));
+  });
 
   document.getElementById('save-service-config').addEventListener('click', async () => {
     const btn = document.getElementById('save-service-config');
@@ -7353,6 +7376,7 @@ async function renderAuditLogPage(id, container = app) {
     <div class="inner">
       ${sectionHtml("Logs d'audit", `
         <p class="muted">Historique des actions de moderation et de configuration (200 dernieres).</p>
+        <p class="muted" style="font-size:0.78rem;">💡 Ces logs se remplissent une fois qu'un salon « Journal de moderation » est choisi (module Createur de salons &amp; roles).</p>
         <div class="row" style="gap:8px; flex-wrap:wrap; margin-bottom:10px;">
           <input type="text" id="audit-search" placeholder="Rechercher (titre, auteur, action...)" aria-label="Rechercher dans les logs d'audit" style="flex:2; min-width:180px; margin:0;" />
           <select id="audit-action" aria-label="Filtrer par type d'action" style="flex:1; min-width:150px;">
