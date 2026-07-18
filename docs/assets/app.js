@@ -3032,12 +3032,25 @@ const CHANNEL_EMOJI_PICKS = [
   '💰', '🎁', '📊', '🗓️', '🔒', '🎭', '🧩', '🚀', '💎', '🌟', '📝', '🔧',
 ];
 
+// Actions communes aux 3 menus contextuels (salon/categorie/role) : memes
+// libelle+icone partout pour eviter une divergence silencieuse (roadmap
+// "regroupement"). Chaque menu garde son propre wireDetail/appel API par
+// type (renameChannel vs renameRole...) - seule la metadonnee declarative
+// (icone/libelle affiches) est partagee, pas la logique.
+const COMMON_ENTITY_ACTIONS = {
+  rename: { key: 'rename', icon: '✏️', label: 'Renommer' },
+  emoji: { key: 'emoji', icon: '😀', label: 'Emoji' },
+  service: { key: 'service', icon: '🛡️', label: 'Service staff' },
+  permissions: { key: 'permissions', icon: '🔐', label: 'Permissions' },
+  delete: { key: 'delete', icon: '🗑️', label: 'Supprimer', danger: true },
+};
+
 function channelActionsFor(channelId, type, config) {
   const isTextChannel = type === 0;
   const isServiceHidden = (config?.onDutyHiddenChannelIds || []).includes(channelId);
   return [
-    { key: 'rename', icon: '✏️', label: 'Renommer' },
-    { key: 'emoji', icon: '😀', label: 'Emoji' },
+    COMMON_ENTITY_ACTIONS.rename,
+    COMMON_ENTITY_ACTIONS.emoji,
     ...(isTextChannel ? [
       { key: 'reglement', icon: '📜', label: 'Reglement', on: config?.rulesChannelId === channelId },
       { key: 'arrival', icon: '👋', label: 'Bienvenue', on: config?.arrivalDepartureChannelId === channelId },
@@ -3049,10 +3062,10 @@ function channelActionsFor(channelId, type, config) {
       { key: 'agerolepanel', icon: '🔞', label: 'Panneau age' },
     ] : []),
     ...(config?.reglementValidatedRoleId && type !== 4 ? [{ key: 'visibility', icon: '👁️', label: 'Visibilite' }] : []),
-    { key: 'service', icon: '🛡️', label: 'Service staff', on: isServiceHidden },
-    { key: 'permissions', icon: '🔐', label: 'Permissions' },
+    { ...COMMON_ENTITY_ACTIONS.service, on: isServiceHidden },
+    COMMON_ENTITY_ACTIONS.permissions,
     { key: 'duplicate', icon: '⧉', label: 'Dupliquer' },
-    { key: 'delete', icon: '🗑️', label: 'Supprimer', danger: true },
+    COMMON_ENTITY_ACTIONS.delete,
   ];
 }
 
@@ -3411,12 +3424,12 @@ function renderCategoryPanel(guildId, categoryId, name, config, channels, roles)
   const main = document.getElementById('dp-main');
   const actions = [
     { key: 'create-channel', icon: '➕', label: 'Creer un salon' },
-    { key: 'rename', icon: '✏️', label: 'Renommer' },
-    { key: 'emoji', icon: '😀', label: 'Emoji' },
-    { key: 'service', icon: '🛡️', label: 'Service staff', on: (config?.onDutyHiddenCategoryIds || []).includes(categoryId) },
-    { key: 'permissions', icon: '🔐', label: 'Permissions' },
+    COMMON_ENTITY_ACTIONS.rename,
+    COMMON_ENTITY_ACTIONS.emoji,
+    { ...COMMON_ENTITY_ACTIONS.service, on: (config?.onDutyHiddenCategoryIds || []).includes(categoryId) },
+    COMMON_ENTITY_ACTIONS.permissions,
     { key: 'archive', icon: '📦', label: 'Archiver' },
-    { key: 'delete', icon: '🗑️', label: 'Supprimer', danger: true },
+    COMMON_ENTITY_ACTIONS.delete,
   ];
   const ctx = {
     guildId, categoryId, name, config, channels, roles,
@@ -3625,12 +3638,12 @@ function renderRolePanel(guildId, roleId, name, config, roles, members) {
   const role = roles.find((r) => r.id === roleId);
   const memberNames = members.filter((m) => (m.roles || []).includes(roleId)).map((m) => m.displayName);
   const actions = [
-    { key: 'rename', icon: '✏️', label: 'Renommer' },
+    COMMON_ENTITY_ACTIONS.rename,
     { key: 'color', icon: '🎨', label: 'Couleur' },
-    { key: 'permissions', icon: '🔐', label: 'Permissions' },
+    COMMON_ENTITY_ACTIONS.permissions,
     { key: 'members', icon: '👥', label: 'Membres' },
     { key: 'merge', icon: '🔀', label: 'Fusionner' },
-    { key: 'delete', icon: '🗑️', label: 'Supprimer', danger: true },
+    COMMON_ENTITY_ACTIONS.delete,
   ];
   const ctx = {
     guildId, roleId, name, role, memberNames, roles,
