@@ -848,87 +848,29 @@ function sectionHtml(title, bodyHtml, { id = '', alwaysOpen = false } = {}) {
   return `<div class="section-panel${alwaysOpen ? ' active' : ''}"${id ? ` id="section-${id}"` : ''}>${bodyHtml}</div>`;
 }
 
-// Table des matieres rapide (retour utilisateur : les pages a beaucoup de
-// sections empilees font rater les fonctionnalites recentes en scrollant).
+// Onglets internes reels : .section-panel n'est visible que via la classe
+// .active (voir style.css, un seul module affiche a la fois par design).
 // `entries` = [[sectionId, label, icon?], ...] dans l'ordre d'apparition.
-// Sections epinglees (roadmap n°224) : sur les pages a rallonge
-// (permissions, automatisations...), epingler les sections les plus
-// utilisees en tete de la barre de raccourcis plutot que de scroller.
-function getPinnedSections(pageKey) {
-  try { return JSON.parse(localStorage.getItem(`dsc-pinned-sections-${pageKey}`) || '[]'); } catch { return []; }
-}
-function savePinnedSections(pageKey, sids) {
-  try { localStorage.setItem(`dsc-pinned-sections-${pageKey}`, JSON.stringify(sids)); } catch { /* stockage plein */ }
-}
 function quickJumpBarHtml(entries, pageKey = 'default') {
-  const pinned = getPinnedSections(pageKey);
-  const renderItem = ([sid, label, icon]) => {
-    const isPinned = pinned.includes(sid);
-    return `<span class="dp-quickjump-item${isPinned ? ' pinned' : ''}">
-        <button type="button" class="dp-quickjump-btn" data-jump-to="${sid}">${icon ? `${icon} ` : ''}${escapeHtml(label)}</button>
-        <button type="button" class="dp-quickjump-pin" data-pin-section="${sid}" title="${isPinned ? 'Desepingler' : 'Epingler en tete'}" aria-label="${isPinned ? 'Desepingler' : 'Epingler'} la section ${escapeHtml(label)}">${isPinned ? '📌' : '📍'}</button>
-      </span>`;
-  };
-  // Groupes thematiques (4e element du tuple) : les entrees epinglees
-  // restent en tete telles quelles, le reste s'affiche regroupe par theme
-  // avec un petit intitule au lieu d'une liste plate difficile a scanner.
-  const pinnedEntries = entries.filter((e) => pinned.includes(e[0]));
-  const restEntries = entries.filter((e) => !pinned.includes(e[0]));
-  let lastGroup = null;
-  const restHtml = restEntries.map((entry) => {
-    const groupLabel = entry[3];
-    const prefix = groupLabel && groupLabel !== lastGroup ? `<span class="dp-quickjump-group">${escapeHtml(groupLabel)}</span>` : '';
-    if (groupLabel) lastGroup = groupLabel;
-    return prefix + renderItem(entry);
-  }).join('');
   return `
-    <div class="dp-quickjump" role="navigation" aria-label="Aller a une section" data-page-key="${pageKey}">
-      ${pinnedEntries.map(renderItem).join('')}${restHtml}
+    <div class="dp-quickjump" role="tablist" aria-label="Sections" data-page-key="${pageKey}">
+      ${entries.map(([sid, label, icon]) => `<button type="button" class="dp-quickjump-btn" role="tab" data-jump-to="${sid}">${icon ? `${icon} ` : ''}${escapeHtml(label)}</button>`).join('')}
     </div>`;
-}
-// Onglets internes reels (roadmap "regroupement", suite) : .section-panel
-// n'est visible que via la classe .active (voir style.css) - un seul module
-// affiche a la fois, par design (cf. commentaire "un seul module affiche"
-// dans style.css). Les boutons de la quickjump bar doivent donc basculer
-// .active (pas seulement scroller), sinon cliquer un bouton autre que celui
-// deja actif au chargement ne fait rigoureusement rien.
-function markCurrentQuickJumpItem(container, sid) {
-  container.querySelectorAll('.dp-quickjump-item.current').forEach((el) => el.classList.remove('current'));
-  container.querySelector(`.dp-quickjump-btn[data-jump-to="${sid}"]`)?.closest('.dp-quickjump-item')?.classList.add('current');
 }
 function activateSection(container, sid) {
   const target = document.getElementById(`section-${sid}`);
   if (!target) return null;
-  container.querySelectorAll('.section-panel.active').forEach((p) => { if (p !== target) p.classList.remove('active'); });
+  container.querySelectorAll('.section-panel.active').forEach((p) => p.classList.remove('active'));
   target.classList.add('active');
-  markCurrentQuickJumpItem(container, sid);
+  container.querySelectorAll('.dp-quickjump-btn.active').forEach((b) => b.classList.remove('active'));
+  container.querySelector(`.dp-quickjump-btn[data-jump-to="${sid}"]`)?.classList.add('active');
   return target;
 }
 function wireQuickJump(container) {
   container.querySelectorAll('.dp-quickjump-btn').forEach((btn) => {
     btn.addEventListener('click', () => {
-      const target = activateSection(container, btn.dataset.jumpTo);
-      if (!target) return;
+      if (!activateSection(container, btn.dataset.jumpTo)) return;
       window.UISound?.select();
-      target.scrollIntoView({ behavior: 'smooth', block: 'start' });
-      target.classList.add('flash-highlight');
-      setTimeout(() => target.classList.remove('flash-highlight'), 2400);
-    });
-  });
-  container.querySelectorAll('.dp-quickjump-pin').forEach((btn) => {
-    btn.addEventListener('click', (e) => {
-      e.stopPropagation();
-      const bar = btn.closest('.dp-quickjump');
-      const pageKey = bar.dataset.pageKey;
-      const sid = btn.dataset.pinSection;
-      const pinned = getPinnedSections(pageKey);
-      const idx = pinned.indexOf(sid);
-      if (idx >= 0) pinned.splice(idx, 1);
-      else pinned.push(sid);
-      savePinnedSections(pageKey, pinned);
-      btn.closest('.dp-quickjump-item').classList.toggle('pinned', idx < 0);
-      btn.textContent = idx < 0 ? '📌' : '📍';
-      window.UISound?.click();
     });
   });
 }
@@ -2984,8 +2926,7 @@ async function renderSettingsPanel(guildId, key, preselectSectionId, { fromBack 
   const target = preselectSectionId
     ? body.querySelector(`#section-${preselectSectionId}`)
     : body.querySelector('.section-panel');
-  target?.classList.add('active');
-  if (target?.id) markCurrentQuickJumpItem(body, target.id.replace(/^section-/, ''));
+  if (target?.id) activateSection(body, target.id.replace(/^section-/, ''));
 
   if (fromBack && scrollPositions.has(key)) {
     const savedTop = scrollPositions.get(key);
@@ -4108,11 +4049,11 @@ async function renderPermissionsPage(id, container = app) {
   container.innerHTML = `
     <div class="inner">
       ${quickJumpBarHtml([
-    ['perm-bulk', 'Edition en masse', null, 'Edition en masse'], ['perm-topics', 'Topics en masse', null, 'Edition en masse'],
-    ...(permIssues.length ? [['perm-issues', 'Incoherences', null, 'Edition en masse']] : []),
-    ['perm-matrix', 'Matrice', null, 'Analyse'], ['perm-viewas', 'Voir comme', null, 'Analyse'], ['perm-whocansee', 'Qui voit ce salon', null, 'Analyse'],
-    ['perm-io', 'Export/Import', null, 'Transfert'], ['perm-history', 'Historique', null, 'Transfert'],
-    ['perm-default', 'Par defaut', null, 'Reglages'], ['perm-dashboard', 'Acces dashboard', null, 'Reglages'],
+    ['perm-bulk', 'Edition en masse'], ['perm-topics', 'Topics en masse'],
+    ...(permIssues.length ? [['perm-issues', 'Incoherences']] : []),
+    ['perm-matrix', 'Matrice'], ['perm-viewas', 'Voir comme'], ['perm-whocansee', 'Qui voit ce salon'],
+    ['perm-io', 'Export/Import'], ['perm-history', 'Historique'],
+    ['perm-default', 'Par defaut'], ['perm-dashboard', 'Acces dashboard'],
   ], 'permissions')}
       ${sectionHtml('Edition en masse', `
         <p class="muted">Choisis les salons, le role, et une action rapide a appliquer partout en un clic.</p>
