@@ -1438,7 +1438,13 @@ const CONFIG_CHECKLIST = [
 function configChecklistHtml(config) {
   if (localStorage.getItem('dsc-checklist-hidden') === '1') return '';
   const doneCount = CONFIG_CHECKLIST.filter((item) => item.done(config)).length;
-  if (doneCount === CONFIG_CHECKLIST.length) return '';
+  if (doneCount === CONFIG_CHECKLIST.length) {
+    if (localStorage.getItem('dsc-checklist-celebrated') !== '1') {
+      localStorage.setItem('dsc-checklist-celebrated', '1');
+      launchConfetti();
+    }
+    return '';
+  }
   const todo = CONFIG_CHECKLIST.filter((item) => !item.done(config)).slice(0, 4);
   return `
     <div class="dp-checklist">
@@ -10965,6 +10971,13 @@ async function init() {
       },
       {
         label: 'Coins', storageKey: 'dsc-corners', cycle: ['sharp', 'soft', 'round'], default: 'soft', labels: CORNERS_LABELS, apply: applyCorners,
+      },
+      {
+        // Reutilise directement la cle lue par sounds.js (isEnabled()) - aucun
+        // reglage visible n'existait avant pour desactiver le son autrement
+        // qu'en modifiant localStorage a la main via la console.
+        label: 'Sons', storageKey: 'soundEnabled', cycle: ['on', 'off'], default: 'on',
+        labels: { on: 'Actifs', off: 'Coupes' }, apply: () => {},
       },
     ];
 

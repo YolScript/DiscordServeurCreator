@@ -739,7 +739,7 @@ input::placeholder, textarea::placeholder { color: var(--text-faint); }
 @keyframes toastIn { from { opacity: 0; transform: translateX(-50%) translateY(10px) scale(0.98); } to { opacity: 1; transform: translateX(-50%) translateY(0) scale(1); } }
 @keyframes toastOut { from { opacity: 1; transform: translateX(-50%) translateY(0); } to { opacity: 0; transform: translateX(-50%) translateY(10px); } }
 @keyframes contentFadeIn { from { opacity: 0; transform: translateY(6px); } to { opacity: 1; transform: translateY(0); } }
-.inner, .dp-panel { animation: contentFadeIn 240ms ease-out; }
+.inner, .dp-panel { animation: contentFadeIn 220ms ease-out; }
 
 /* ---------- Utility ---------- */
 
@@ -1042,7 +1042,7 @@ h2 { font-size: 0.85rem; font-weight: 700; margin: 18px 0 0; color: var(--text);
 .tplprev-chan.clickable { cursor: pointer; }
 .tplprev-chan.clickable:hover { background: rgba(255,255,255,0.05); color: var(--text); }
 .tplprev-chan.active { background: rgba(173, 89, 64, 0.14); color: var(--text); }
-.tplprev-embed-panel { margin: 2px 2px 10px 30px; animation: contentFadeIn 180ms ease-out; }
+.tplprev-embed-panel { margin: 2px 2px 10px 30px; animation: contentFadeIn 220ms ease-out; }
 .tplprev-embed {
   padding: 10px 12px; border-left: 4px solid var(--ec, var(--accent)); background: var(--bg-input);
   border-radius: 3px; font-size: 0.82rem; color: var(--text);
