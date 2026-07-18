@@ -1161,6 +1161,12 @@ const HOME_MODULES = [
   // Statistiques : lecture seule, vue d'ensemble du serveur.
   { parent: 'stats', section: 'stats-members', icon: '👥', label: 'Membres', category: 'statistiques' },
   { parent: 'stats', section: 'stats-activity', icon: '💬', label: 'Activite', category: 'statistiques' },
+  { parent: 'stats', section: 'stats-voice-channels', icon: '🔊', label: 'Vocal par salon', category: 'statistiques' },
+  { parent: 'stats', section: 'stats-top-channels', icon: '🔤', label: 'Top salons', category: 'statistiques' },
+  { parent: 'stats', section: 'stats-role-distribution', icon: '🥧', label: 'Repartition roles', category: 'statistiques' },
+  { parent: 'stats', section: 'stats-boosts', icon: '🚀', label: 'Boosts', category: 'statistiques' },
+  { parent: 'stats', section: 'stats-participation', icon: '🗳️', label: 'Participation', category: 'statistiques' },
+  { parent: 'stats', section: 'stats-misc', icon: 'ℹ️', label: 'Autres indicateurs', category: 'statistiques' },
   { parent: 'botstatus', icon: '🤖', label: 'Statut du bot', category: 'statistiques' },
   { parent: 'memberlookup', icon: '🔎', label: 'Recherche de membres', category: 'statistiques' },
 ];
@@ -4645,6 +4651,9 @@ async function renderGameRolesPage(id, container = app) {
 
   container.innerHTML = `
     <div class="inner">
+      ${quickJumpBarHtml([
+    ['game-catalog', 'Catalogue de jeux'], ['game-active', 'Roles de jeu actifs'], ['game-reaction', 'Roles-reaction'],
+  ], 'jeux')}
       ${sectionHtml('Catalogue de jeux pregeneres', `
         <p class="muted">Ajoute un role de jeu sans attendre qu'un membre soit detecte en train d'y jouer.</p>
         ${catalogHtml}
@@ -4669,6 +4678,7 @@ async function renderGameRolesPage(id, container = app) {
       `, { id: 'game-reaction' })}
     </div>
   `;
+  wireQuickJump(container);
 
   document.getElementById('rr-add-role').addEventListener('click', () => {
     document.getElementById('reaction-role-rows').insertAdjacentHTML('beforeend', reactionRoleRowHtml());
@@ -8326,6 +8336,11 @@ async function renderStatsPage(id, container = app) {
 
   container.innerHTML = `
     <div class="inner">
+      ${quickJumpBarHtml([
+    ['stats-members', 'Membres'], ['stats-activity', 'Activite'], ['stats-voice-channels', 'Vocal par salon'],
+    ['stats-top-channels', 'Top salons'], ['stats-role-distribution', 'Repartition roles'], ['stats-boosts', 'Boosts'],
+    ['stats-participation', 'Participation'], ['stats-misc', 'Autres indicateurs'],
+  ], 'stats')}
       ${sectionHtml('Membres', `
         <p class="muted">Evolution du nombre de membres (${stats.length} jour(s) enregistre(s)${firstDate ? `, depuis le ${firstDate}` : ''}). ${memberTrendHtml}</p>
         ${lineChartSvg(memberPoints, { color: 'var(--accent)', annotations: growthAnnotations })}
@@ -8427,6 +8442,7 @@ async function renderStatsPage(id, container = app) {
       `, { id: 'stats-misc' })}
     </div>
   `;
+  wireQuickJump(container);
 
   // Bascule 7/30 jours pour le top salons (roadmap n°324).
   container.querySelectorAll('.top-channels-period').forEach((btn) => {
