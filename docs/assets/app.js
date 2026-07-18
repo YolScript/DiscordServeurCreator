@@ -2940,7 +2940,11 @@ async function renderSettingsPanel(guildId, key, preselectSectionId, { fromBack 
   const target = preselectSectionId
     ? body.querySelector(`#section-${preselectSectionId}`)
     : body.querySelector('.section-panel');
-  if (target?.id) activateSection(body, target.id.replace(/^section-/, ''));
+  // add() simple (pas activateSection, qui efface les autres .active) : des
+  // pages comme memberlookup melangent une section alwaysOpen (deja active
+  // au rendu) avec une section normale, l'effacer ici la masquerait a tort.
+  target?.classList.add('active');
+  if (target?.id) body.querySelector(`.dp-quickjump-btn[data-jump-to="${target.id.replace(/^section-/, '')}"]`)?.classList.add('active');
 
   if (fromBack && scrollPositions.has(key)) {
     const savedTop = scrollPositions.get(key);
